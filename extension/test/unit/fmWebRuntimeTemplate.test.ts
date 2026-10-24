@@ -14,6 +14,7 @@ import { createBlankLayout } from '../../src/fmweb/layoutSchema';
 import { FmBridgeServer } from '../../src/services/fmBridgeServer';
 import {
   FmWebRuntimeGenerator,
+  MANAGED_TEMPLATE_FILES,
   RUNTIME_TEMPLATE_VERSION,
   RuntimeTemplateUnavailableError,
   SHIPPED_MARKED_HASHES,
@@ -297,6 +298,19 @@ describe('FM Web runtime template', () => {
       const current = normalizedHash(await readFile(path.resolve(extensionDir, '..', 'runtime-next', file)));
       expect(hashes, `${file}: bump RUNTIME_TEMPLATE_VERSION and ADD this hash (keep the older ones): ${current}`).toContain(current);
     }
+  });
+
+  it('records the hash of the generated copy of the unmarked test config, so a change to it cannot ship without deciding about older copies', async () => {
+    // The generator rewrites the shared alias on the way out, so the copy that lies in an app is
+    // not the template file. It is read back from a real generation, not recomputed here.
+    const gen = generator();
+    await gen.generateRuntimeAppTemplate();
+    const generated = await readFile(path.join(gen.getGeneratedRuntimeRoot(), 'vitest.config.ts'));
+    const current = normalizedHash(generated);
+    expect(
+      MANAGED_TEMPLATE_FILES['vitest.config.ts'],
+      `vitest.config.ts: add the hash of the generated copy (keep the older ones): ${current}`
+    ).toContain(current);
   });
 
   it('records every current shared source hash so future refreshes recognize this release', async () => {

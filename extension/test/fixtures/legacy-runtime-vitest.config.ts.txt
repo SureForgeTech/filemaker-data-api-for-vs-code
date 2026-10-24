@@ -1,0 +1,11 @@
+import path from 'node:path';
+import { defineConfig } from 'vitest/config';
+
+export default defineConfig({
+  oxc: { jsx: { runtime: 'automatic' } },
+  resolve: { alias: { '@fmweb/shared': path.resolve(__dirname, './shared/src/index.ts') } },
+  test: {
+    environment: 'node',
+    include: ['lib/**/*.test.ts']
+  }
+});
