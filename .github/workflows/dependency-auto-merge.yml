@@ -19,13 +19,13 @@ jobs:
     steps:
       - name: Read Dependabot metadata
         id: metadata
-        uses: dependabot/fetch-metadata@21025c705c08248db411dc16f3619e6b5f9ea21a # v2.5.0
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
         with:
           github-token: ${{ github.token }}
 
       # Only the trusted base supplies the local action in this pull_request_target job.
       - name: Checkout base for local actions
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.pull_request.base.sha }}
           persist-credentials: false
