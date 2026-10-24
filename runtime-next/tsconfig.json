@@ -9,6 +9,6 @@
     "skipLibCheck": true,
     "types": ["node", "react", "react-dom"]
   },
-  "include": ["app/**/*.ts", "app/**/*.tsx", "lib/**/*.ts", "next-env.d.ts"],
+  "include": ["app/**/*.ts", "app/**/*.tsx", "lib/**/*.ts", "next-env.d.ts", "next.config.ts"],
   "exclude": ["node_modules"]
 }

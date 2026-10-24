@@ -15,6 +15,26 @@ test('both CI test jobs run workspace tests after shared is built', () => {
   }
 });
 
+test('the root lint and coverage gates reach the designer and runtime workspaces', () => {
+  const root = JSON.parse(read('../package.json'));
+  assert.equal(root.scripts.lint, 'npm run lint --workspaces --if-present');
+  assert.equal(root.scripts['test:coverage'], 'npm run test:coverage --workspaces --if-present');
+
+  // --workspaces --if-present only runs a script a workspace actually has, so a
+  // workspace without these scripts is silently left out of the root gates.
+  for (const workspace of ['designer-ui', 'runtime-next']) {
+    const manifest = JSON.parse(read(`../${workspace}/package.json`));
+    assert.ok(manifest.scripts.lint, `${workspace} needs a lint script for the root lint gate`);
+    assert.ok(manifest.scripts['test:coverage'], `${workspace} needs a test:coverage script for the root coverage gate`);
+  }
+
+  for (const job of ['build-test', 'cross-platform']) {
+    const steps = ci.jobs[job].steps;
+    assert.ok(steps.some((step) => step.run === 'npm run lint'), `${job} must run the root lint gate`);
+    assert.ok(steps.some((step) => step.run === 'npm run test:coverage'), `${job} must run the root coverage gate`);
+  }
+});
+
 test('only PR runs cancel predecessors; branch pushes do not duplicate PR runs', () => {
   assert.deepEqual(ci.on.push.branches, ['main']);
   assert.deepEqual(ci.on.push.tags, ['v*']);

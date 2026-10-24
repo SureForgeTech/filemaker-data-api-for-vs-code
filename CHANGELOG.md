@@ -42,6 +42,7 @@ PR title prefix matches the highest-tier label added:
 
 - The user guide, upgrade notes and a changelog by version are now on the project's website.
 - The monthly secret rotation reminder now reads the rotation calendar in docs/SECRETS.md and files a reminder issue about 30 days before a tracked credential is due; a manual dry run prints what it would file. A row that cannot be read, or a name that appears twice in the calendar, is reported and fails the run instead of silently hiding a rotation.
+- The Layout Mode app and the FM Web preview template now take part in the repository's lint and coverage gates, so a change in either is checked like the extension's own code. The README and docs/CI.md say how the extension uses both.
 
 ### [SECURITY]
 
