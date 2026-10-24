@@ -117,6 +117,27 @@ it('generates a self-contained test setup with jsdom and a shared alias that exi
   expect(pkg.dependencies['@fmweb/shared']).toBe('file:./shared');
 });
 
+it('gives the generated app no repository lint tooling, in the app manifest or the shared one', async () => {
+  const gen = runtime(); await gen.generateRuntimeAppTemplate();
+  const output = gen.getGeneratedRuntimeRoot();
+  // The lint and coverage gates belong to this repository. A generated app runs its own
+  // tests but does not lint itself, so it receives neither the scripts nor the packages.
+  const tooling = ['eslint', '@eslint/js', '@typescript-eslint/parser', '@typescript-eslint/eslint-plugin', 'eslint-config-prettier', 'globals'];
+  for (const manifest of ['package.json', path.join('shared', 'package.json')]) {
+    const pkg = JSON.parse(await readFile(path.join(output, manifest), 'utf8'));
+    expect(Object.keys(pkg.scripts ?? {}), manifest).not.toContain('lint');
+    expect(Object.keys(pkg.scripts ?? {}), manifest).not.toContain('test:coverage');
+    for (const name of tooling) {
+      expect(Object.keys(pkg.devDependencies ?? {}), `${manifest}: ${name}`).not.toContain(name);
+    }
+  }
+  // The app keeps what it needs: its own test script and its runtime dependencies.
+  const pkg = JSON.parse(await readFile(path.join(output, 'package.json'), 'utf8'));
+  expect(pkg.scripts.test).toBe('vitest run');
+  expect(pkg.devDependencies.vitest).toBeDefined();
+  expect(pkg.dependencies['@fmweb/shared']).toBe('file:./shared');
+});
+
 // Windows CI cannot load jsdom through a junction to the repository's node_modules (the module lookup for the jsdom test
 // files fails), so the generated project's own test run is checked on Linux and macOS only; the configuration is checked everywhere above.
 it.skipIf(process.platform === 'win32')('the generated project runs its own tests offline', async () => {

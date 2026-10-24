@@ -50,7 +50,9 @@ Press `F5` in VS Code to open an Extension Development Host, then run **FileMake
 
 Useful root scripts: `npm run lint`, `npm run typecheck`, `npm run test:coverage`, `npm run docs:api` (TypeDoc into `docs/api`), `npm run docs:site` (website into `pages`; open `pages/index.html` to preview it), `npm run package:check` (run `npm run build` first; builds a VSIX into `artifacts/` and validates it). See [Contributing](extension/CONTRIBUTING.md) for the full checklist.
 
-`npm run lint` and `npm run test:coverage` cover every workspace, `designer-ui/` and `runtime-next/` included. Each workspace has its own ESLint setup (`designer-ui/eslint.config.mjs`, `runtime-next/eslint.config.mjs`) and its own coverage floors in its Vitest config; the floors may only go up. A change in either workspace that breaks its lint or drops its coverage below the floor fails the root gate, the same as a failing extension test.
+`npm run lint` covers every workspace: each one has its own ESLint setup (`shared/eslint.config.mjs`, `designer-ui/eslint.config.mjs`, `runtime-next/eslint.config.mjs` and the extension's own), so a change that breaks the lint of any of them fails the root gate. `npm run test:coverage` covers every workspace that has tests; `designer-ui/` and `runtime-next/` keep their coverage floors in their own Vitest configs and the floors may only go up, so a change that drops either below its floor fails the root gate, the same as a failing extension test. `shared/` has no tests of its own and takes part in the lint gate only.
+
+The generated FM Web app in `.fmweb/generated/runtime-next` receives the app sources, not this repository's lint and coverage setup: it runs its own tests and does not lint itself.
 
 ## License
 
