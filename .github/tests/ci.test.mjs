@@ -6,6 +6,39 @@ import { parse } from 'yaml';
 const read = (file) => readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
 const ci = parse(read('workflows/ci.yml'));
 
+// The root gate uses --if-present. Keep the accepted command shape narrow so
+// an echo, ESLint information flag, or shell operator cannot silently pass it.
+// Expand this guard when a workspace intentionally needs a different command.
+const lintScriptProblem = (script) => {
+  if (typeof script !== 'string' || script.trim() === '') return 'the lint script is empty';
+  if (/[;&|\n`$<>]/.test(script)) return 'the lint script contains a shell operator';
+  const tokens = script.trim().split(/\s+/).map((token) => token.replace(/^["']|["']$/g, ''));
+  if (tokens[0] === 'npx') tokens.shift();
+  if (tokens.shift() !== 'eslint') return 'the lint script never runs eslint';
+  const targets = tokens.filter((token) => token !== '--max-warnings=0');
+  if (!targets.some((token) => !token.startsWith('-'))) return 'the eslint run lints no files';
+  if (!tokens.includes('--max-warnings=0')) return 'the eslint run does not pass --max-warnings=0';
+  if (targets.some((token) => token.startsWith('-') || !/^[\w./*{}?,!-]+$/.test(token))) {
+    return 'the eslint run has unsupported arguments';
+  }
+  return null;
+};
+
+// The lint gate of one workspace, checked against a manifest-like object.
+const assertRealLintScript = (label, manifest) => {
+  const script = manifest?.scripts?.lint;
+  assert.ok(
+    typeof script === 'string' && script.trim() !== '',
+    `${label} needs a lint script for the root lint gate`
+  );
+  const problem = lintScriptProblem(script);
+  assert.equal(
+    problem,
+    null,
+    `${label} needs a lint script that runs eslint over files with --max-warnings=0: ${problem}`
+  );
+};
+
 test('both CI test jobs run workspace tests after shared is built', () => {
   for (const name of ['build-test', 'cross-platform']) {
     const steps = ci.jobs[name].steps;
@@ -23,14 +56,15 @@ test('the root lint and coverage gates reach every workspace', () => {
   // --workspaces --if-present only runs a script a workspace actually has, so a
   // workspace without these scripts is silently left out of the root gates. Every
   // workspace of the root manifest is therefore checked here, and the check reads
-  // what the scripts do: a script that only pretends to lint ("true") would pass a
-  // truthiness check and leave the workspace unchecked.
+  // what the scripts do: a script that only pretends to lint ("echo eslint
+  // skipped", "eslint --version") would pass a keyword check and leave the
+  // workspace unchecked.
   assert.ok(Array.isArray(root.workspaces) && root.workspaces.length > 0, 'the root manifest must list its workspaces');
   for (const workspace of root.workspaces) {
     const manifest = JSON.parse(read(`../${workspace}/package.json`));
     const scripts = manifest.scripts ?? {};
     assert.ok(scripts.lint, `${workspace} needs a lint script for the root lint gate`);
-    assert.match(scripts.lint, /eslint/, `${workspace} needs a lint script that runs eslint, not a script that only says so`);
+    assertRealLintScript(workspace, manifest);
     if (scripts.test) {
       assert.ok(scripts['test:coverage'], `${workspace} needs a test:coverage script for the root coverage gate`);
       assert.match(scripts['test:coverage'], /coverage/, `${workspace} needs a test:coverage script that measures coverage, not a script that only says so`);
@@ -44,6 +78,49 @@ test('the root lint and coverage gates reach every workspace', () => {
     assert.ok(steps.some((step) => step.run === 'npm run lint'), `${job} must run the root lint gate`);
     assert.ok(steps.some((step) => step.run === 'npm run test:coverage'), `${job} must run the root coverage gate`);
   }
+});
+
+test('the lint guard accepts a manifest lint script that really runs eslint over files', () => {
+  for (const lint of [
+    'eslint "src/**/*.ts" --max-warnings=0',
+    'eslint src --max-warnings=0',
+    'eslint . --max-warnings=0',
+    'npx eslint "src/**/*.ts" --max-warnings=0'
+  ]) {
+    const manifest = { scripts: { lint } };
+    assert.equal(lintScriptProblem(lint), null, `${lint} must pass the lint guard`);
+    assert.doesNotThrow(() => assertRealLintScript('example', manifest));
+  }
+});
+
+test('the lint guard rejects a lint script that only pretends to lint', () => {
+  const cases = [
+    ['echo eslint skipped', /never runs eslint/],
+    ['eslint --version', /lints no files/],
+    ['eslint --version src --max-warnings=0', /unsupported arguments/],
+    ['eslint --print-config src --max-warnings=0', /unsupported arguments/],
+    ['eslint src --max-warnings=0 || true', /shell operator/],
+    ['eslint src --max-warnings=0 | tee log', /shell operator/]
+  ];
+  for (const [lint, reason] of cases) {
+    const manifest = { scripts: { lint } };
+    assert.match(lintScriptProblem(lint), reason, `${lint} must fail the lint guard`);
+    assert.throws(() => assertRealLintScript('example', manifest), /lint script/);
+  }
+});
+
+test('the lint guard rejects a lint run without files, without --max-warnings=0, or without a lint script', () => {
+  for (const [lint, reason] of [
+    ['eslint --max-warnings=0', /lints no files/],
+    ['eslint "src/**/*.ts"', /does not pass --max-warnings=0/],
+    ['eslint "src/**/*.ts" --max-warnings=1', /does not pass --max-warnings=0/],
+    ['true', /never runs eslint/]
+  ]) {
+    assert.match(lintScriptProblem(lint), reason, `${lint} must fail the lint guard`);
+  }
+
+  assert.match(lintScriptProblem(undefined), /empty/);
+  assert.throws(() => assertRealLintScript('example', { scripts: {} }), /needs a lint script/);
 });
 
 test('only PR runs cancel predecessors; branch pushes do not duplicate PR runs', () => {
