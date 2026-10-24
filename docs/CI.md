@@ -38,6 +38,8 @@ npm test -w designer-ui -w runtime-next
 npm run package:check
 ```
 
+Lint and coverage cover every workspace. `npm run lint` and `npm run test:coverage` run the script of each workspace that has one, every workspace of the root manifest declares a `lint` script, and the workspaces that have tests also declare a `test:coverage` script. The ESLint setups are `shared/eslint.config.mjs`, `designer-ui/eslint.config.mjs` and `runtime-next/eslint.config.mjs`; the coverage floors of `designer-ui/` and `runtime-next/` live in their own Vitest configs and may only go up. `.github/tests/ci.test.mjs` fails if a workspace drops one of those scripts, or if a script only pretends to do the work (a `lint` script that does not run ESLint, a `test:coverage` script that does not measure coverage), because the root gate would then quietly stop covering it.
+
 If you add a check that should block merges, add its context to the branch protection rule for `main` in the same change, and update this page. A custom guardrail is worth adding when lint, the compiler and the tests cannot express the rule (for example a settings change that must come with a migration).
 
 ## Cross-platform job

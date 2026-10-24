@@ -30,6 +30,55 @@ interface GeneratedLayoutSummary {
 /** Values that are safe to write to a `.env` line: no whitespace, quotes or line breaks. */
 const SAFE_ENV_VALUE = /^[A-Za-z0-9:/._~%+=@-]+$/;
 
+/**
+ * The repository's own quality-gate tooling. A generated FM Web app runs its own tests but does
+ * not lint itself, so it needs neither these scripts nor these packages; before this repository
+ * grew its own gates, generated apps shipped neither. They are therefore removed from every
+ * manifest the generator writes, and nothing else is: the app keeps its `test` script and its
+ * runtime dependencies.
+ */
+export const MONOREPO_ONLY_TOOLING = {
+  scripts: ['lint', 'test:coverage'],
+  devDependencies: [
+    'eslint',
+    '@eslint/js',
+    '@typescript-eslint/parser',
+    '@typescript-eslint/eslint-plugin',
+    'eslint-config-prettier',
+    'globals'
+  ]
+} as const;
+
+interface PackageManifest {
+  scripts?: Record<string, string>;
+  devDependencies?: Record<string, string>;
+  [key: string]: unknown;
+}
+
+/**
+ * The manifest of a generated app: the template manifest without the repository's own quality-gate
+ * tooling. Keys that the template does not have are not added, and the order of the remaining keys
+ * is kept, so a generated manifest stays byte-for-byte the one earlier releases shipped.
+ */
+export function withoutMonorepoTooling(pkg: PackageManifest): PackageManifest {
+  const result: PackageManifest = { ...pkg };
+  if (pkg.scripts) {
+    const scripts = { ...pkg.scripts };
+    for (const name of MONOREPO_ONLY_TOOLING.scripts) {
+      delete scripts[name];
+    }
+    result.scripts = scripts;
+  }
+  if (pkg.devDependencies) {
+    const devDependencies = { ...pkg.devDependencies };
+    for (const name of MONOREPO_ONLY_TOOLING.devDependencies) {
+      delete devDependencies[name];
+    }
+    result.devDependencies = devDependencies;
+  }
+  return result;
+}
+
 /** Bump together with the `fmweb-managed: runtime template vN` line in the managed files. */
 export const RUNTIME_TEMPLATE_VERSION = 7;
 const MANAGED_MARKER = /^(?:\/\/|\/\*) fmweb-managed: runtime template v(\d+)/;
@@ -39,10 +88,24 @@ const MANAGED_MARKER = /^(?:\/\/|\/\*) fmweb-managed: runtime template v(\d+)/;
  * generated earlier: the bridge client and the code that hands it the address and token. Each
  * value lists SHA-256 hashes (line endings normalised) of the shipped versions that had no
  * version marker, so an unmodified old copy can be recognised and refreshed safely.
+ *
+ * A hash is of the file as it lies in a GENERATED app, which is not always the template file:
+ * the generator rewrites `package.json` (the shared dependency) and `vitest.config.ts` (the
+ * shared alias) on the way out. An app generated before a rewrite carries the older form, and an
+ * app generated after it carries the rewritten one, so both forms of a rewritten file belong
+ * here. The hash of the raw template file in use is appended at runtime, so it does not.
  */
-const MANAGED_TEMPLATE_FILES: Record<string, string[]> = {
+export const MANAGED_TEMPLATE_FILES: Record<string, string[]> = {
   'package.json': ['01f94b699e9d6c9939b2bb1a49028f028c7ba29e2f9f53bd2160318edbecb991', '6d184961fb6759b90115ff94d15dac9455b401917d2d1527b7d3b98531b67ee8', 'c170e5afd10b11e6a02c5914756407fce984f6d925766c0a68077cd0515af9b8'],
-  'vitest.config.ts': ['c2bd4b81a42becfbb5fa2fc55aee8c57943590ed9ec79c17082731f78a59b949'],
+  'vitest.config.ts': [
+    // The raw template file, which is what an app generated before the shared alias was rewritten
+    // carries. The raw file of the template in use is appended at runtime, not listed here.
+    'c2bd4b81a42becfbb5fa2fc55aee8c57943590ed9ec79c17082731f78a59b949',
+    // The rewritten copy an app generated before the test config gained its coverage block has.
+    '64750770206792d2d1373c5de4c2984417c296f345425ba4ab065f4229081f02',
+    // The rewritten copy this release makes.
+    'bc61824030aa0581801925376a7bfaaf4ead07a33876a7c88eb18764750cd53d'
+  ],
   'app/styles.css': ['ed5fdbfd2e42b6e952332bc74a1ddbeefe9d831493d72b567e8832bf98c4c6f8'],
   'app/layouts/[id]/page.tsx': [
     '0da7442c0152dd6bc59d53741a7bca633723afad470e5afb095e73590412b266',
@@ -198,9 +261,13 @@ export class FmWebRuntimeGenerator {
       const managedKey = relativePath.split(path.sep).join('/');
       const sourceContent = await readFile(sourcePath);
       const content = relativePath === 'package.json'
-        ? Buffer.from(`${JSON.stringify({ ...JSON.parse(sourceContent.toString('utf8')), dependencies: {
-            ...JSON.parse(sourceContent.toString('utf8')).dependencies, '@fmweb/shared': 'file:./shared'
-          } }, null, 2)}\n`)
+        ? Buffer.from(`${JSON.stringify({
+            ...withoutMonorepoTooling(JSON.parse(sourceContent.toString('utf8'))),
+            dependencies: {
+              ...JSON.parse(sourceContent.toString('utf8')).dependencies,
+              '@fmweb/shared': 'file:./shared'
+            }
+          }, null, 2)}\n`)
         : relativePath === 'vitest.config.ts'
           ? Buffer.from(sourceContent.toString('utf8').replace("'../shared/src/index.ts'", "'./shared/src/index.ts'"))
           : sourceContent;
@@ -259,7 +326,13 @@ export class FmWebRuntimeGenerator {
       if (file === 'package.json') {
         const pkg = JSON.parse(content.toString('utf8'));
         // Next transpiles this source package; no prebuilt/stale shared dist is copied.
-        content = Buffer.from(`${JSON.stringify({ ...pkg, main: 'src/index.ts', types: 'src/index.ts', scripts: {} }, null, 2)}\n`);
+        // The repository's own lint tooling is not copied either: a generated app does not lint itself.
+        content = Buffer.from(`${JSON.stringify({
+          ...withoutMonorepoTooling(pkg),
+          main: 'src/index.ts',
+          types: 'src/index.ts',
+          scripts: {}
+        }, null, 2)}\n`);
       }
       await this.assertSafeFolder(path.dirname(target));
       const present = await lstat(target).catch(() => undefined);
@@ -441,6 +514,16 @@ async function collectFiles(rootDir: string, currentDir: string): Promise<string
   for (const entry of entries) {
     // Never copy local env files (they can hold a bridge token) or build output.
     if (entry.name === 'node_modules' || entry.name === '.next' || entry.name === '.vite' || entry.name.startsWith('.env')) {
+      continue;
+    }
+    // Coverage output of the repository's own gates: a report of a run that has nothing to do
+    // with the app, and it changes with every run.
+    if (entry.isDirectory() && entry.name === 'coverage') {
+      continue;
+    }
+    // The lint configuration of the repository: a generated app does not lint itself, and the
+    // file names packages the app does not have.
+    if (entry.isFile() && entry.name === 'eslint.config.mjs') {
       continue;
     }
 

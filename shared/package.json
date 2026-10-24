@@ -7,6 +7,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "tsc -w -p tsconfig.json",
+    "lint": "eslint \"src/**/*.ts\" \"src/**/*.tsx\" --max-warnings=0",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
@@ -14,7 +15,13 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/react": "^19.3.0",
+    "@typescript-eslint/eslint-plugin": "^8.72.0",
+    "@typescript-eslint/parser": "^8.72.0",
+    "eslint": "^10.13.0",
+    "eslint-config-prettier": "^10.1.2",
+    "globals": "^17.13.0",
     "typescript": "^7.0.2"
   }
 }

@@ -27,14 +27,14 @@ The Marketplace page is [extension/README.md](extension/README.md).
 
 ## Repository layout
 
-| Folder | Contents |
-| --- | --- |
-| `extension/` | The VS Code extension (published as `SureForgeTech.filemaker-data-api-tools`) |
-| `shared/` | Shared schema, types and renderer utilities |
-| `designer-ui/` | React webview app for FM Web Layout Mode |
-| `runtime-next/` | Next.js runtime template for generated FM Web apps |
-| `docs/` | Maintainer, security and release documentation |
-| `tools/` | Release helpers (`release-notes.sh`, the pinned `vsce` install) |
+| Folder | Contents | How the extension uses it |
+| --- | --- | --- |
+| `extension/` | The VS Code extension (published as `SureForgeTech.filemaker-data-api-tools`) | The extension itself. |
+| `shared/` | Shared schema, types and renderer utilities | Imported by the extension and by both workspaces below. |
+| `designer-ui/` | React webview app for FM Web Layout Mode | The Layout Mode bundle. `extension/scripts/build-designer-ui-if-available.mjs` builds it and copies it into the extension; the extension build fails when the bundle cannot be produced. |
+| `runtime-next/` | Next.js runtime template for generated FM Web apps | The FM Web preview template. `fmWebRuntimeGenerator` (`extension/src/services/fmWebRuntimeGenerator.ts`) copies it into `.fmweb/generated/runtime-next` in your workspace. It is **not** part of the Marketplace VSIX, so a Marketplace install says plainly that the preview is unavailable rather than generating an app that cannot work. Run the extension from this repository to use the preview. |
+| `docs/` | Maintainer, security and release documentation | — |
+| `tools/` | Release helpers (`release-notes.sh`, the pinned `vsce` install) | — |
 
 ## Develop
 
@@ -49,6 +49,10 @@ npm test
 Press `F5` in VS Code to open an Extension Development Host, then run **FileMaker: Add Connection Profile**. No FileMaker server? Run `npm run mock:server -w extension` and point a profile at the mock Data API described in [CONTRIBUTING.md](extension/CONTRIBUTING.md).
 
 Useful root scripts: `npm run lint`, `npm run typecheck`, `npm run test:coverage`, `npm run docs:api` (TypeDoc into `docs/api`), `npm run docs:site` (website into `pages`; open `pages/index.html` to preview it), `npm run package:check` (run `npm run build` first; builds a VSIX into `artifacts/` and validates it). See [Contributing](extension/CONTRIBUTING.md) for the full checklist.
+
+`npm run lint` covers every workspace: each one has its own ESLint setup (`shared/eslint.config.mjs`, `designer-ui/eslint.config.mjs`, `runtime-next/eslint.config.mjs` and the extension's own), so a change that breaks the lint of any of them fails the root gate. `npm run test:coverage` covers every workspace that has tests; `designer-ui/` and `runtime-next/` keep their coverage floors in their own Vitest configs and the floors may only go up, so a change that drops either below its floor fails the root gate, the same as a failing extension test. `shared/` has no tests of its own and takes part in the lint gate only.
+
+The generated FM Web app in `.fmweb/generated/runtime-next` receives the app sources, not this repository's lint and coverage setup: it runs its own tests and does not lint itself.
 
 ## License
 
