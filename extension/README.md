@@ -8,7 +8,7 @@ Connect to any FileMaker Data API server and run queries, browse schema, edit re
 
 **Built by [ABD Enterprises](https://abdenterprises.com).** Free, open source (MIT), no telemetry, no cloud account.
 
-Version **1.8.0** adds **Cancel Job** with job status and failure details, **Test My Server** and **Diagnose Connection** to explain connection problems without signing in, and a **Browse** button in the connection wizard for a custom CA certificate. See the [upgrade notes](https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/blob/main/extension/UPGRADE.md) before importing a file.
+Version **1.8.0** adds a **Browse** button in the connection wizard for a custom CA certificate, clearer sign-in errors that say which of the two common causes applies and link to the fix, and the field-order and panel fixes listed in the changelog. See the [upgrade notes](https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/blob/main/extension/UPGRADE.md) before importing a file.
 
 One real FileMaker server was exercised on **2026-10-21**, but its version was not recorded. No server version has a completed recorded smoke test; see [Compatibility](https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/blob/main/extension/docs/COMPATIBILITY.md). FileMaker Cloud sign-in with a Claris ID is **not supported**.
 

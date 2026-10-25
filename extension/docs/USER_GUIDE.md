@@ -243,10 +243,8 @@ Changes you may notice (details in the [upgrade notes](../UPGRADE.md)):
 
 ### New in 1.8
 
-These changes came after 1.7.0; read [Upgrading from 1.7.0 to 1.8.0](../UPGRADE.md#upgrading-from-170-to-180) before sharing a connection report:
+These changes came after 1.7.0; read [Upgrading from 1.7.0 to 1.8.0](../UPGRADE.md#upgrading-from-170-to-180) before importing a file:
 
-- **Cancel a running job.** **Cancel Job** is in the Command Palette, in the menu of a running job and in the jobs status menu. Job details offer **Copy failures** with the error codes.
-- **Check the server.** **Test My Server** reads a record and checks the server. **Diagnose Connection** checks the address, the network, the certificate and the Data API without signing in, and copies a report.
 - **Pick a CA certificate with Browse.** The connection wizard's certificate section has a **Browse** button that opens the system file picker for a PEM, CRT or CER file, instead of typing the path. The path is saved with the profile and used by **Test Connection**.
 - **Sign-in errors explain both causes.** FileMaker error 212 now says it can be a mistyped password or a privilege set without the `fmrest` extended privilege, and names the path in FileMaker Pro.
 - **A Troubleshooting link in Details.** Errors 212 and 9 show the matching Troubleshooting link in the Details report; other FileMaker codes keep their existing message.

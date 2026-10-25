@@ -14,9 +14,9 @@ The certificate section in the connection wizard has a **Browse** button that op
 
 FileMaker error 212 now explains both possible causes: a mistyped password, or a privilege set that is missing the `fmrest` extended privilege, and it names the path in FileMaker Pro. Errors 212 and 9 also carry a Troubleshooting link in the Details report; other FileMaker codes keep their existing message.
 
-### New job and connection commands
+### Web page generator: security update
 
-**Cancel Job** is in the Command Palette, in the menu of a running job and in the jobs status menu, and job details offer **Copy failures**. **Test My Server** reads a record and checks the server, and **Diagnose Connection** checks the address, the network, the certificate and the Data API without signing in and copies a report.
+The web page generator now uses Next.js 16.4.2, which fixes two published problems in Next.js: an image-handling flaw and a denial-of-service flaw. The extension itself did not use the affected parts, but an app you generated earlier keeps its old version, Next.js 16.4.1. Run `npm install next@16.4.2` in `.fmweb/generated/runtime-next` to update that app.
 
 ## Upgrading from 1.6.0 to 1.7.0
 
