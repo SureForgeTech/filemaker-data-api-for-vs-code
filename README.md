@@ -1,6 +1,6 @@
 # FileMaker Data API Tools for VS Code
 
-[![Marketplace version](https://img.shields.io/visual-studio-marketplace/v/SureForgeTech.filemaker-data-api-tools)](https://marketplace.visualstudio.com/items?itemName=SureForgeTech.filemaker-data-api-tools) [![Marketplace installs](https://img.shields.io/visual-studio-marketplace/i/SureForgeTech.filemaker-data-api-tools)](https://marketplace.visualstudio.com/items?itemName=SureForgeTech.filemaker-data-api-tools) [![License: MIT](https://img.shields.io/github/license/SureForgeTech/filemaker-data-api-for-vs-code)](LICENSE)
+[![Marketplace version](https://vsmarketplacebadges.dev/version/SureForgeTech.filemaker-data-api-tools.svg)](https://marketplace.visualstudio.com/items?itemName=SureForgeTech.filemaker-data-api-tools) [![Marketplace installs](https://vsmarketplacebadges.dev/installs/SureForgeTech.filemaker-data-api-tools.svg)](https://marketplace.visualstudio.com/items?itemName=SureForgeTech.filemaker-data-api-tools) [![License: MIT](https://img.shields.io/github/license/SureForgeTech/filemaker-data-api-for-vs-code)](LICENSE)
 
 A free, open-source VS Code extension for the FileMaker Data API: connect, query, edit records, compare schemas, export and update in batches, generate TypeScript types, and (optionally, off by default) give AI tools safe access, including a read-only `@filemaker` chat participant. MIT licensed, no telemetry.
 
