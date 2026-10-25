@@ -2,7 +2,7 @@ import type { AxiosError } from 'axios';
 
 import { FMClientError } from '../services/errors';
 import type { NormalizeErrorOptions, NormalizedError, NormalizedErrorKind } from '../types/errors';
-import { getFileMakerErrorInfo } from './fileMakerCodes';
+import { docsUrlForCode, getFileMakerErrorInfo } from './fileMakerCodes';
 import { describeNetworkFailure, extractNetworkCode, extractNetworkMessage, targetOfUrl } from './networkErrors';
 import { proxyConnectionFailure } from './proxyConnectionFailure';
 import { plainTextPreview } from './plainText';
@@ -145,6 +145,9 @@ function normalizeAxiosError(error: AxiosError, options?: NormalizeErrorOptions)
 
   const code = fmMessage?.code;
   const info = getFileMakerErrorInfo(code);
+  // Only the codes with a section in the troubleshooting page get a link; every other code keeps
+  // the plain message it has always had.
+  const docsUrl = code === undefined ? undefined : docsUrlForCode(code);
   // A FileMaker credentials problem is an authentication failure whatever the HTTP status was.
   const kind: NormalizedErrorKind = info?.category === 'credentials' ? 'auth' : inferKind(status);
   const rejectedLogin = info?.category === 'credentials' || status === 401;
@@ -167,6 +170,7 @@ function normalizeAxiosError(error: AxiosError, options?: NormalizeErrorOptions)
     status,
     code,
     fmCategory: info?.category,
+    ...(docsUrl ? { docsUrl } : {}),
     safeHeaders,
     isRetryable,
     ...(retryAfterMs !== undefined ? { retryAfterMs } : {}),

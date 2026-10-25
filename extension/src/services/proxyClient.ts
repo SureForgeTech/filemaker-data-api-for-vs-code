@@ -16,7 +16,7 @@ import type {
 } from '../types/fm';
 import { extractLayoutNames } from '../utils/layoutParser';
 import { extractScriptNames } from '../utils/scriptParser';
-import { getFileMakerErrorInfo } from '../utils/fileMakerCodes';
+import { docsUrlForCode, getFileMakerErrorInfo } from '../utils/fileMakerCodes';
 import { normalizeError } from '../utils/normalizeError';
 import { redactValue } from '../utils/redact';
 import { httpsTransportFor, pinBypassedByHost } from './tlsAgent';
@@ -404,6 +404,7 @@ function proxyFailure(envelope: ProxyEnvelope<unknown>, httpStatus: number | und
       status,
       code: fmCode,
       fmCategory: info?.category,
+      docsUrl: docsUrlForCode(fmCode),
       kind: info?.category === 'credentials' ? 'auth' : undefined,
       isRetryable: info?.retryable === true,
       details: envelope.details

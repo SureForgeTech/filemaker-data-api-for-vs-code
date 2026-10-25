@@ -5,6 +5,7 @@ import { toUserErrorMessage } from '../../utils/errorUx';
 import { FMClientError } from '../../services/errors';
 import { reviewAndTrustCertificate } from '../../services/certificateTrust';
 import { describeNetworkFailure } from '../../utils/networkErrors';
+import { docsUrlForCode } from '../../utils/fileMakerCodes';
 import type { WizardFormData } from './types';
 import type { WizardContext } from './context';
 import { confirmCredentialTargets, credentialBindingChanged } from './credentials';
@@ -198,6 +199,8 @@ function explainTestFailure(error: unknown, rung: string, hosted: string[] | und
     code: error.code,
     networkCode: error.networkCode,
     fmCategory: error.fmCategory,
+    // The troubleshooting section for the FileMaker code, so the report links to what explains it.
+    docsUrl: docsUrlForCode(error.code ?? ''),
     kind: error.kind,
     isRetryable: error.isRetryable,
     details: error.details

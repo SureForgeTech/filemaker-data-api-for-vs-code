@@ -221,9 +221,10 @@ interface RenderErrorReportOptions {
  * markdown report suitable for both the Details document and the
  * "Copy as Bug Report" clipboard action.
  *
- * All free-form string fields (message, endpoint, requestId, request-chain
- * URLs/notes) are passed through `redactString` so secrets embedded in
- * messages or query params are masked before they reach the clipboard.
+ * All free-form string fields (message, endpoint, requestId, docsUrl,
+ * request-chain URLs/notes) are passed through `redactString` so secrets
+ * embedded in messages or query params are masked before they reach the
+ * clipboard.
  *
  * Exported for testing.
  */
@@ -251,6 +252,9 @@ export function renderErrorReport(
   }
   if (normalized.requestId) {
     lines.push(`- **Request id:** ${redactString(normalized.requestId)}`);
+  }
+  if (normalized.docsUrl) {
+    lines.push(`- **Troubleshooting:** ${redactString(normalized.docsUrl)}`);
   }
   lines.push(`- **Retryable:** ${normalized.isRetryable}`);
   if (typeof normalized.retryCount === 'number') {

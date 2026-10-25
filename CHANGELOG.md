@@ -37,6 +37,7 @@ PR title prefix matches the highest-tier label added:
 - All screens now share the same fonts, buttons, messages and read-only look.
 - Read-only values stay easy to read, empty messages remain available to screen readers, and headings, panels and control sizes match across screens. Schema Diff opens with **Show only changes** ticked; clear it to see unchanged fields.
 - Panels no longer sit empty when the extension cannot finish a request. The Record Viewer, Record Editor, Query Builder, Script Runner, Connection Wizard, Layout Mode and Schema Diff now say what went wrong instead of waiting forever, and the reason is written to the output channel.
+- Sign-in errors now say what to do: FileMaker error 212 explains both possible causes — a mistyped password or a privilege set missing the `fmrest` extended privilege, with the exact FileMaker Pro path — and the error report now shows the matching Troubleshooting link for errors 212 and 9. Other FileMaker codes keep their existing message.
 
 ### [INTERNAL]
 

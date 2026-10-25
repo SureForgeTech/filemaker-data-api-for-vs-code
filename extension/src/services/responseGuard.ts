@@ -1,6 +1,6 @@
 import type { DataApiEnvelope } from '../types/dataApi';
 import type { ScriptErrorReport } from '../types/fm';
-import { getFileMakerErrorInfo } from '../utils/fileMakerCodes';
+import { docsUrlForCode, getFileMakerErrorInfo } from '../utils/fileMakerCodes';
 import { plainTextPreview } from '../utils/plainText';
 import { redactValue } from '../utils/redact';
 import { FMClientError } from './errors';
@@ -84,6 +84,7 @@ export function parseDataApiEnvelope<T extends Record<string, unknown>>(raw: Raw
         status: raw.status,
         code,
         fmCategory: info?.category,
+        docsUrl: docsUrlForCode(code),
         kind: info?.category === 'credentials' ? 'auth' : 'server',
         isRetryable: info?.retryable === true,
         details: redactValue(envelope)

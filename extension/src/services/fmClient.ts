@@ -13,7 +13,7 @@ import { ProxyClient } from './proxyClient';
 import { FMClientError, toFMClientError } from './errors';
 import { normalizeError } from '../utils/normalizeError';
 import { cacheKeyMatchesProfile } from '../utils/profileCacheKey';
-import { isCredentialRejection } from '../utils/fileMakerCodes';
+import { docsUrlForCode, isCredentialRejection } from '../utils/fileMakerCodes';
 import { SessionTokenTracker } from './session/sessionTokenTracker';
 import { httpsTransportFor, noteRequestTimeout, pinBypassedByHost } from './tlsAgent';
 import type {
@@ -580,6 +580,7 @@ export class FMClient {
             code: pause.code,
             kind: 'auth',
             fmCategory: 'credentials',
+            docsUrl: docsUrlForCode(pause.code),
             isRetryable: false,
             details: { signInPaused: true }
           }

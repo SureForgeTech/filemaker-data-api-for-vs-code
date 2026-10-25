@@ -370,6 +370,7 @@ describe('ProxyClient keeps what FileMaker said (proxy error envelope)', () => {
     expect(error.code).toBe('212');
     expect(error.kind).toBe('auth');
     expect(error.isRetryable).toBe(false);
+    expect(error.docsUrl).toContain('TROUBLESHOOTING.md#http-401-the-server-refused-the-request');
   });
 
   it('without fmCode the proxy\'s own message still comes through', async () => {
