@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { FMClientError, toFMClientError } from '../../src/services/errors';
+import { docsUrlForCode } from '../../src/utils/fileMakerCodes';
 import { normalizeError } from '../../src/utils/normalizeError';
 
 describe('normalizeError', () => {
@@ -134,6 +135,21 @@ describe('normalizeError', () => {
 
     expect(error.message).toMatch(/^FileMaker API error \(HTTP 401\) \[100\]: File is missing/);
     expect(error.docsUrl).toBeUndefined();
+  });
+});
+
+describe('docsUrlForCode', () => {
+  it('gives the troubleshooting link for the codes that have a section', () => {
+    expect(docsUrlForCode('212')).toBe(
+      'https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/blob/main/extension/docs/TROUBLESHOOTING.md#http-401-the-server-refused-the-request'
+    );
+    expect(docsUrlForCode('9')).toBe(
+      'https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/blob/main/extension/docs/TROUBLESHOOTING.md#the-account-lacks-a-privilege'
+    );
+  });
+
+  it('gives no link for a code without a section', () => {
+    expect(docsUrlForCode('100')).toBeUndefined();
   });
 });
 

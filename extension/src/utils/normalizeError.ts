@@ -2,7 +2,7 @@ import type { AxiosError } from 'axios';
 
 import { FMClientError } from '../services/errors';
 import type { NormalizeErrorOptions, NormalizedError, NormalizedErrorKind } from '../types/errors';
-import { getFileMakerErrorInfo } from './fileMakerCodes';
+import { docsUrlForCode, getFileMakerErrorInfo } from './fileMakerCodes';
 import { describeNetworkFailure, extractNetworkCode, extractNetworkMessage, targetOfUrl } from './networkErrors';
 import { proxyConnectionFailure } from './proxyConnectionFailure';
 import { plainTextPreview } from './plainText';
@@ -12,22 +12,6 @@ interface FileMakerMessage {
   code: string;
   message: string;
 }
-
-/**
- * The troubleshooting page section for the FileMaker codes that have one. The link points at the
- * section, not the page, so it stays useful as the page grows. A Map, so a code from an untrusted
- * response cannot reach anything but the two entries below.
- */
-const DOCS_URLS = new Map<string, string>([
-  [
-    '212',
-    'https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/blob/main/extension/docs/TROUBLESHOOTING.md#http-401-the-server-refused-the-request'
-  ],
-  [
-    '9',
-    'https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/blob/main/extension/docs/TROUBLESHOOTING.md#the-account-lacks-a-privilege'
-  ]
-]);
 
 export function normalizeError(error: unknown, options?: NormalizeErrorOptions): NormalizedError {
   if (isNormalizedError(error)) {
@@ -163,7 +147,7 @@ function normalizeAxiosError(error: AxiosError, options?: NormalizeErrorOptions)
   const info = getFileMakerErrorInfo(code);
   // Only the codes with a section in the troubleshooting page get a link; every other code keeps
   // the plain message it has always had.
-  const docsUrl = code === undefined ? undefined : DOCS_URLS.get(code);
+  const docsUrl = code === undefined ? undefined : docsUrlForCode(code);
   // A FileMaker credentials problem is an authentication failure whatever the HTTP status was.
   const kind: NormalizedErrorKind = info?.category === 'credentials' ? 'auth' : inferKind(status);
   const rejectedLogin = info?.category === 'credentials' || status === 401;

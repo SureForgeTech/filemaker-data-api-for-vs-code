@@ -202,6 +202,27 @@ export function getFileMakerErrorInfo(code: number | string | undefined): FileMa
   return numeric === undefined || !Number.isInteger(numeric) ? undefined : KNOWN[numeric];
 }
 
+/**
+ * The troubleshooting page section for the FileMaker codes that have one. The link points at the
+ * section, not the page, so it stays useful as the page grows. A Map, so a code from an untrusted
+ * response cannot reach anything but the two entries below.
+ */
+const DOCS_URLS = new Map<string, string>([
+  [
+    '212',
+    'https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/blob/main/extension/docs/TROUBLESHOOTING.md#http-401-the-server-refused-the-request'
+  ],
+  [
+    '9',
+    'https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/blob/main/extension/docs/TROUBLESHOOTING.md#the-account-lacks-a-privilege'
+  ]
+]);
+
+/** The troubleshooting link for a FileMaker code, or nothing when the code has no section. */
+export function docsUrlForCode(code: string): string | undefined {
+  return DOCS_URLS.get(code);
+}
+
 /** Codes where signing in again with the same stored credentials cannot work. */
 export function isCredentialRejection(code: string | undefined): boolean {
   return (
