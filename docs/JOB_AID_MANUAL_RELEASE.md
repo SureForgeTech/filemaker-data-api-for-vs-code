@@ -9,7 +9,7 @@ Written for version `1.8.0` (the steps are the same for any version: replace the
 - The release pull request (`[minor] Release 1.8.0`) is **merged**. The release commit for 1.8.0 is the merge commit of that pull request (the commands below find it; write it down in the release pull request once merged). Later merges to `main` do not matter, because the steps below pin that commit; a build from any later commit would be a different VSIX.
 - You are signed in to `gh` (`gh auth status`) as an admin of `SureForgeTech/filemaker-data-api-for-vs-code`, and you can sign in at <https://marketplace.visualstudio.com/manage> as an owner of the publisher.
 - Node.js 22 or newer and `git`.
-- **The release date.** The notes say `_Released 2026-10-22._`: that is the day the release was prepared, not necessarily the day you publish. The Marketplace and GitHub show the real publish date. If you publish on a later day, leave the text as it is (changing it after the merge would mean another change on `main` and a different VSIX); if you want the date to match, merge a one-line change to that date in `extension/CHANGELOG.md` and `CHANGELOG.md` first and use that merge commit.
+- **The release date.** The notes say `_Released 2026-10-25._`: that is the day the release was prepared, not necessarily the day you publish. The Marketplace and GitHub show the real publish date. If you publish on a later day, leave the text as it is (changing it after the merge would mean another change on `main` and a different VSIX); if you want the date to match, merge a one-line change to that date in `extension/CHANGELOG.md` and `CHANGELOG.md` first and use that merge commit.
 
 ## 1. Build the VSIX from the merged commit
 

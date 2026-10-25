@@ -16,7 +16,7 @@ FileMaker error 212 now explains both possible causes: a mistyped password, or a
 
 ### Web page generator: security update
 
-The web page generator now uses Next.js 16.4.2, which fixes two published problems in Next.js: an image-handling flaw and a denial-of-service flaw. The extension itself did not use the affected parts, but an app you generated earlier keeps its old version, Next.js 16.4.1. Run `npm install next@16.4.2` in `.fmweb/generated/runtime-next` to update that app.
+The web page generator now uses Next.js 16.4.2, which fixes two published problems in Next.js: an image-handling flaw and a denial-of-service flaw. The extension itself did not use the affected parts, but an app you generated earlier keeps its old version. Run `npm install next@16.4.2` in `.fmweb/generated/runtime-next` to update that app.
 
 ## Upgrading from 1.6.0 to 1.7.0
 

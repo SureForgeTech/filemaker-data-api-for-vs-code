@@ -50,7 +50,6 @@ PR title prefix matches the highest-tier label added:
 
 ### [FIX]
 
-- Security: the web page generator now uses Next.js 16.4.2, which fixes two published problems in Next.js (an image-handling flaw and a denial-of-service flaw). The extension itself did not use the affected parts, but apps you generated earlier keep their old version: run `npm install next@16.4.2` in `.fmweb/generated/runtime-next` to update them.
 - The Record Editor shows fields in the same order as your layout, with the right kind of box for each field. The Viewer, find form and FM Web use the same field rules, and Copy no longer covers record values. A container shows its image and, when that image cannot be shown, its address. A repeated field now appears in FM Web. A required repeated field no longer stops a save, and a repeated column in a portal shows its value.
 - Website tables scroll on small screens, documentation links stay on the website, and repeated documentation links are removed.
 - Generated FM Web apps can run their own tests and refresh untouched older shared files. Missing field details, stopped previews and save errors have clearer messages; date hints appear while editing and saved messages clear when browsing.
@@ -71,7 +70,7 @@ PR title prefix matches the highest-tier label added:
 
 ### [SECURITY]
 
-- None.
+- Security: the web page generator now uses Next.js 16.4.2, which fixes two published problems in Next.js (an image-handling flaw and a denial-of-service flaw). The extension itself did not use the affected parts, but apps you generated earlier keep their old version: run `npm install next@16.4.2` in `.fmweb/generated/runtime-next` to update them.
 
 ## 1.7.0 (2026-10-22)
 

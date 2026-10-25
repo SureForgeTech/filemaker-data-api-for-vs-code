@@ -6,7 +6,7 @@
 
 _Released 2026-10-25._
 
-Read [UPGRADE.md](https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/blob/main/extension/UPGRADE.md), “Upgrading from 1.7.0 to 1.8.0”, before your next batch update.
+Read [UPGRADE.md](https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/blob/main/extension/UPGRADE.md), “Upgrading from 1.7.0 to 1.8.0”.
 
 - The Marketplace listing description and the README lead now open with one sentence: connect to any FileMaker Data API server, run queries, browse schema, edit records and export results without leaving VS Code.
 - Security: the web page generator now uses Next.js 16.4.2, which fixes two published problems in Next.js (an image-handling flaw and a denial-of-service flaw). The extension itself did not use the affected parts, but apps you generated earlier keep their old version: run `npm install next@16.4.2` in `.fmweb/generated/runtime-next` to update them.

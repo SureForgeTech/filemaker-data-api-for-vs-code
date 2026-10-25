@@ -8,7 +8,7 @@ Connect to any FileMaker Data API server and run queries, browse schema, edit re
 
 **Built by [ABD Enterprises](https://abdenterprises.com).** Free, open source (MIT), no telemetry, no cloud account.
 
-Version **1.8.0** adds a **Browse** button in the connection wizard for a custom CA certificate, clearer sign-in errors that say which of the two common causes applies and link to the fix, and the field-order and panel fixes listed in the changelog. See the [upgrade notes](https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/blob/main/extension/UPGRADE.md) before importing a file.
+Version **1.8.0** adds a **Browse** button in the connection wizard for a custom CA certificate, clearer sign-in errors that explain the two common causes and link to the fix, and the field-order and panel fixes listed in the changelog. See the [upgrade notes](https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/blob/main/extension/UPGRADE.md) before importing a file.
 
 One real FileMaker server was exercised on **2026-10-21**, but its version was not recorded. No server version has a completed recorded smoke test; see [Compatibility](https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/blob/main/extension/docs/COMPATIBILITY.md). FileMaker Cloud sign-in with a Claris ID is **not supported**.
 
@@ -28,7 +28,7 @@ One real FileMaker server was exercised on **2026-10-21**, but its version was n
 
 ## Product tour
 
-The screenshots show a mock FileMaker Data API with made-up data (names and `example.com` addresses), not a real server. They were taken in an older version: version labels and some field styling differ in 1.7.0; panels now follow the editor theme.
+The screenshots show a mock FileMaker Data API with made-up data (names and `example.com` addresses), not a real server. They were taken in an older version: version labels and some field styling differ; panels now follow the editor theme.
 
 ![The query builder: a find on the Contacts layout with sort, paging and results](docs/marketplace/query-builder.png)
 
