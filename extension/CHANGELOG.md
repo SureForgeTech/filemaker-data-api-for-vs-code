@@ -15,6 +15,7 @@
 - The user guide, upgrade notes and a changelog by version are now on the project's website.
 - Sign-in errors now say what to do: FileMaker error 212 explains both possible causes — a mistyped password or a privilege set missing the `fmrest` extended privilege, with the exact FileMaker Pro path — and the error report now shows the matching Troubleshooting link for errors 212 and 9. Other FileMaker codes keep their existing message.
 - The Marketplace listing README now shows the version, last-commit and MIT-license badges under its title.
+- The Connection wizard's certificate section has a Browse button that opens the system file picker for a custom CA bundle (PEM, CRT or CER), instead of typing the path by hand.
 
 ## 1.7.0
 
