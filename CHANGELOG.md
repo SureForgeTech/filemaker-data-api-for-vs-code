@@ -70,7 +70,8 @@ PR title prefix matches the highest-tier label added:
 
 ### [SECURITY]
 
-- Security: the web page generator now uses Next.js 16.4.2, which fixes two published problems in Next.js (an image-handling flaw and a denial-of-service flaw). The extension itself did not use the affected parts, but apps you generated earlier keep their old version: run `npm install next@16.4.2` in `.fmweb/generated/runtime-next` to update them.
+- Security: the web page generator now uses Next.js 16.4.2, which fixes three published problems in Next.js (an image-handling flaw and a flaw in the `use cache` feature that could each run code, and a denial-of-service flaw). The extension itself did not use the affected parts, but apps you generated earlier keep their old version: run `npm install next@16.4.2` in `.fmweb/generated/runtime-next` to update them.
+- Security: `zod` is updated to 4.6.7, which fixes a published security advisory in zod 4.6.5 (the version 1.7.0 shipped): validating a very large array without a length limit could use all available memory. No behavior change.
 
 ## 1.7.0 (2026-10-22)
 
