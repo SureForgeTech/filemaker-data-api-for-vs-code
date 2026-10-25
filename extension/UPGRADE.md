@@ -2,6 +2,30 @@
 
 What to do, and what will look different, when you move from one version to the next. Each section lists only changes you can notice. For everything else, see the [Changelog](./CHANGELOG.md).
 
+## Upgrading from 1.7.0 to 1.8.0
+
+Your profiles, saved queries and settings carry over; there is no data migration. No command or setting was removed or renamed, and no VS Code setting default changed; the on-screen changes you may notice are listed below. FileMaker Cloud sign-in with a Claris ID is still **not supported**; Cloud is untested.
+
+### Connection wizard: pick a CA certificate with Browse
+
+The certificate section in the connection wizard has a **Browse** button that opens the system file picker, so you can choose a PEM, CRT or CER file instead of typing the path. The path you choose is still saved with the profile and is used by **Test Connection**.
+
+### Sign-in failures now say what to do
+
+FileMaker error 212 now explains both possible causes: a mistyped password, or a privilege set that is missing the `fmrest` extended privilege, and it names the path in FileMaker Pro. Errors 212 and 9 also carry a Troubleshooting link in the Details report; other FileMaker codes keep their existing message.
+
+### What looks different on screen
+
+The Record Editor lists fields in your layout's order instead of alphabetical order; the Record Viewer, find form and generated web pages follow the same field rules. Schema Diff opens with **Show only changes** ticked; clear the box to see unchanged fields too.
+
+### Web page generator: security update
+
+The web page generator now uses Next.js 16.4.2, which fixes three published problems in Next.js: an image-handling flaw and a flaw in the `use cache` feature that could each run code, and a denial-of-service flaw. The extension itself did not use the affected parts, but an app you generated earlier keeps its old version. Run `npm install next@16.4.2` in `.fmweb/generated/runtime-next` to update that app.
+
+### Rolling back
+
+Use **Install Specific Version...** in the Extensions view to return to 1.7.0, or install its VSIX if you kept it (only tagged versions have a GitHub release). Profiles and saved data need no migration. Keep an untouched copy of exports before editing them. Version 1.7.0 has no **Browse** certificate picker, lists Record Editor fields alphabetically instead of in your layout's order, does not explain the `fmrest` cause for sign-in errors or link to Troubleshooting, and its web page generator still uses Next.js 16.3.8. Installing it does not undo record changes already sent to FileMaker.
+
 ## Upgrading from 1.6.0 to 1.7.0
 
 Your profiles, saved queries and settings carry over; there is no data migration. No command or setting was removed or renamed, and no setting default changed. AI features remain off by default. Read these changes before importing an old export or sharing a connection report. FileMaker Cloud sign-in with a Claris ID is **not supported**; Cloud is untested.

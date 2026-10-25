@@ -24,11 +24,32 @@ PR title prefix matches the highest-tier label added:
 
 ### [FEATURE]
 
+- None.
+
+### [FIX]
+
+- None.
+
+### [INTERNAL]
+
+- None.
+
+### [SECURITY]
+
+- None.
+
+## 1.8.0 (2026-10-25)
+
+### [BREAKING]
+
+- None.
+
+### [FEATURE]
+
 - The Connection wizard's certificate section has a Browse button that opens the system file picker for a custom CA bundle (PEM, CRT or CER), instead of typing the path by hand.
 
 ### [FIX]
 
-- Security: the web page generator now uses Next.js 16.4.2, which fixes two published problems in Next.js (an image-handling flaw and a denial-of-service flaw). The extension itself did not use the affected parts, but apps you generated earlier keep their old version: run `npm install next@16.4.2` in `.fmweb/generated/runtime-next` to update them.
 - The Record Editor shows fields in the same order as your layout, with the right kind of box for each field. The Viewer, find form and FM Web use the same field rules, and Copy no longer covers record values. A container shows its image and, when that image cannot be shown, its address. A repeated field now appears in FM Web. A required repeated field no longer stops a save, and a repeated column in a portal shows its value.
 - Website tables scroll on small screens, documentation links stay on the website, and repeated documentation links are removed.
 - Generated FM Web apps can run their own tests and refresh untouched older shared files. Missing field details, stopped previews and save errors have clearer messages; date hints appear while editing and saved messages clear when browsing.
@@ -49,7 +70,8 @@ PR title prefix matches the highest-tier label added:
 
 ### [SECURITY]
 
-- None.
+- Security: the web page generator now uses Next.js 16.4.2, which fixes three published problems in Next.js (an image-handling flaw and a flaw in the `use cache` feature that could each run code, and a denial-of-service flaw). The extension itself did not use the affected parts, but apps you generated earlier keep their old version: run `npm install next@16.4.2` in `.fmweb/generated/runtime-next` to update them.
+- Security: `zod` is updated to 4.6.7, which fixes a published security advisory in zod 4.6.5 (the version 1.7.0 shipped): validating a very large array without a length limit could use all available memory. No behavior change.
 
 ## 1.7.0 (2026-10-22)
 

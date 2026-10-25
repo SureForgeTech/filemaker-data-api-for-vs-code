@@ -36,10 +36,10 @@ it('makes 1.7.0 notes available to the release helper and preserves earlier user
 it('agrees on the package version, release instructions and current user guide', () => {
   const manifest = JSON.parse(readExtension('package.json')) as { version: string };
   const lock = JSON.parse(readRoot('package-lock.json')) as { packages: Record<string, { version: string }> };
-  expect(manifest.version).toBe('1.7.0');
+  expect(manifest.version).toBe('1.8.0');
   expect(lock.packages.extension?.version).toBe(manifest.version);
   const jobAid = readRoot('docs/JOB_AID_MANUAL_RELEASE.md');
-  expect(jobAid).toContain("grep -c 'Upgrading from 1.6.0 to 1.7.0' artifacts/RELEASE_NOTES_v1.7.0.md");
-  expect(jobAid).toContain("--grep='^\\[minor\\] Release 1\\.7\\.0'");
-  expect(readExtension('docs/USER_GUIDE.md')).toContain('### New in 1.7');
+  expect(jobAid).toContain("grep -c 'Upgrading from 1.7.0 to 1.8.0' artifacts/RELEASE_NOTES_v1.8.0.md");
+  expect(jobAid).toContain("--grep='^\\[minor\\] Release 1\\.8\\.0'");
+  expect(readExtension('docs/USER_GUIDE.md')).toContain('### New in 1.8');
 });

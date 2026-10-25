@@ -2,7 +2,7 @@
 
 This extension talks to FileMaker through the FileMaker Data API. A server is compatible when it exposes the standard Data API under `/fmi/data`, accepts HTTPS requests from your machine or proxy, and the target database account has the `fmrest` extended privilege enabled.
 
-## Evidence for 1.7.0
+## Evidence
 
 One real FileMaker server was exercised on **2026-10-21**, but its FileMaker Server version was **not recorded**. The recorded checks included a no-match find (HTTP 200, FileMaker code 401, empty data), text and field behavior, and Diagnose Connection with a valid Let's Encrypt certificate and TLS 1.2. These findings apply to that server only; they do not complete a smoke test for any named version. The Data API engine name and API path do not identify the installed FileMaker Server release. Ask the administrator for the version before recording a version-specific result.
 
