@@ -19,6 +19,8 @@ Include:
 - Steps to reproduce the problem, what you expected, and what happened.
 - Output from **FileMaker: Show Diagnostics**, with secrets and private information removed.
 
+Check [Troubleshooting](extension/docs/TROUBLESHOOTING.md) first; it covers the common errors with symptom, cause and fix.
+
 Review anything you share, including logs and screenshots. Never paste passwords, session tokens, API keys or other secrets into an issue or Q&A post.
 
 ## Security reports
