@@ -14,6 +14,7 @@ One real FileMaker server was exercised on **2026-10-21**, but its version was n
 | --- | --- |
 | Browse the website | [Documentation home](https://sureforgetech.github.io/filemaker-data-api-for-vs-code/), [User Guide](https://sureforgetech.github.io/filemaker-data-api-for-vs-code/guide/) and [Changelog by version](https://sureforgetech.github.io/filemaker-data-api-for-vs-code/changelog/) |
 | Use the extension | [User Guide](extension/docs/USER_GUIDE.md) |
+| Common questions | [FAQ](extension/docs/FAQ.md) |
 | Fix a connection problem | [Troubleshooting](extension/docs/TROUBLESHOOTING.md) |
 | Get help or report a bug | [Support](SUPPORT.md) |
 | Check which FileMaker versions work | [Compatibility](extension/docs/COMPATIBILITY.md) |

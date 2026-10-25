@@ -2,6 +2,8 @@
 
 For bugs in FileMaker Data API Tools, open a [GitHub issue](https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/issues). For usage questions, use the [Marketplace Q&A](https://marketplace.visualstudio.com/items?itemName=SureForgeTech.filemaker-data-api-tools&ssr=false#qna).
 
+Common questions are answered in the [FAQ](extension/docs/FAQ.md).
+
 These guides may help:
 
 - [User Guide](extension/docs/USER_GUIDE.md)
