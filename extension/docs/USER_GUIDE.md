@@ -154,7 +154,7 @@ This is the shortest path from nothing to a first query. Each step links to the 
 5. **Connect.** Select **Connect Now** in the notification that appears after saving (or run **FileMaker: Connect**). The sidebar fills with layouts.
 6. **Run your first find.** Right-click a layout and choose **Open Query Builder**, add a condition and select **Run**.
 
-Something failed? Start with [Troubleshooting](#troubleshooting): the first rows cover certificate errors, the most common first-run problem. Test Connection tells you which step failed.
+Something failed? Start with [Troubleshooting](#troubleshooting) and the [Troubleshooting page](./TROUBLESHOOTING.md): certificate errors are the most common first-run problem. Test Connection tells you which step failed.
 
 ### First connection to a server with FileMaker's default certificate
 
@@ -1172,7 +1172,7 @@ For the full picture, see [docs/security.md](https://github.com/SureForgeTech/fi
 
 ## Troubleshooting
 
-Connection errors name the step that failed and what to do. The most common first-run failure is a **certificate error** (the first rows of the first table). A fuller catalogue of what can go wrong between VS Code and FileMaker, with what to ask your administrator, is in the [FileMaker failure-mode catalogue](https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/blob/main/docs/FILEMAKER_FAILURE_MODES.md) (section 8 is "Troubleshooting by symptom").
+Connection errors name the step that failed and what to do. The most common first-run failure is a **certificate error**. Each error, with its symptom, its likely cause and its fix steps, is in the [Troubleshooting page](./TROUBLESHOOTING.md). A fuller catalogue of what can go wrong between VS Code and FileMaker, with what to ask your administrator, is in the [FileMaker failure-mode catalogue](https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/blob/main/docs/FILEMAKER_FAILURE_MODES.md) (section 8 is "Troubleshooting by symptom").
 
 ### Where to look first
 
@@ -1184,75 +1184,27 @@ Connection errors name the step that failed and what to do. The most common firs
 
 ### Connecting: certificates and network
 
-| What you see | What it means and what to do |
-| --- | --- |
-| "This server uses a certificate that is not trusted: FileMaker Server's default certificate is self-signed" | The server still has FileMaker's built-in certificate. In the wizard the **Trust this certificate** dialog appears by itself; see [First connection to a server with FileMaker's default certificate](#first-connection-to-a-server-with-filemakers-default-certificate). A CA file alone will not fix this one (the certificate has no host names). For production install a certificate from a public authority. |
-| "This server's certificate is not trusted by this computer. The certificate chain could not be verified ..." (`unable to verify the first certificate`) | The authority is not trusted here, or the server does not send its intermediate certificate (a common cause). Ask the administrator to install the full certificate chain, or, if the certificate lists the server's host names and your company's authority issued it, set that authority's CA file under **Certificates (advanced)**, or trust this one certificate (the message mentions the CA file only in that case). See [Certificates](#certificates). |
-| "The certificate of <host> is self-signed, and this computer does not trust it" | Use **Trust this certificate…** after checking the fingerprint, or ask for a certificate from a public authority. |
-| "The certificate of <host> lists no host names" | The certificate has no names, so it can never match. Trust that one certificate (the button is offered), or ask for one issued for the server's name. |
-| "The certificate of <host> was not issued for that name" | You connected with a name or IP address the certificate does not list. Use a name from the certificate, or ask the administrator which name it was issued for. |
-| "The security certificate of <host> has expired" / "is not valid yet" | First check your computer's date and time. If the clock is right, the server's certificate needs renewing (Admin Console > Configuration > SSL Certificate). |
-| "The certificate of <host> has been revoked" | Ask your administrator to install a new certificate. |
-| "... is not the one you trusted for this connection" (button **Review and re-trust**) | The server presented a different certificate than the one pinned. If your administrator renewed it, review the new fingerprint and re-trust; otherwise do not continue. |
-| "The certificate you trusted for <host> has expired" | Ask the administrator to renew it, then review and re-trust. |
-| "A proxy is configured on this computer (HTTPS_PROXY, VS Code http.proxy, or a system/PAC proxy), and a trusted (pinned) server certificate cannot be checked through a proxy" | A pinned connection is direct only. For a VS Code or system/PAC proxy, exclude the server in that proxy's settings. For an environment proxy, add the server's host name to `NO_PROXY` (then restart VS Code) so the pinned connection goes direct, or remove the proxy setting. For a certificate with proper host names you can instead get one issued and use a CA file, but not for FileMaker's default certificate: forgetting the pin and setting a CA file does nothing for it. A profile that has a pinned certificate ignores its CA file, and the message says so. |
-| "This server's certificate failed VS Code's own certificate check (...), and this connection's certificate settings could not be applied ..." | A backup message for an untrusted pin/legacy request left on the environment-proxy route while VS Code's networking patch is active. It never replaces a CA-only error, and the network code and trust actions remain available. Direct pinned and legacy connections apply their certificate settings themselves and do not get this message. If the error persists, try `http.proxySupport` set to `fallback` and test again, or ask your administrator to install a publicly trusted certificate. |
-| "The CA file ... does not contain a certificate" / "Unable to read TLS CA bundle at ..." | The CA path is wrong, unreadable, or not a PEM file with `-----BEGIN CERTIFICATE-----` blocks (a public certificate, not a key). |
-| "only offers old TLS versions" / "no TLS version or cipher is shared" | The server or proxy needs TLS 1.2 or newer. Ask the administrator. The extension will not lower its minimum. |
-| "<host> does not speak https on that port" | Wrong port, or a plain-http service. Check the Server URL and port. |
-| "The connection to <host> was closed. The server may only accept https" | You used `http://` against an HTTPS-only server. Use `https://`. |
-| "Nothing is listening on `<host:port>`" | Wrong port, or FileMaker Server or the Data API is not running. |
-| "The name <host> could not be found" / "could not be looked up right now" | Misspelt host name, or the VPN is not connected / DNS is not answering. |
-| "Connecting to <host> timed out" / "no network route" | A firewall is dropping the traffic, the server is unreachable, or your VPN is down. Raise `filemaker.requestTimeoutMs` only for a slow (not unreachable) server. |
-| "The server closed the connection ... before answering" | The server restarted, or a firewall or proxy dropped the connection. Try again; if it keeps happening, ask the administrator. |
-| "The server did not return Data API JSON (...; HTTP n, content type)" | A web page, firewall, proxy or sign-in page answered instead of FileMaker Server, or the reply was empty or cut off. Open the Server URL in a browser; check the base path and version and that the Data API is enabled. |
-| "The server redirected the request" | The Data API never redirects. Use the final address as the Server URL (check `http` vs `https`, and any sign-in page in front of the server). Redirects are not followed. |
-| HTTP 404 (no FileMaker error code) | Nothing answered at that address: check the Server URL, the API base path and version, the database name, and that the FileMaker Data API is enabled (Admin Console > Connectors). A 404 that carries a FileMaker error code, or HTTP 405 or 501, means the server does not offer that feature (for example metadata); run **FileMaker: Refresh Schema Cache** or check the layout name. |
-| HTTP 502, 503, 504 | A gateway could not reach FileMaker Server or it did not answer in time. The server may be restarting or overloaded; try again shortly. The status bar shows `unreachable`. |
-| HTTP 429 | The server or gateway asked for a pause. The extension reads `Retry-After`; wait, and avoid large exports at busy times. |
-| HTTP 403 | The server or a gateway refused the request: the account may lack the privilege, or a firewall blocked it. Ask the administrator; editing the connection will not help. |
+- Nothing answers at that address: [HTTP 404: nothing answered at that address](./TROUBLESHOOTING.md#http-404-nothing-answered-at-that-address).
+- The server certificate is refused: [certificate errors](./TROUBLESHOOTING.md#certificate-errors-the-server-certificate-is-not-trusted), [a revoked, expired or replaced certificate](./TROUBLESHOOTING.md#the-certificate-was-revoked-expired-or-replaced), [the custom CA file cannot be read](./TROUBLESHOOTING.md#the-custom-ca-file-cannot-be-read) and [an old TLS version](./TROUBLESHOOTING.md#the-server-offers-only-an-old-tls-version).
+- A proxy is in the way: [a proxy or a CORS rule is in the way](./TROUBLESHOOTING.md#a-proxy-or-a-cors-rule-is-in-the-way).
+- The server cannot be reached: [the server cannot be reached or times out](./TROUBLESHOOTING.md#the-server-cannot-be-reached-or-times-out).
+- The request was refused: [HTTP 403: the request was refused](./TROUBLESHOOTING.md#http-403-the-request-was-refused).
 
 ### Signing in
 
-| What you see | What it means and what to do |
-| --- | --- |
-| "Reached the server, but sign-in failed: ... [212] Invalid user account and/or password" | Wrong account name or password (the account name is not case sensitive; the password is), or the account's privilege set lacks the `fmrest` extended privilege, which can look the same. Edit the connection, type the password again, **Test Connection**. If the message lists the databases the server hosts, compare the database name. |
-| "Sign-in is paused: FileMaker rejected the saved credentials (error 210-214 or 1703) ..." | The extension stopped signing in by itself so repeated failures cannot lock the account. Fix the account or password (210 inactive, 211 expired: change it in FileMaker Pro, 212 wrong, 213 the account does not exist, 214 too many attempts: wait first, 1703 the server wants a different sign-in method such as a Claris ID or external authentication), then edit the connection and save, or run **Connect** or **Test Connection**. |
-| Error 956 (no free Data API sessions) | The server reached its session limit (Claris words error 956 "Maximum number of database or Admin API sessions exceeded"; the Claris pages document neither a numeric maximum nor a setting for it). The pause message reads "FileMaker has reached its maximum number of database or Admin API sessions. Waiting n s before signing in again". Automatic sign-ins wait 30 seconds, then longer (up to 5 minutes). Ask the administrator to disconnect idle clients: Admin Console > Databases > Clients list > select the client > Disconnect (Data API clients are disconnected immediately). Use **Connect** to try now. |
-| Error 1703, or a rejected sign-in on a FileMaker Cloud host | FileMaker Cloud normally uses Claris ID sign-in, which this extension does not support; an account name and password may not be accepted by your Cloud tenant (ask Claris or your administrator). The message on a Cloud host says the same. The same code on another server can mean external authentication. |
-| Error 802, or "unable to open file" | The file is closed or not hosted, or the account's privilege set lacks the `fmrest` extended privilege for it. Check the database name; ask the administrator. Connect does not retry this error. |
-| "Session expired" or error 952 | The Data API token timed out. The extension renews it and retries once on its own. If it keeps happening, disconnect and connect again. |
-| "SecretStorage unavailable (…)" | VS Code could not reach the OS keychain (common on Linux without a keyring, and in some remote windows). Install and unlock a keyring, or set `filemaker.secrets.fallback` (user settings). |
-| The wizard asks for the password again | You changed the server address, proxy address or user name. This is intended. |
+- The server refused the sign-in: [HTTP 401: the server refused the request](./TROUBLESHOOTING.md#http-401-the-server-refused-the-request).
+- The account is paused, locked or out of sessions: [Error 214: too many sign-in attempts](./TROUBLESHOOTING.md#error-214-too-many-sign-in-attempts), [Error 956: no free Data API sessions](./TROUBLESHOOTING.md#error-956-no-free-data-api-sessions) and [Error 1703, or a FileMaker Cloud sign-in](./TROUBLESHOOTING.md#error-1703-or-a-filemaker-cloud-sign-in).
+- The token timed out: [The session expired](./TROUBLESHOOTING.md#the-session-expired).
+- The password cannot be stored: [The password cannot be stored, or the wizard asks for it again](./TROUBLESHOOTING.md#the-password-cannot-be-stored-or-the-wizard-asks-for-it-again).
 
 ### Data, privileges and batch jobs
 
-| What you see | What it means and what to do |
-| --- | --- |
-| A find returns nothing | FileMaker reports "no records match" as error code 401: verified on a real server (FileMaker Data API Engine, 2026-10-21) as HTTP 200 with an empty data list. Older/other versions may use another status; the extension accepts code 401 on any status, and the extension shows an empty result, not an error. If it is unexpected, check the criteria and the account's record access. Do not confuse it with HTTP 401, which is a sign-in or session problem. |
-| Error 9, 200, 202, 203, 205, 207, "Insufficient privileges", "Record access is denied" | Your account's privilege set does not allow this. Ask the administrator for the access; editing the connection will not help. |
-| "Find criteria are empty" / "Missing required property" (400 / 10) | Enter at least one field value, or choose **List records instead** in Query Builder on a direct connection. It lists only after you choose it; proxy connections need a search value. |
-| "This parameter is too long to send" | The encoded URL exceeds 2,000 characters and a text-field find cannot carry it. Shorten it or use a layout with a text field without a record ID. See [Run scripts](#run-scripts). |
-| "The script did not run because this layout has no records" | A read confirmed that this layout has no visible records, so the script did not run. Add a record or use a layout that has records. |
-| "The server did not confirm that the script ran" | The response had no `scriptError`. Check the script before trying again; the runner cannot confirm execution. |
-| "Script runner is not supported on this server/profile." | The server refused both the script endpoint and the attach-to-another-request form (405, 501 or a FileMaker 404). Check the layout and script exist for the account and the server version supports the Data API script calls. |
-| Error 105 (layout is missing) or 104 (script is missing) | The name is misspelled, was renamed, or the account cannot see it. |
-| Error 306 on save or batch update | The record changed since you loaded or exported it. Batch update skips this row and continues; see Jobs / Copy failures. Review the newer record before retrying. See [batch update](#batch-export-and-batch-update). |
-| Batch update: “Could not confirm: the first attempt may have succeeded” | A reply was lost and the retry could not confirm the saved values. Check the record before trying again; it may already have changed. |
-| A field is read-only in the editor or skipped on import | Calculation, summary and container fields are left out when field details are available. Use Upload to Container for containers; FileMaker still decides your account privileges. |
-| Saved-query import says the file is invalid | Use a JSON file exported with Export Saved Queries. Invalid JSON or a file without a query list leaves existing queries alone. |
-| Error 301 (record in use) | Another user or a script has the record open. Try again shortly. |
-| Errors 500 to 511 on save | The value failed the field's validation (date, range, unique, value list and so on). |
-| A save worked but a script error is shown | The layout ran a script that reported an error. The record was saved; the message names the script phase and the FileMaker error. This is shown for edit, create, delete, find and container upload; getting a single record does not display script errors. |
-| Batch update: "stopped" with FileMaker's reason and a number not attempted | The account cannot do updates at all (error 9 insufficient privileges, 205 cannot create records, 207 cannot change the schema) or its credentials were rejected. Records already updated stay updated. |
-| Batch update: some records failed with error 200 | A record-level access rule hides those records from your account. They are listed with the reason; the job carried on with the rest. |
-| Layouts or fields are missing in the sidebar | Select **Refresh Connections**, then **Refresh Schema Cache**. Your privilege set may show only some layouts. In offline mode only cached layouts show. |
-| Commands are greyed out or missing | You may be in an untrusted workspace, in offline mode, or limited by the enterprise role. The message names the reason. Some commands appear only after you add a profile. |
-| Proxy returns errors | Test the proxy endpoint outside VS Code. In proxy mode the proxy must keep the Data API request and response shapes. A proxy that returns `fmCode` and `status` in its error reply gets the same messages as a direct connection; one that does not gets the generic proxy message. Redirects are not followed. |
-| A generated file has an unexpected name | See [file names](#generate-types-a-client-and-snippets). |
-| CSV cells start with an apostrophe | See [apostrophes in CSV files](#batch-export-and-batch-update). |
-| `AI: off` in the status bar | AI tools are off by default. See [Using AI with FileMaker](#using-ai-with-filemaker). |
-| A setting seems to do nothing | A workspace value may be ignored. Run **FileMaker: Show Effective Settings**, which covers the 24 policy-related settings; for any other setting the Settings editor's badge (**Per workspace**) tells you it works as typed. |
+- The result or the request is refused: [a find returns nothing](./TROUBLESHOOTING.md#a-find-returns-nothing), [the account lacks a privilege](./TROUBLESHOOTING.md#the-account-lacks-a-privilege) and [the find or the script request is refused](./TROUBLESHOOTING.md#the-find-or-the-script-request-is-refused).
+- The record changed under you: [the record changed while you were working](./TROUBLESHOOTING.md#the-record-changed-while-you-were-working) and [a save worked but a script error is shown](./TROUBLESHOOTING.md#a-save-worked-but-a-script-error-is-shown).
+- Fields, layouts and commands are missing: [a field is read-only, or layouts and fields are missing](./TROUBLESHOOTING.md#a-field-is-read-only-or-layouts-and-fields-are-missing) and [commands are greyed out or missing](./TROUBLESHOOTING.md#commands-are-greyed-out-or-missing).
+- Batch work stops: [a batch job stops or reports failed rows](./TROUBLESHOOTING.md#a-batch-job-stops-or-reports-failed-rows).
+- The proxy answers instead of FileMaker: [proxy mode: the proxy returns errors](./TROUBLESHOOTING.md#proxy-mode-the-proxy-returns-errors).
+- Files, AI and settings: [saved queries, generated files and CSV files](./TROUBLESHOOTING.md#saved-queries-generated-files-and-csv-files), [AI: off in the status bar](./TROUBLESHOOTING.md#ai-off-in-the-status-bar) and [a setting seems to do nothing](./TROUBLESHOOTING.md#a-setting-seems-to-do-nothing).
 
 ### Which version am I running?
 
