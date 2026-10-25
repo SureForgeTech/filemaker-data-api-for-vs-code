@@ -1,5 +1,7 @@
 # FileMaker Data API Tools
 
+[![Marketplace version](https://vsmarketplacebadges.dev/version/SureForgeTech.filemaker-data-api-tools.svg)](https://marketplace.visualstudio.com/items?itemName=SureForgeTech.filemaker-data-api-tools) [![Last commit](https://img.shields.io/github/last-commit/SureForgeTech/filemaker-data-api-for-vs-code)](https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/commits/main) [![License: MIT](https://img.shields.io/github/license/SureForgeTech/filemaker-data-api-for-vs-code)](https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/blob/main/LICENSE)
+
 For Claris FileMaker Server (Data API). FileMaker Cloud sign-in with a Claris ID is not supported yet; Cloud is untested.
 
 Connect to any FileMaker Data API server and run queries, browse schema, edit records, and export results — without leaving VS Code.
