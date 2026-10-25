@@ -94,6 +94,8 @@ Do this against the release branch (the content that will be tagged), not after 
 - [ ] The docs site rebuilds on every push to main; open the [changelog page](https://sureforgetech.github.io/filemaker-data-api-for-vs-code/changelog/) and confirm the new version appears.
 
 - [ ] The Marketplace page shows the new version and the new changelog (it can take up to about 10 minutes): `npx @vscode/vsce show SureForgeTech.filemaker-data-api-tools`, or the [listing](https://marketplace.visualstudio.com/items?itemName=SureForgeTech.filemaker-data-api-tools).
+- [ ] The version is queryable from the Marketplace API (the same thing the listing serves): `curl -s -o /dev/null -w "%{http_code}" https://marketplace.visualstudio.com/_apis/public/gallery/publishers/SureForgeTech/vsextensions/filemaker-data-api-tools/X.Y.Z/vspackage` must print `200`. The publisher id is `SureForgeTech` (from extension/package.json), not the old `deffenda` id. A `404` means the version has not propagated yet or the version string is wrong; wait and retry as in the item above before assuming the publish failed.
+- [ ] Screenshot the Marketplace listing page (the description preview and the top of the README as a visitor sees them) and keep it with the release records, so a later listing problem can be compared.
 - [ ] The README on the listing renders, images load, and links work (click them; they are rewritten to GitHub URLs when the VSIX is built).
 - [ ] **FileMaker: About / Show Version** in the published build shows the version you released.
 - [ ] In a clean VS Code profile, install from the Marketplace, check `code --list-extensions --show-versions`, connect, run one find, and open **FileMaker: Open User Guide**.
