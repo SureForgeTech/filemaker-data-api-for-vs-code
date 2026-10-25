@@ -80,6 +80,60 @@ describe('normalizeError', () => {
     expect(error.requestId).toBe('req-1');
     expect(error.endpoint).toBe('GET /layouts');
   });
+
+  it('names both sign-in causes for FileMaker 212 and links the HTTP 401 section', () => {
+    const error = normalizeError({
+      isAxiosError: true,
+      message: 'Unauthorized',
+      response: {
+        status: 401,
+        data: {
+          messages: [{ code: '212', message: 'Invalid user account and/or password' }]
+        }
+      }
+    });
+
+    expect(error.message).toContain('fmrest extended privilege');
+    expect(error.docsUrl).toBe(
+      'https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/blob/main/extension/docs/TROUBLESHOOTING.md#http-401-the-server-refused-the-request'
+    );
+  });
+
+  it('keeps the administrator advice for FileMaker 9 and links the privilege section', () => {
+    const error = normalizeError({
+      isAxiosError: true,
+      message: 'Unauthorized',
+      response: {
+        status: 401,
+        data: {
+          messages: [{ code: '9', message: 'Insufficient privileges' }]
+        }
+      }
+    });
+
+    expect(error.message).toContain(
+      'Ask your FileMaker administrator to change the privilege set for your account'
+    );
+    expect(error.docsUrl).toBe(
+      'https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/blob/main/extension/docs/TROUBLESHOOTING.md#the-account-lacks-a-privilege'
+    );
+  });
+
+  it('keeps the generic message and adds no link for a FileMaker code without a section', () => {
+    const error = normalizeError({
+      isAxiosError: true,
+      message: 'Unauthorized',
+      response: {
+        status: 401,
+        data: {
+          messages: [{ code: '100', message: 'File is missing' }]
+        }
+      }
+    });
+
+    expect(error.message).toMatch(/^FileMaker API error \(HTTP 401\) \[100\]: File is missing/);
+    expect(error.docsUrl).toBeUndefined();
+  });
 });
 
 it.each([

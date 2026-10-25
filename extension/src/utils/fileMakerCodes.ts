@@ -110,7 +110,8 @@ const KNOWN: Record<number, FileMakerErrorInfo> = {
   212: {
     meaning: 'Invalid user account and/or password.',
     category: 'credentials',
-    advice: 'Account names are not case sensitive; passwords are. Edit the connection to enter the password again.'
+    advice:
+      'Account names are not case sensitive; passwords are. Edit the connection to enter the password again. If the password is right, the privilege set may lack the fmrest extended privilege: in FileMaker Pro, File > Manage > Security, edit the privilege set, Extended Privileges, tick Access via FileMaker Data API (fmrest).'
   },
   213: { meaning: 'The user account and/or password does not exist.', category: 'credentials' },
   214: {

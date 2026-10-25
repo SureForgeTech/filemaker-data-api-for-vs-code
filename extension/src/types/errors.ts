@@ -28,6 +28,8 @@ export interface NormalizedError {
   networkCode?: string;
   /** Meaning of the FileMaker code: who can fix it (see utils/fileMakerCodes.ts). */
   fmCategory?: string;
+  /** Link to the troubleshooting page section for this error. */
+  docsUrl?: string;
   /** `Retry-After` from the response, in milliseconds. */
   retryAfterMs?: number;
   requestId?: string;
