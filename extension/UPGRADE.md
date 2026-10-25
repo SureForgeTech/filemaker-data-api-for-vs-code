@@ -2,6 +2,22 @@
 
 What to do, and what will look different, when you move from one version to the next. Each section lists only changes you can notice. For everything else, see the [Changelog](./CHANGELOG.md).
 
+## Upgrading from 1.7.0 to 1.8.0
+
+Your profiles, saved queries and settings carry over; there is no data migration. No command or setting was removed or renamed, and no setting default changed. FileMaker Cloud sign-in with a Claris ID is still **not supported**; Cloud is untested.
+
+### Connection wizard: pick a CA certificate with Browse
+
+The certificate section in the connection wizard has a **Browse** button that opens the system file picker, so you can choose a PEM, CRT or CER file instead of typing the path. The path you choose is still saved with the profile and is used by **Test Connection**.
+
+### Sign-in failures now say what to do
+
+FileMaker error 212 now explains both possible causes: a mistyped password, or a privilege set that is missing the `fmrest` extended privilege, and it names the path in FileMaker Pro. Errors 212 and 9 also carry a Troubleshooting link in the Details report; other FileMaker codes keep their existing message.
+
+### New job and connection commands
+
+**Cancel Job** is in the Command Palette, in the menu of a running job and in the jobs status menu, and job details offer **Copy failures**. **Test My Server** reads a record and checks the server, and **Diagnose Connection** checks the address, the network, the certificate and the Data API without signing in and copies a report.
+
 ## Upgrading from 1.6.0 to 1.7.0
 
 Your profiles, saved queries and settings carry over; there is no data migration. No command or setting was removed or renamed, and no setting default changed. AI features remain off by default. Read these changes before importing an old export or sharing a connection report. FileMaker Cloud sign-in with a Claris ID is **not supported**; Cloud is untested.

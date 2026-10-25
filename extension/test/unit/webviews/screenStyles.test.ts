@@ -287,9 +287,9 @@ it('documents every contributed command in the user guide reference table', () =
 
 it('explains the Schema Diff opening filter and readable read-only fields in plain words', () => {
   for (const file of ['CHANGELOG.md', 'extension/CHANGELOG.md']) {
-    const unreleased = read(file).split('\n## Unreleased\n')[1]!.split('\n## ')[0]!;
-    expect(unreleased).toContain('All screens now share the same fonts, buttons, messages and read-only look.');
-    expect(unreleased).toContain('**Show only changes** ticked');
+    const shipped = read(file).split('\n## 1.8.0')[1]!.split('\n## ')[0]!;
+    expect(shipped).toContain('All screens now share the same fonts, buttons, messages and read-only look.');
+    expect(shipped).toContain('**Show only changes** ticked');
   }
   for (const file of ['extension/docs/USER_GUIDE.md', 'docs/FILEMAKER_FAILURE_MODES.md']) {
     expect(read(file), file).toContain('**Show only changes** ticked');

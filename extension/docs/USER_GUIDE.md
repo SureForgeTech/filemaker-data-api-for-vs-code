@@ -1,6 +1,6 @@
 # FileMaker Data API Tools: User Guide
 
-This is the manual for operators and developers who use the extension to work with a FileMaker database from VS Code. It covers version 1.7, including what changed since 1.6 (listed under [New in 1.7](#new-in-17)). Earlier changes remain under [New in 1.6](#new-in-16) and [New in 1.5](#new-in-15). The screenshots show a mock FileMaker Data API with made-up data. They are from an older version; version labels and some field styling differ, and panels now follow your editor theme. You can open it from VS Code with **FileMaker: Open User Guide**.
+This is the manual for operators and developers who use the extension to work with a FileMaker database from VS Code. It covers version 1.8, including what changed since 1.7 (listed under [New in 1.8](#new-in-18)). Earlier changes remain under [New in 1.7](#new-in-17), [New in 1.6](#new-in-16) and [New in 1.5](#new-in-15). The screenshots show a mock FileMaker Data API with made-up data. They are from an older version; version labels and some field styling differ, and panels now follow your editor theme. You can open it from VS Code with **FileMaker: Open User Guide**.
 
 You can also read the [User Guide on the website](https://sureforgetech.github.io/filemaker-data-api-for-vs-code/guide/), the [upgrade notes](https://sureforgetech.github.io/filemaker-data-api-for-vs-code/upgrade/) and the [changelog by version](https://sureforgetech.github.io/filemaker-data-api-for-vs-code/changelog/). The website follows the guide in this repository and is rebuilt when changes reach the main branch.
 
@@ -240,6 +240,16 @@ Changes you may notice (details in the [upgrade notes](../UPGRADE.md)):
 - A batch update carries on past records your account cannot change and stops only when the account cannot do updates at all.
 - Logs and error details hide more secrets (session tokens in URLs, more token-like keys, passwords in URLs).
 - A status bar item `AI: off` is always shown, on the right. Selecting it switches AI tools off when they are on. When AI is not on, it only explains why (for example `filemaker.ai.enabled` is off, offline mode, an untrusted workspace, enterprise policy, or no connection enabled) and offers **Open AI Settings**; it does not change anything.
+
+### New in 1.8
+
+These changes came after 1.7.0; read [Upgrading from 1.7.0 to 1.8.0](../UPGRADE.md#upgrading-from-170-to-180) before sharing a connection report:
+
+- **Cancel a running job.** **Cancel Job** is in the Command Palette, in the menu of a running job and in the jobs status menu. Job details offer **Copy failures** with the error codes.
+- **Check the server.** **Test My Server** reads a record and checks the server. **Diagnose Connection** checks the address, the network, the certificate and the Data API without signing in, and copies a report.
+- **Pick a CA certificate with Browse.** The connection wizard's certificate section has a **Browse** button that opens the system file picker for a PEM, CRT or CER file, instead of typing the path. The path is saved with the profile and used by **Test Connection**.
+- **Sign-in errors explain both causes.** FileMaker error 212 now says it can be a mistyped password or a privilege set without the `fmrest` extended privilege, and names the path in FileMaker Pro.
+- **A Troubleshooting link in Details.** Errors 212 and 9 show the matching Troubleshooting link in the Details report; other FileMaker codes keep their existing message.
 
 ### New in 1.7
 
