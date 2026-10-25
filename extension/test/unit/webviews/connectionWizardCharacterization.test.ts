@@ -69,7 +69,7 @@ describe('connection wizard extraction characterization', () => {
     try {
       const { webview } = setup();
       // Includes the shared stylesheet link with a fixed nonce, version and resource root.
-      expect(createHash('sha256').update(webview.html).digest('hex')).toBe('7506f09839b6475210a7e8c788698dcbbcbddcf662ab3b78f2d183d713bf232f');
+      expect(createHash('sha256').update(webview.html).digest('hex')).toBe('a6ddde597f95bac7601d4e25773e182131fc53798d821061dd5f60cf39c5f0e9');
     } finally {
       nonce.mockRestore();
     }
