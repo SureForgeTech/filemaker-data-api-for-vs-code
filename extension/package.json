@@ -2,7 +2,7 @@
   "name": "filemaker-data-api-tools",
   "displayName": "FileMaker Data API Tools",
   "description": "Connect to any FileMaker Data API server and run queries, browse schema, edit records, and export results — without leaving VS Code.",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "publisher": "SureForgeTech",
   "license": "MIT",
   "author": {

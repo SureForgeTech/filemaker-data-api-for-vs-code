@@ -24,6 +24,28 @@ PR title prefix matches the highest-tier label added:
 
 ### [FEATURE]
 
+- None.
+
+### [FIX]
+
+- None.
+
+### [INTERNAL]
+
+- None.
+
+### [SECURITY]
+
+- None.
+
+## 1.8.0 (2026-10-25)
+
+### [BREAKING]
+
+- None.
+
+### [FEATURE]
+
 - The Connection wizard's certificate section has a Browse button that opens the system file picker for a custom CA bundle (PEM, CRT or CER), instead of typing the path by hand.
 
 ### [FIX]
