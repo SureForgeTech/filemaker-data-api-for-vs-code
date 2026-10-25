@@ -1,5 +1,7 @@
 # FileMaker Data API Tools for VS Code
 
+[![Marketplace version](https://img.shields.io/visual-studio-marketplace/v/SureForgeTech.filemaker-data-api-tools)](https://marketplace.visualstudio.com/items?itemName=SureForgeTech.filemaker-data-api-tools) [![Marketplace installs](https://img.shields.io/visual-studio-marketplace/i/SureForgeTech.filemaker-data-api-tools)](https://marketplace.visualstudio.com/items?itemName=SureForgeTech.filemaker-data-api-tools) [![License: MIT](https://img.shields.io/github/license/SureForgeTech/filemaker-data-api-for-vs-code)](LICENSE)
+
 A free, open-source VS Code extension for the FileMaker Data API: connect, query, edit records, compare schemas, export and update in batches, generate TypeScript types, and (optionally, off by default) give AI tools safe access, including a read-only `@filemaker` chat participant. MIT licensed, no telemetry.
 
 Install it from the Marketplace: search for **FileMaker Data API Tools** (publisher SureForgeTech), or run `code --install-extension SureForgeTech.filemaker-data-api-tools`.
@@ -27,7 +29,9 @@ One real FileMaker server was exercised on **2026-10-21**, but its version was n
 
 The Marketplace page is [extension/README.md](extension/README.md).
 
-## Repository layout
+## For contributors
+
+### Repository layout
 
 | Folder | Contents | How the extension uses it |
 | --- | --- | --- |
@@ -38,7 +42,7 @@ The Marketplace page is [extension/README.md](extension/README.md).
 | `docs/` | Maintainer, security and release documentation | — |
 | `tools/` | Release helpers (`release-notes.sh`, the pinned `vsce` install) | — |
 
-## Develop
+### Develop
 
 Node.js 22 or newer is required.
 
