@@ -275,7 +275,7 @@ These changes came after 1.6.0; read [Upgrading from 1.6.0 to 1.7.0](../UPGRADE.
 These changes came after 1.5.0 (details in the [upgrade notes](../UPGRADE.md)):
 
 - **Layout Mode standards.** Standard field sizes and spacing, an action that arranges the selection into a standard form, one that standardizes it (each undone in one step), and blank, form, two-column and first-portal starter templates for a new web layout. Fields are listed in FileMaker's field order.
-- **One look for fields.** The find form, Record Editor, Record Viewer and generated web layout views use the same field sizes, top labels and spacing as Layout Mode. Generated FM Web apps get their managed runtime files refreshed (template version 7) the next time you generate or preview; see [FM Web and Layout Mode](#fm-web-and-layout-mode) for what happens to a file you edited.
+- **One look for fields.** The find form, Record Editor, Record Viewer and generated web layout views use the same field sizes, top labels and spacing as Layout Mode. Generated FM Web apps get their managed runtime files refreshed (template version 3) the next time you generate or preview; see [FM Web and Layout Mode](#fm-web-and-layout-mode) for what happens to a file you edited.
 - **Certificate advice in 1.6.** The trust dialog explained why VS Code's default proxy setting could prevent fingerprint trust and suggested `fallback`. Version 1.7 removes that requirement on direct connections; see [Certificates](#certificates).
 - **Smaller fixes:** script runs return only the script's answer, names `.` and `..` are refused, copy-as-code is more exact, profile changes in another window show up within two seconds, and new context and runtime files are readable by you only.
 
