@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- The Marketplace listing description and the README lead now open with one sentence: connect to any FileMaker Data API server, run queries, browse schema, edit records and export results without leaving VS Code.
 - Security: the web page generator now uses Next.js 16.4.2, which fixes two published problems in Next.js (an image-handling flaw and a denial-of-service flaw). The extension itself did not use the affected parts, but apps you generated earlier keep their old version: run `npm install next@16.4.2` in `.fmweb/generated/runtime-next` to update them.
 - The Record Editor shows fields in the same order as your layout, with the right kind of box for each field. The Viewer, find form and FM Web use the same field rules, and Copy no longer covers record values. A container shows its image and, when that image cannot be shown, its address. A repeated field now appears in FM Web. A required repeated field no longer stops a save, and a repeated column in a portal shows its value.
 - Website tables scroll on small screens, documentation links stay on the website, and repeated documentation links are removed.
