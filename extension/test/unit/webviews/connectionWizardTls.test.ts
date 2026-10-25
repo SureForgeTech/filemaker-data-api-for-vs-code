@@ -1,3 +1,4 @@
+import { readFileSync } from 'fs';
 import { mkdtemp, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import path from 'path';
@@ -8,6 +9,7 @@ import * as vscode from 'vscode';
 import { FMClientError } from '../../../src/services/errors';
 import { SecretStore } from '../../../src/services/secretStore';
 import { ConnectionWizardPanel } from '../../../src/webviews/connectionWizard';
+import { JSDOM, loadPage } from '../../helpers/jsdomPage';
 import { DAY, makeCertificate, newKeyPair } from '../../helpers/x509';
 import { InMemorySecretStorage } from '../mocks';
 
@@ -317,5 +319,87 @@ describe('Connection wizard certificate trust', () => {
     expect(html).toContain('id="caBundlePath"');
     expect(html).not.toContain('id="allowSelfSigned"');
     expect(html).toContain('skips ALL certificate checks');
+  });
+
+  describe('the CA bundle picker', () => {
+    const uiSource = readFileSync(path.resolve(__dirname, '../../../src/webviews/connectionWizard/ui/index.js'), 'utf8');
+
+    /** The page the wizard renders, in a real DOM (jsdom, which the designer-ui workspace installs). */
+    function page() {
+      const html = (vi.mocked(vscode.window.createWebviewPanel).mock.results.at(-1)?.value as { webview: { html: string } }).webview.html;
+      return loadPage(html, uiSource);
+    }
+
+    it('the host asks VS Code for a certificate file and answers with the path that was chosen', async () => {
+      const h = await setup();
+      vi.mocked(vscode.window.showOpenDialog).mockResolvedValue([vscode.Uri.file('/picked/company-ca.pem')]);
+
+      await h.fire({ type: 'pickCaBundle' });
+
+      const [call] = vi.mocked(vscode.window.showOpenDialog).mock.calls;
+      expect(call?.[0]).toEqual({
+        canSelectFiles: true,
+        canSelectMany: false,
+        filters: { Certificates: ['pem', 'crt', 'cer'] },
+        title: 'Select the CA certificate file'
+      });
+      expect(h.posted.find((m) => m.type === 'caBundlePicked')).toMatchObject({
+        type: 'caBundlePicked',
+        path: '/picked/company-ca.pem'
+      });
+    });
+
+    it('a cancelled file dialog answers with an empty path', async () => {
+      const h = await setup();
+      vi.mocked(vscode.window.showOpenDialog).mockResolvedValue(undefined as never);
+
+      await h.fire({ type: 'pickCaBundle' });
+
+      expect(h.posted.find((m) => m.type === 'caBundlePicked')).toMatchObject({ type: 'caBundlePicked', path: '' });
+    });
+
+    describe.skipIf(!JSDOM)('the page', () => {
+      it('offers a Browse button that asks the host for a file', async () => {
+        await setup();
+        const p = page();
+
+        const button = p.document.getElementById('pickCaBundle');
+        expect(button?.textContent).toBe('Browse…');
+
+        button?.click();
+
+        expect(p.posted.filter((m) => m.type === 'pickCaBundle')).toEqual([{ type: 'pickCaBundle' }]);
+      });
+
+      it('puts the path the host picked into the CA field', async () => {
+        const h = await setup();
+        const p = page();
+        vi.mocked(vscode.window.showOpenDialog).mockResolvedValue([vscode.Uri.file('/picked/company-ca.pem')]);
+
+        await h.fire({ type: 'pickCaBundle' });
+
+        const reply = h.posted.find((m) => m.type === 'caBundlePicked');
+        expect(reply).toMatchObject({ type: 'caBundlePicked', path: '/picked/company-ca.pem' });
+
+        p.send(reply);
+
+        expect(p.document.getElementById('caBundlePath')?.value).toBe('/picked/company-ca.pem');
+      });
+
+      it('a cancelled pick clears the path that was there', async () => {
+        await setup();
+        const p = page();
+
+        const field = p.document.getElementById('caBundlePath');
+        if (field) {
+          field.value = '/old/ca.pem';
+        }
+        expect(p.document.getElementById('caBundlePath')?.value).toBe('/old/ca.pem');
+
+        p.send({ type: 'caBundlePicked', path: '' });
+
+        expect(p.document.getElementById('caBundlePath')?.value).toBe('');
+      });
+    });
   });
 });

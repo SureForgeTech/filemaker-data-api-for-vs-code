@@ -248,6 +248,7 @@ export class ConnectionWizardPanel {
           <input id="caBundlePath" type="text" autocomplete="off"
                  aria-describedby="caBundlePath-hint"
                  placeholder="/path/to/company-ca.pem" />
+          <button type="button" id="pickCaBundle" class="secondary" aria-label="Browse for a CA certificate file">Browse…</button>
           <div id="caBundlePath-hint" class="hint">Optional. Absolute path to a PEM file with the certificate authority that signed your server's certificate. It is added to the certificates this computer already trusts (the built-in public list and, where VS Code can read it, the operating system's store), so public servers still work. This is the safe way to trust a private server.</div>
         </div>
         <div class="field">

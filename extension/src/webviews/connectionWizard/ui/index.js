@@ -4,6 +4,11 @@
 const vscode = acquireVsCodeApi();
 
 document.addEventListener('DOMContentLoaded', () => {
+  if (window.__wizardWired) return; window.__wizardWired = true;
+  // The page script can be evaluated more than once in the same window (a
+  // reloaded webview keeps the old listeners). The guard above stops a second
+  // pass from posting 'ready' twice and binding every button twice.
+
   // The HTML template wraps everything in <form id="wizardForm">. If that ever
   // gets refactored away (it did before — silent regression), fall back to
   // document.body so the input/change/submit listeners still install instead
@@ -208,6 +213,18 @@ document.addEventListener('DOMContentLoaded', () => {
         renderCertificateState(message.payload);
         break;
 
+      // The host picked a CA certificate file, or the user cancelled the dialog
+      // and the answer is an empty path. Setting the value does not fire an
+      // input event, so the form is told about it: the last test is stale now.
+      case 'caBundlePicked': {
+        const caBundlePath = /** @type {HTMLInputElement|null} */ (document.getElementById('caBundlePath'));
+        if (caBundlePath) {
+          caBundlePath.value = typeof message.path === 'string' ? message.path : '';
+        }
+        onFormChanged();
+        break;
+      }
+
       case 'loadProfile':
         clearTemplateState();
         populateForm(message.payload);
@@ -280,6 +297,13 @@ document.addEventListener('DOMContentLoaded', () => {
   if (convertCertBtn) convertCertBtn.addEventListener('click', () => reviewCertificate('convertLegacyCertificate'));
   if (forgetCertBtn) forgetCertBtn.addEventListener('click', () => vscode.postMessage({ type: 'forgetCertificate' }));
   if (stopSkippingBtn) stopSkippingBtn.addEventListener('click', () => vscode.postMessage({ type: 'stopSkippingCertificateChecks' }));
+
+  // "Browse…" for the custom CA certificate file: the page cannot open a file
+  // dialog itself, so it asks the host for the file and is told the path back.
+  const pickCaBundleBtn = document.getElementById('pickCaBundle');
+  if (pickCaBundleBtn) {
+    pickCaBundleBtn.addEventListener('click', () => vscode.postMessage({ type: 'pickCaBundle' }));
+  }
 
   function collectFormData() {
     const name = getValue('profileName');
