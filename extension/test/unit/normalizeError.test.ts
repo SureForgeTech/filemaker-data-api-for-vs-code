@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { FMClientError } from '../../src/services/errors';
+import { FMClientError, toFMClientError } from '../../src/services/errors';
 import { normalizeError } from '../../src/utils/normalizeError';
 
 describe('normalizeError', () => {
@@ -82,6 +82,8 @@ describe('normalizeError', () => {
   });
 
   it('names both sign-in causes for FileMaker 212 and links the HTTP 401 section', () => {
+    const docsUrl =
+      'https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/blob/main/extension/docs/TROUBLESHOOTING.md#http-401-the-server-refused-the-request';
     const error = normalizeError({
       isAxiosError: true,
       message: 'Unauthorized',
@@ -94,9 +96,8 @@ describe('normalizeError', () => {
     });
 
     expect(error.message).toContain('fmrest extended privilege');
-    expect(error.docsUrl).toBe(
-      'https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/blob/main/extension/docs/TROUBLESHOOTING.md#http-401-the-server-refused-the-request'
-    );
+    expect(error.docsUrl).toBe(docsUrl);
+    expect(toFMClientError(error).toNormalized().docsUrl).toBe(docsUrl);
   });
 
   it('keeps the administrator advice for FileMaker 9 and links the privilege section', () => {

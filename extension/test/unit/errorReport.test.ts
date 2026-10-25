@@ -145,6 +145,22 @@ describe('renderErrorReport (#42)', () => {
     expect(out).not.toContain('leakedtoken');
   });
 
+  it('includes the troubleshooting link when the error carries one', () => {
+    const docsUrl =
+      'https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/blob/main/extension/docs/TROUBLESHOOTING.md#http-401-the-server-refused-the-request';
+    const out = renderErrorReport({
+      ...baseError(),
+      docsUrl
+    });
+    expect(out).toContain('Troubleshooting:');
+    expect(out).toContain(docsUrl);
+  });
+
+  it('omits the troubleshooting link when the error has none', () => {
+    const out = renderErrorReport(baseError());
+    expect(out).not.toContain('Troubleshooting:');
+  });
+
   it('accepts a deterministic generatedAt for stable output', () => {
     const fixedDate = new Date('2026-01-01T00:00:00.000Z');
     const out = renderErrorReport(baseError(), undefined, { generatedAt: fixedDate });

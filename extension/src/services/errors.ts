@@ -6,6 +6,8 @@ export class FMClientError extends Error {
   /** Node / OpenSSL code of a network or TLS failure. */
   public readonly networkCode?: string;
   public readonly fmCategory?: string;
+  /** Link to the troubleshooting page section for this error. */
+  public readonly docsUrl?: string;
   public readonly retryAfterMs?: number;
   public readonly details?: unknown;
   public readonly requestId?: string;
@@ -21,6 +23,7 @@ export class FMClientError extends Error {
       code?: string;
       networkCode?: string;
       fmCategory?: string;
+      docsUrl?: string;
       retryAfterMs?: number;
       details?: unknown;
       requestId?: string;
@@ -36,6 +39,7 @@ export class FMClientError extends Error {
     this.code = options?.code;
     this.networkCode = options?.networkCode;
     this.fmCategory = options?.fmCategory;
+    this.docsUrl = options?.docsUrl;
     this.retryAfterMs = options?.retryAfterMs;
     this.details = options?.details;
     this.requestId = options?.requestId;
@@ -53,6 +57,7 @@ export class FMClientError extends Error {
       code: this.code,
       networkCode: this.networkCode,
       fmCategory: this.fmCategory,
+      docsUrl: this.docsUrl,
       retryAfterMs: this.retryAfterMs,
       requestId: this.requestId,
       endpoint: this.endpoint,
@@ -86,6 +91,7 @@ export function toFMClientError(normalized: NormalizedError): FMClientError {
     code: normalized.code,
     networkCode: normalized.networkCode,
     fmCategory: normalized.fmCategory,
+    docsUrl: normalized.docsUrl,
     retryAfterMs: normalized.retryAfterMs,
     details: normalized.details,
     requestId: normalized.requestId,

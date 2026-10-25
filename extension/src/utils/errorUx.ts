@@ -252,6 +252,9 @@ export function renderErrorReport(
   if (normalized.requestId) {
     lines.push(`- **Request id:** ${redactString(normalized.requestId)}`);
   }
+  if (normalized.docsUrl) {
+    lines.push(`- **Troubleshooting:** ${normalized.docsUrl}`);
+  }
   lines.push(`- **Retryable:** ${normalized.isRetryable}`);
   if (typeof normalized.retryCount === 'number') {
     lines.push(`- **Retry count:** ${normalized.retryCount}`);
