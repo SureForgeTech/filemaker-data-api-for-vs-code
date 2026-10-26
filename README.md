@@ -21,7 +21,7 @@ One real FileMaker server was exercised on **2026-10-21**, but its version was n
 | Get help or report a bug | [Support](SUPPORT.md) |
 | Check which FileMaker versions work | [Compatibility](extension/docs/COMPATIBILITY.md) |
 | Upgrade between versions | [Upgrade notes](extension/UPGRADE.md) and the [Changelog](extension/CHANGELOG.md) |
-| Understand security and data handling | [Security overview](docs/security.md), [Data handling](docs/DATA_HANDLING.md) |
+| Understand security and data handling | [Security overview](docs/security.md), [Data handling](docs/DATA_HANDLING.md), [Privacy policy](PRIVACY.md) |
 | Report a vulnerability | [Security policy](SECURITY.md) |
 | Contribute code or docs | [Contributing](extension/CONTRIBUTING.md), [Architecture](extension/ARCHITECTURE.md), [API reference](https://sureforgetech.github.io/filemaker-data-api-for-vs-code/api/) |
 | Cut a release | [Release process](docs/RELEASE.md), [cadence](docs/RELEASE_CADENCE.md), [rollback](docs/ROLLBACK.md) |

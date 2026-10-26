@@ -6,6 +6,7 @@
 - The extension's panels now ignore messages that do not come from VS Code itself, so a stray or badly formed message is dropped before it can act. No known exploit.
 - Files written for generated pages, type generation and AI context now stay inside their folder: a path that tries to escape is refused instead of written. No known exploit.
 - The Marketplace listing README now has a Security & Trust section right after the product tour: credentials stay in the OS keychain, nothing is collected or sent to the authors, an untrusted folder stays read only, and the security policy is one link away.
+- A privacy policy at the repository root (PRIVACY.md) now says what the extension stores locally, what never leaves your machine, the proxy-mode exception, which third parties are reached, the GDPR/CCPA stance, and where to send privacy questions; the documentation table, the Marketplace listing and the User Guide all link to it.
 
 ## 1.8.0
 
