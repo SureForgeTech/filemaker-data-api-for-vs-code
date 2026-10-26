@@ -48,6 +48,7 @@ describe('designer performance stress', () => {
 
     window.dispatchEvent(
       new MessageEvent('message', {
+        origin: window.location.origin,
         data: {
           type: 'init',
           payload: {

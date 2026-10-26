@@ -34,7 +34,6 @@ type Webview =
   | 'scriptRunner';
 
 const WIZARD_ERROR = { type: 'error', message: 'The profiles could not be read.' };
-const LAYOUT_INIT = { type: 'init' };
 const QUERY_ERROR = { type: 'error', message: 'Clipboard unavailable' };
 const EDITOR_ERROR = { type: 'error', message: 'Record is unavailable.' };
 const VIEWER_ERROR = { type: 'error', message: 'The selected profile no longer exists.' };
@@ -167,16 +166,22 @@ describe.skipIf(!JSDOM)('webview pages ignore messages whose origin is not their
     expect(status.textContent).toBe(WIZARD_ERROR.message);
   });
 
-  it('layout mode reacts to its init message from its own origin only', () => {
-    const page = open('layoutMode');
-    const root = page.document.getElementById('root')!;
-    const before = root.textContent;
+  it('shipped layout mode page guards handleMessage by origin before reading event.data (designer-ui/src/main.tsx)', () => {
+    const source = readFileSync(path.resolve(__dirname, '../../../../designer-ui/src/main.tsx'), 'utf8');
 
-    dispatchFrom(page, LAYOUT_INIT, 'https://attacker.invalid');
-    expect(root.textContent).toBe(before);
+    const handlerStart = source.indexOf('const handleMessage = (event: MessageEvent<IncomingMessage>): void => {');
+    expect(handlerStart, 'handleMessage not found in designer-ui/src/main.tsx').toBeGreaterThan(-1);
 
-    dispatchFrom(page, LAYOUT_INIT, page.window.location.origin);
-    expect(root.textContent).toBe('Layout Mode UI bundle is missing. Build designer-ui to enable the React designer.');
+    const handlerEnd = source.indexOf("window.addEventListener('message', handleMessage", handlerStart);
+    expect(handlerEnd, 'message listener not found in designer-ui/src/main.tsx').toBeGreaterThan(-1);
+
+    const handler = source.slice(handlerStart, handlerEnd);
+    const guard = handler.indexOf('if (event.origin !== window.location.origin) { return; }');
+    const firstDataRead = handler.indexOf('event.data');
+
+    expect(guard, 'origin guard missing from handleMessage in designer-ui/src/main.tsx').toBeGreaterThan(-1);
+    expect(firstDataRead, 'no event.data read found in handleMessage in designer-ui/src/main.tsx').toBeGreaterThan(-1);
+    expect(guard, 'origin guard must precede the first event.data read in designer-ui/src/main.tsx').toBeLessThan(firstDataRead);
   });
 
   it('query builder shows the host error from its own origin only', () => {
