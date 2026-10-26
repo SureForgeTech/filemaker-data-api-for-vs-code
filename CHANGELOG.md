@@ -34,6 +34,7 @@ PR title prefix matches the highest-tier label added:
 
 - Tag builds now also publish the VSIX to Open VS X (open-vsx.org), in its own `publish-ovsx` job that runs after the Marketplace publish and fails closed when the `OVSX_PAT` secret is missing, so no GitHub release is cut unless both stores accepted the build. Cursor and Windsurf users get a one-click install once the namespace and token are set up (#265). The job needs a second approval of the `marketplace` deployment in the same run.
 - The Marketplace listing README now has a Security & Trust section right after the product tour: credentials stay in the OS keychain, nothing is collected or sent to the authors, an untrusted folder stays read only, and the security policy is one link away.
+- A privacy policy at the repository root (PRIVACY.md) now says what the extension stores locally, what never leaves your machine, the proxy-mode exception, which third parties are reached, the GDPR/CCPA stance, and where to send privacy questions; the documentation table, the Marketplace listing and the User Guide all link to it.
 
 ### [SECURITY]
 
