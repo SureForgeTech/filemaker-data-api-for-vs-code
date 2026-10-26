@@ -62,6 +62,13 @@ Layout Mode places fields from a synced layout on a canvas for an FM Web project
 
 `@filemaker` in VS Code's Chat view reads the database through the same safety rules as the AI tools, read only. This screenshot was made with a stand-in language model; the records come from the extension.
 
+## Security & Trust
+
+- **Credentials stay in your keychain**: passwords, API keys and session tokens live in the OS keychain through VS Code's SecretStorage API, not in settings or logs.
+- **No telemetry, no cloud account**: no telemetry is collected and nothing is sent to the extension's authors — there is no account to sign in to; it talks only to your FileMaker server or your proxy (and an AI provider you switch on yourself, off by default).
+- **Read only in an untrusted folder**: in Restricted Mode an untrusted workspace stays read only — you can browse, read metadata and run finds; editing, writing and plugins need a trusted workspace.
+- **Report a vulnerability**: follow the [security policy](https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/blob/main/SECURITY.md) for how to report one.
+
 ## Requirements
 
 - FileMaker Server with the **Data API** enabled, reachable over HTTPS. FileMaker Cloud is untested: the extension has no Claris ID login, and whether a tenant accepts an account name and password is not confirmed.
