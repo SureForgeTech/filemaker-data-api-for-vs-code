@@ -175,6 +175,7 @@ export class SchemaSnapshotStore {
 
     for (const item of toRemove) {
       try {
+        // path-join disposition: the file name comes from the index file and is checked by isIndexEntry/isPlainJsonFileName, so it has no separator and no ".." segment.
         await unlink(join(dir, item.fileName));
       } catch {
         this.logger.warn('Failed to delete pruned snapshot file.', { fileName: item.fileName });
@@ -241,6 +242,7 @@ export class SchemaSnapshotStore {
     const safeId = toSafeFileName(snapshot.id);
     const safeDate = snapshot.capturedAt.replace(/[:.]/g, '-');
     const fileName = `${safeProfile}__${safeLayout}__${safeDate}__${safeId}.json`;
+    // path-join disposition: the name is built from toSafeFileName values, so it has no separator and no ".." segment.
     const snapshotPath = join(dir, fileName);
     await writeFile(snapshotPath, JSON.stringify({ snapshot }, null, 2), 'utf8');
 

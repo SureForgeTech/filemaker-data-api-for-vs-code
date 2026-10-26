@@ -97,6 +97,7 @@ function countOccurrences(text: string, needle: string): number {
  */
 export async function writeFileAtomic(targetPath: string, text: string): Promise<void> {
   await mkdir(dirname(targetPath), { recursive: true });
+  // path-join disposition: the target path comes from resolveConfinedFile, so this temporary file is written next to a confined target.
   const temporary = join(dirname(targetPath), `.${randomBytes(6).toString('hex')}.tmp`);
   try {
     await writeFile(temporary, text, { encoding: 'utf8', flag: 'wx', mode: 0o600 });

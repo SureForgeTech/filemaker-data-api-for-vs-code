@@ -1,8 +1,8 @@
-import { readFile } from 'fs/promises';
+import { lstat, readFile } from 'fs/promises';
 import { basename, isAbsolute, relative, resolve, sep } from 'path';
 
 import { GENERATED_MARKER, GenerationSkippedError, GenerationCancelledError, writeGeneratedFiles } from './generatedFileWriter';
-import { hasInvisiblePathCharacter } from '../utils/pathConfinement';
+import { hasInvisiblePathCharacter, PathConfinementError, resolveConfinedFile } from '../utils/pathConfinement';
 import type { FMClient } from './fmClient';
 import type { Logger } from './logger';
 import type { SchemaService } from './schemaService';
@@ -97,7 +97,7 @@ export class TypeGenService {
       throw new Error('Open a workspace folder to generate snippets.');
     }
 
-    const filePath = resolveSafeWorkspacePath(root, 'snippets', 'filemaker-data-api.code-snippets');
+    const filePath = await resolveConfinedWorkspaceFile(root, 'snippets', 'filemaker-data-api.code-snippets');
 
     let fieldDescription = '';
     try {
@@ -162,6 +162,7 @@ export class TypeGenService {
     }
 
     if (/\.[a-z0-9]+$/i.test(basename(outputDirectory))) throw new Error('Choose an output folder, not a file name such as README.md.');
+    // path-join disposition: the folder is the one the user picked in the folder picker, so it is the target root of these files.
     const outputDir = resolve(outputDirectory);
 
     const schemas: GeneratedClientSchema[] = [];
@@ -181,8 +182,11 @@ export class TypeGenService {
     const clientContent = renderClientSource(profile, schemas, layoutNames, generatedAt);
     const readmeContent = renderClientReadme(profile, selectedLayouts, generatedAt);
 
+    // path-join disposition: 'types.ts' is a fixed name inside the picked folder; the write is confined by writeGeneratedFiles.
     const typesPath = resolve(outputDir, 'types.ts');
+    // path-join disposition: 'client.ts' is a fixed name inside the picked folder; the write is confined by writeGeneratedFiles.
     const clientPath = resolve(outputDir, 'client.ts');
+    // path-join disposition: 'README.md' is a fixed name inside the picked folder; the write is confined by writeGeneratedFiles.
     const readmePath = resolve(outputDir, 'README.md');
 
     const workspaceRoot = this.getWorkspaceRoot();
@@ -217,7 +221,7 @@ export class TypeGenService {
 
     const outputDir = sanitizeRelativeOutputDir(this.getOutputDir());
     const fileName = `${sanitizeLayoutFileName(layout)}.ts`;
-    const filePath = resolveSafeWorkspacePath(root, outputDir, 'layouts', fileName);
+    const filePath = await resolveConfinedWorkspaceFile(root, outputDir, 'layouts', fileName);
 
     const skipped = await writeGeneratedFiles([{ path: filePath, content }], root);
     if (skipped.length) throw new GenerationSkippedError(filePath);
@@ -757,12 +761,35 @@ function sanitizeRelativeOutputDir(value: string): string {
   return normalized;
 }
 
-function resolveSafeWorkspacePath(root: string, ...segments: string[]): string {
+/**
+ * The path of a generated file inside the workspace root. The shared confinement helper proves
+ * that the joined path stays inside the root: a name that climbs out with "..", a path that
+ * points elsewhere, or a folder that is a symbolic link is refused before anything is written.
+ * The path keeps the spelling of the root the caller gave, so the file that is written is the
+ * one the caller reports.
+ */
+export async function resolveConfinedWorkspaceFile(root: string, ...segments: string[]): Promise<string> {
+  const relativePath = segments.join('/');
+  // path-join disposition: guarded by resolveConfinedFile below; the path keeps the root's own spelling.
   const resolved = resolve(root, ...segments);
-  const relativePath = relative(root, resolved);
-  const parts = relativePath.split(/[\\/]/).filter((part) => part.length > 0);
-  if (relativePath.startsWith('..') || parts.includes('..')) {
-    throw new Error('Refusing to write outside workspace root.');
+  const relativeToRoot = relative(root, resolved);
+  // One absolute name makes the join leave the root, so the joined path itself is compared with
+  // the root and not only the names that were checked.
+  if (relativeToRoot === '..' || relativeToRoot.startsWith(`..${sep}`) || isAbsolute(relativeToRoot)) {
+    throw new PathConfinementError('Refusing to write outside the workspace root.');
+  }
+
+  try {
+    await resolveConfinedFile(relativePath, root, [root]);
+  } catch (error) {
+    if (!(error instanceof PathConfinementError)) throw error;
+    // A link at the file itself is refused with the wording the writer uses for it; a link in
+    // the folders above it is refused with the helper's own message.
+    const linked = await lstat(resolved).then((stats) => stats.isSymbolicLink(), () => false);
+    const reason = linked
+      ? `Cannot replace ${resolved}: it is not a regular file.`
+      : `${error.message} Refusing to write outside the workspace or through a symlink.`;
+    throw new PathConfinementError(reason);
   }
 
   return resolved;

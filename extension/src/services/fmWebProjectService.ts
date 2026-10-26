@@ -181,6 +181,7 @@ export class FmWebProjectService {
         }
 
         const metadataFileName = `${toSafeFileName(layoutName)}.json`;
+        // path-join disposition: the file name is built from toSafeFileName, so it has no separator and no ".." segment.
         const metadataFilePath = path.join(this.getMetadataLayoutsDirPath(), metadataFileName);
 
         await this.writeJson(metadataFilePath, {
