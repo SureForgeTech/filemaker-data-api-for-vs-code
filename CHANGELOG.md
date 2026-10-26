@@ -36,7 +36,7 @@ PR title prefix matches the highest-tier label added:
 
 ### [SECURITY]
 
-- None.
+- The extension's panels now ignore messages that do not come from VS Code itself, so a stray or badly formed message is dropped before it can act. No known exploit.
 
 ## 1.8.0 (2026-10-25)
 

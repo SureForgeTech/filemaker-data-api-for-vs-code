@@ -27,8 +27,9 @@ export interface JsdomWindow {
   };
   eval(code: string): void;
   dispatchEvent(event: unknown): boolean;
-  MessageEvent: new (type: string, init: { data: unknown }) => unknown;
+  MessageEvent: new (type: string, init: { data: unknown; origin?: string }) => unknown;
   Event: new (type: string) => unknown;
+  location: { origin: string };
 }
 type JsdomCtor = new (html: string, options: { runScripts: string; url: string }) => { window: JsdomWindow };
 
@@ -55,6 +56,6 @@ export function loadPage(html: string, uiSource: string, url = 'https://panel.in
   }
   window.eval(uiSource);
   window.document.dispatchEvent(new window.Event('DOMContentLoaded'));
-  const send = (data: unknown) => window.dispatchEvent(new window.MessageEvent('message', { data }));
+  const send = (data: unknown) => window.dispatchEvent(new window.MessageEvent('message', { data, origin: window.location.origin }));
   return { window, document: window.document, posted, send };
 }

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- The extension's panels now ignore messages that do not come from VS Code itself, so a stray or badly formed message is dropped before it can act. No known exploit.
+
 ## 1.8.0
 
 _Released 2026-10-25._
