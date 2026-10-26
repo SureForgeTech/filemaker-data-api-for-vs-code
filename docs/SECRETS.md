@@ -1,18 +1,19 @@
 # Secrets and credentials
 
-This repository holds **no repository secrets**. Check with `gh secret list --repo SureForgeTech/filemaker-data-api-for-vs-code`; the list should be empty.
+This repository holds **no repository secrets** today. Check with `gh secret list --repo SureForgeTech/filemaker-data-api-for-vs-code`; the list should be empty. One secret is planned and named below (`OVSX_PAT`) but not set yet.
 
 ## Inventory
 
 | Name | Where | What it is | Secret? |
 | --- | --- | --- | --- |
+| `OVSX_PAT` | Repository secret (not set yet) | Eclipse Foundation publisher access token for publishing to open-vsx.org. Needed by the **publish-ovsx** job in CI ([RELEASE.md](./RELEASE.md#how-publishing-works)); the job fails closed without it. Setup tracked in [#265](https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/issues/265). | Yes, once set |
 | `AZURE_CLIENT_ID`, `AZURE_TENANT_ID` | Variables on the `marketplace` environment | Identifiers of the Microsoft Entra managed identity that publishes to the Marketplace. Setup: [JOB_AID_ENTRA_PUBLISHING.md](./JOB_AID_ENTRA_PUBLISHING.md). Not set yet, so publishing is manual until the setup is done ([RELEASE.md](./RELEASE.md#manual-publish-fallback)). | No |
 | `LINUX_RUNNER_LABELS` | Repository variable | Runner labels for CI jobs | No |
 | `GITHUB_TOKEN` | Provided by GitHub Actions per run | Used by the release job and workflows with explicit permissions | Managed by GitHub |
 
 Publishing signs in with a short-lived GitHub OIDC token exchanged for the managed identity, restricted to the `marketplace` environment (tags only, a required reviewer). There is no personal access token to store or renew. The old `VSCE_PAT` token type stops working on 2026-12-01 in any case; if a `VSCE_PAT` secret turns up, delete it.
 
-Not in use any more: the Claude Code cloud agent secrets (`CLAUDE_CODE_OAUTH_TOKEN`, `ANTHROPIC_API_KEY`, `PRS_PAT`) were removed together with the workflow that used them. Open VSX publishing (`OVSX_PAT`) was planned and never set up.
+Not in use any more: the Claude Code cloud agent secrets (`CLAUDE_CODE_OAUTH_TOKEN`, `ANTHROPIC_API_KEY`, `PRS_PAT`) were removed together with the workflow that used them. Open VSX publishing (`OVSX_PAT`) is wired into CI but the secret itself is not set up yet (#265).
 
 ## Rotation calendar
 

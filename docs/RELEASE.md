@@ -6,18 +6,21 @@ Related: [release cadence](./RELEASE_CADENCE.md) (when and how big), [rollback](
 
 ## How publishing works
 
-Pushing a tag named `vX.Y.Z` starts the **CI** workflow (`.github/workflows/ci.yml`). For a tag it runs four jobs in order:
+Pushing a tag named `vX.Y.Z` starts the **CI** workflow (`.github/workflows/ci.yml`). For a tag it runs five jobs in order:
 
 1. **build-test**: install, audit, lint, typecheck, tests with coverage, build, package check and the VSIX size budget. This is the required check on `main` as well.
 2. **package**: builds the VSIX and uploads it as the run artifact `extension-vsix`.
 3. **publish**: waits for approval of the **`marketplace`** environment (a required reviewer). It then checks that the tag points at a commit on `main` and that the tag equals `v` plus the version in `extension/package.json`. It installs `vsce` from the pinned lockfile in `tools/publish`, signs in to Azure with a short-lived GitHub OIDC token (Microsoft Entra ID, no stored token) and runs `vsce publish --azure-credential`.
-4. **release**: only after publish succeeds, creates the GitHub release with the VSIX and the source maps tarball (`sourcemaps-<tag>.tgz`) attached and notes taken from `extension/CHANGELOG.md` by `tools/release-notes.sh`.
+4. **publish-ovsx**: only after **publish** succeeds, publishes the same VSIX to open-vsx.org (Cursor, Windsurf and other compatible editors). It requires the `OVSX_PAT` repository secret and fails closed without it, so the run stops before **release** with a named error. It is a separate job so that a retry never re-runs `vsce publish`, which the Marketplace rejects as a duplicate version.
+5. **release**: only after both publishes succeed, creates the GitHub release with the VSIX and the source maps tarball (`sourcemaps-<tag>.tgz`) attached and notes taken from `extension/CHANGELOG.md` by `tools/release-notes.sh`.
 
 Tags matching `v*` are protected by a repository ruleset (creation, update and deletion are limited to repository admins). Create the tag as an admin, from `main`.
 
 ### Current state of Marketplace publishing
 
 The Entra identity is not set up yet (the `marketplace` environment has no `AZURE_CLIENT_ID` and `AZURE_TENANT_ID` variables), so the **publish** job stops at "Require the Azure identity settings" and **release** is skipped. Until the one-time setup in [JOB_AID_ENTRA_PUBLISHING.md](./JOB_AID_ENTRA_PUBLISHING.md) is done, publish by hand: see [Manual publish](#manual-publish-fallback). Do the setup before 2026-12-01, when Microsoft stops accepting the personal access tokens that `vsce` used.
+
+The Open VS X step (**publish-ovsx**) is in the workflow but its `OVSX_PAT` secret does not exist yet ([#265](https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/issues/265)). Until the token is stored, a tag run fails at **publish-ovsx** and no GitHub release is cut — do not tag a release before that secret is in place (or remove **publish-ovsx** from the tag run temporarily).
 
 Versions 1.2.0 and 1.3.0 were published by manual upload and were never tagged. Tags `v1.0.0`, `v1.1.0` and `v1.6.0` exist. Version 1.4.0 was also published by hand, and so were 1.5.0 and 1.6.0 (1.4.0 and 1.5.0 have no tag or GitHub release; see [JOB_AID_MANUAL_RELEASE.md](./JOB_AID_MANUAL_RELEASE.md)). Version 1.7.0 is on the Marketplace but has no tag and no GitHub release (checked 2026-10-25).
 
@@ -79,6 +82,7 @@ Do this against the release branch (the content that will be tagged), not after 
 
 - [ ] Merge the release pull request once the verification above passed and `build-test` is green. Do not add code after verifying; if you must, verify again.
 - [ ] Make sure the release commit is on `origin/main` and `extension/package.json` has the new version there: `git fetch origin && git show origin/main:extension/package.json | grep '"version"'`.
+- [ ] Before tagging: confirm the `OVSX_PAT` repository secret exists (`gh secret list --repo SureForgeTech/filemaker-data-api-for-vs-code`). A tag run fails at **publish-ovsx** and cuts no GitHub release without it ([#265](https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/issues/265)).
 - [ ] Create and push the tag from `main` (as a repository admin):
   ```bash
   git fetch origin
@@ -87,6 +91,7 @@ Do this against the release branch (the content that will be tagged), not after 
   ```
   The tag must point at the commit whose `package.json` says `X.Y.Z`; the publish job refuses anything else.
 - [ ] Watch the run. When **publish** waits, open the run, choose **Review deployments**, tick **marketplace** and approve. (If the Entra setup is not done, publish by hand instead; see below.)
+- [ ] **publish-ovsx** runs after **publish** and must be green before **release** runs; if it fails, the run stops there and no GitHub release is cut. Read its error before retrying.
 - [ ] **release** creates the GitHub release with the VSIX, `sourcemaps-vX.Y.Z.tgz` and the changelog text. Open it and read it.
 
 ### 5. Verify after publishing
@@ -95,6 +100,7 @@ Do this against the release branch (the content that will be tagged), not after 
 
 - [ ] The Marketplace page shows the new version and the new changelog (it can take up to about 10 minutes): `npx @vscode/vsce show SureForgeTech.filemaker-data-api-tools`, or the [listing](https://marketplace.visualstudio.com/items?itemName=SureForgeTech.filemaker-data-api-tools).
 - [ ] The version is queryable from the Marketplace API (the same thing the listing serves): `curl -s -o /dev/null -w "%{http_code}" https://marketplace.visualstudio.com/_apis/public/gallery/publishers/SureForgeTech/vsextensions/filemaker-data-api-tools/X.Y.Z/vspackage` must print `200`. The publisher id is `SureForgeTech` (from extension/package.json), not the old `deffenda` id. A `404` means the version has not propagated yet or the version string is wrong; wait and retry as in the item above before assuming the publish failed.
+- [ ] The Open VS X listing shows the new version: `curl -s -o /dev/null -w "%{http_code}" https://open-vsx.org/api/SureForgeTech/filemaker-data-api-tools/X.Y.Z` must print `200` (the [extension page](https://open-vsx.org/extension/SureForgeTech/filemaker-data-api-tools) works too). Until #265 is done the namespace and token do not exist, so there is nothing to verify.
 - [ ] Screenshot the Marketplace listing page (the description preview and the top of the README as a visitor sees them) and keep it with the release records, so a later listing problem can be compared.
 - [ ] The README on the listing renders, images load, and links work (click them; they are rewritten to GitHub URLs when the VSIX is built).
 - [ ] **FileMaker: About / Show Version** in the published build shows the version you released.

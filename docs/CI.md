@@ -6,7 +6,7 @@ What the project's automated checks are, the limits they enforce, and how depend
 
 | Workflow | When | What it does |
 | --- | --- | --- |
-| `ci.yml` | pull requests, pushes to `main`, tags `v*` | `build-test` and `cross-platform` always. For `v*` tags also `package`, `publish` (environment `marketplace`) and `release`. |
+| `ci.yml` | pull requests, pushes to `main`, tags `v*` | `build-test` and `cross-platform` always. For `v*` tags also `package`, `publish` (environment `marketplace`), `publish-ovsx` (Open VS X, needs the `OVSX_PAT` secret) and `release`. |
 | `api-docs.yml` | push to `main` | Builds the documentation website and the TypeDoc API reference and deploys both to GitHub Pages: <https://sureforgetech.github.io/filemaker-data-api-for-vs-code/api/>. |
 | `dependency-auto-merge.yml` | Dependabot pull requests | Enables auto-merge for safe dev-dependency updates (see below). |
 | `entra-identity-id.yml` | manual | One-off helper for the Entra publishing setup ([job aid](./JOB_AID_ENTRA_PUBLISHING.md)). Delete it when the setup is done. |
