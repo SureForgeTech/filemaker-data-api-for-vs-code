@@ -244,7 +244,8 @@ jobs:
 
       # Project dependencies and their install scripts never run in this job. vsce and ovsx come
       # from their own minimal lockfile (tools/publish), installed without lifecycle scripts, before
-      # the Azure login exists.
+      # the Azure login exists; this job only runs vsce, but both tools share one lockfile so the
+      # two publish jobs install the same pinned tree.
       - name: Install publish tools from their lockfile
         run: npm ci --ignore-scripts --no-audit --no-fund --prefix tools/publish
 

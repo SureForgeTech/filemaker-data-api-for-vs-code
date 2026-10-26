@@ -246,11 +246,17 @@ test('Open VS X publishing fails closed: environment-gated, read-only, token onl
   // No GitHub release is cut unless both marketplaces accepted the build.
   assert.deepEqual(ci.jobs.release.needs, ['publish', 'publish-ovsx']);
 
-  // The secret expression may appear only in a step env block, and the token must
-  // not reach a run script at all — not the literal expression and not the shell
-  // variable, which could be put on a command line and land in a process list.
+  // The secret expression may appear only in a step env block, and no run script may
+  // contain it — not the literal expression (which would work inline) and not the shell
+  // variable on a command line, where the token would land in a process list.
   const refs = JSON.stringify(ovsx).match(/\$\{\{\s*secrets\.OVSX_PAT\s*\}\}/g) ?? [];
   assert.equal(refs.length, 2, 'OVSX_PAT is read by exactly the require step and the publish step only');
+  for (const step of ovsx.steps) {
+    assert.ok(
+      !/secrets\.OVSX_PAT/.test(String(step.run ?? '')),
+      `the token expression never appears in the run block of "${step.name ?? 'unnamed step'}"`
+    );
+  }
 
   const requireIndex = ovsx.steps.findIndex((step) => step.name === 'Require the Open VS X token');
   const publishIndex = ovsx.steps.findIndex((step) => step.name === 'Publish to Open VS X');
@@ -259,6 +265,7 @@ test('Open VS X publishing fails closed: environment-gated, read-only, token onl
   assert.ok(requireIndex < publishIndex, 'the token is checked before anything publishes');
 
   const requireStep = ovsx.steps[requireIndex];
+  assert.equal(requireStep.env.OVSX_PAT, '${{ secrets.OVSX_PAT }}', 'the require step reads the token only from its env block');
   assert.match(requireStep.run, /exit 1/, 'a missing token stops the job before anything publishes');
 
   const publishStep = ovsx.steps[publishIndex];
