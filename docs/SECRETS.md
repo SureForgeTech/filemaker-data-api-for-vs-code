@@ -6,12 +6,12 @@ This repository holds **no repository secrets** today. Check with `gh secret lis
 
 | Name | Where | What it is | Secret? |
 | --- | --- | --- | --- |
-| `OVSX_PAT` | Repository secret (not set yet) | Eclipse Foundation publisher access token for publishing to open-vsx.org. Needed by the **publish-ovsx** job in CI ([RELEASE.md](./RELEASE.md#how-publishing-works)); the job fails closed without it. Setup tracked in [#265](https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/issues/265). | Yes, once set |
+| `OVSX_PAT` | Secret on the `marketplace` environment (not set yet) | Eclipse Foundation publisher access token for publishing to open-vsx.org. Read by the **publish-ovsx** job in CI ([RELEASE.md](./RELEASE.md#how-publishing-works)), which runs in that environment so the token can sit behind the same required reviewer as the Azure path; the job fails closed without it. Setup tracked in [#265](https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/issues/265). | Yes, once set |
 | `AZURE_CLIENT_ID`, `AZURE_TENANT_ID` | Variables on the `marketplace` environment | Identifiers of the Microsoft Entra managed identity that publishes to the Marketplace. Setup: [JOB_AID_ENTRA_PUBLISHING.md](./JOB_AID_ENTRA_PUBLISHING.md). Not set yet, so publishing is manual until the setup is done ([RELEASE.md](./RELEASE.md#manual-publish-fallback)). | No |
 | `LINUX_RUNNER_LABELS` | Repository variable | Runner labels for CI jobs | No |
 | `GITHUB_TOKEN` | Provided by GitHub Actions per run | Used by the release job and workflows with explicit permissions | Managed by GitHub |
 
-Publishing signs in with a short-lived GitHub OIDC token exchanged for the managed identity, restricted to the `marketplace` environment (tags only, a required reviewer). There is no personal access token to store or renew. The old `VSCE_PAT` token type stops working on 2026-12-01 in any case; if a `VSCE_PAT` secret turns up, delete it.
+Publishing to the Marketplace signs in with a short-lived GitHub OIDC token exchanged for the managed identity, restricted to the `marketplace` environment (tags only, a required reviewer) — that path needs no personal access token to store or renew. Open VS X is the exception: it authenticates with the `OVSX_PAT` token above, which does need storing and renewing when #265 sets it up. The old `VSCE_PAT` token type stops working on 2026-12-01 in any case; if a `VSCE_PAT` secret turns up, delete it.
 
 Not in use any more: the Claude Code cloud agent secrets (`CLAUDE_CODE_OAUTH_TOKEN`, `ANTHROPIC_API_KEY`, `PRS_PAT`) were removed together with the workflow that used them. Open VSX publishing (`OVSX_PAT`) is wired into CI but the secret itself is not set up yet (#265).
 
@@ -23,7 +23,7 @@ The monthly `secret-rotation-reminder.yml` workflow reads the table below and fi
 | --- | --- | --- | --- |
 | <!-- No tracked credential yet. Add a row here when you add a secret, with an owner and a next rotation date. --> | | | |
 
-There are no rows yet because this repository holds no secrets: publishing uses a short-lived OIDC token instead of a personal access token (see [JOB_AID_ENTRA_PUBLISHING.md](./JOB_AID_ENTRA_PUBLISHING.md)). The table is the mechanism, not a list of invented expiries — the workflow only reminds about the rows that are really there.
+There are no rows yet because no secret is stored today: Marketplace publishing uses a short-lived OIDC token instead of a personal access token (see [JOB_AID_ENTRA_PUBLISHING.md](./JOB_AID_ENTRA_PUBLISHING.md)). The first row will be `OVSX_PAT` when #265 creates it — add it with an owner and the token's real expiry then. The table is the mechanism, not a list of invented expiries — the workflow only reminds about the rows that are really there.
 
 A row without a date (blank or `N/A`) is tracked but never reminds. A row with an unreadable date, the wrong number of columns or a name that appears twice is reported as a warning by the workflow and fails that run, so a typo cannot silently hide a rotation. Two rows with the same name are a duplicate: one credential cannot have two rotation dates, so neither row is honored until the table is fixed. A duplicate is a duplicate even when one of the two rows is unreadable, so a broken date cannot hide the second date of the same credential.
 
@@ -45,7 +45,7 @@ The parser behind it is `scripts/lib/secret-rotation.mjs`, its tests are `script
 
 1. Prefer something that is not a secret (OIDC, a variable).
 2. Scope it to an environment with a required reviewer, not the whole repository, and give the job that uses it the narrowest permissions.
-3. Never run `npm ci` or other dependency install scripts in a job that holds it (the `publish` job installs `vsce` from its own lockfile with `--ignore-scripts` for this reason).
+3. Never run `npm ci` or other dependency install scripts in a job that holds it (the `publish` and `publish-ovsx` jobs install `vsce`/`ovsx` from their own lockfile with `--ignore-scripts` for this reason).
 4. Add a row to the [Rotation calendar](#rotation-calendar) above with an owner and an expiry, and set a calendar reminder 30 days before the expiry. The monthly `secret-rotation-reminder.yml` workflow files a reminder issue from that row about 30 days before the date; it is a safety net, not the source of truth, so keep the calendar reminder too.
 5. Document how to rotate it here.
 

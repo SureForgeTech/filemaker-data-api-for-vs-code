@@ -234,3 +234,31 @@ test('the secret rotation reminder stays monthly, dry by default and serialized'
   assert.equal(rotation.concurrency?.group, '${{ github.workflow }}');
   assert.equal(rotation.concurrency['cancel-in-progress'], false);
 });
+
+test('Open VS X publishing fails closed: environment-gated, read-only, token only in step env', () => {
+  const ovsx = ci.jobs['publish-ovsx'];
+  assert.ok(ovsx, 'the tag pipeline has a publish-ovsx job');
+  assert.equal(ovsx.needs, 'publish', 'publish-ovsx runs only after the Marketplace publish');
+  assert.equal(ovsx.environment, 'marketplace', 'the job runs in the environment that can hold OVSX_PAT behind a required reviewer');
+  assert.deepEqual(ovsx.permissions, { contents: 'read' }, 'publish-ovsx gets no write scope and no OIDC token scope');
+  assert.equal(ovsx.env, undefined, 'the token must not be hoisted to job-level env');
+
+  // No GitHub release is cut unless both marketplaces accepted the build.
+  assert.deepEqual(ci.jobs.release.needs, ['publish', 'publish-ovsx']);
+
+  // The secret expression may appear only in a step env block, never in a run
+  // script that could echo it: the require step and the publish step read it.
+  const refs = JSON.stringify(ovsx).match(/\$\{\{\s*secrets\.OVSX_PAT\s*\}\}/g) ?? [];
+  assert.equal(refs.length, 2, 'OVSX_PAT is read by exactly the require step and the publish step');
+
+  const requireStep = ovsx.steps.find((step) => step.name === 'Require the Open VS X token');
+  assert.ok(requireStep, 'the fail-closed require step exists');
+  assert.match(requireStep.run, /exit 1/, 'a missing token stops the job before anything publishes');
+
+  const publishStep = ovsx.steps.find((step) => step.name === 'Publish to Open VS X');
+  assert.ok(publishStep, 'the publish step exists');
+  assert.equal(publishStep.env.OVSX_PAT, '${{ secrets.OVSX_PAT }}', 'the token is passed only as env');
+  assert.ok(!String(publishStep.run).includes('secrets.OVSX_PAT'), 'the token expression never enters a run block');
+  assert.equal(publishStep['continue-on-error'], false, 'a failed Open VS X publish fails the run');
+  assert.match(publishStep.run, /--skip-duplicate/, 'a re-run converges after an ambiguous failure');
+});
