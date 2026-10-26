@@ -54,6 +54,7 @@ function buildLayout(objects: LayoutObject[]): LayoutDefinition {
 function initializeDesigner(layout: LayoutDefinition, scripts: string[] = []): void {
   window.dispatchEvent(
     new MessageEvent('message', {
+      origin: window.location.origin,
       data: {
         type: 'init',
         payload: {
@@ -163,6 +164,7 @@ describe('behavior bindings', () => {
 
     window.dispatchEvent(
       new MessageEvent('message', {
+        origin: window.location.origin,
         data: {
           type: 'behaviorResult',
           payload: {

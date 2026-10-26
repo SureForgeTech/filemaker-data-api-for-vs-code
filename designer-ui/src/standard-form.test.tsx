@@ -116,7 +116,7 @@ describe('standard form engine', () => {
 });
 
 function init(layout: LayoutDefinition, extra = {}): void {
-  fireEvent(window, new MessageEvent('message', { data: { type: 'init', payload: {
+  fireEvent(window, new MessageEvent('message', { origin: window.location.origin, data: { type: 'init', payload: {
     layout, availableFields: fields.map((field) => field.name), availableFieldMetadata: fields, scripts: [], projectName: 'Test', ...extra
   } } }));
 }

@@ -39,6 +39,7 @@ if (recordViewerPanel) {
 }
 
 window.addEventListener('message', (event) => {
+  if (event.origin !== window.location.origin) { return; }
   const message = event.data;
   if (!message || typeof message.type !== 'string') {
     return;
