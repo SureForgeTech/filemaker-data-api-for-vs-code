@@ -79,12 +79,12 @@ Microsoft's description of this step: <https://code.visualstudio.com/api/working
 
 ## Part 6: publish
 
-Push the `v*` tag. In the run, approve the **marketplace** deployment. The `publish` job signs in with the identity and publishes. If it fails at the publish step with an access error, open an issue with the (redacted) message. This flow is documented by Microsoft only for Azure Pipelines, and reported working on GitHub Actions by one third-party write-up, not by Microsoft, so a failure here may need a change to the workflow.
+Push the `v*` tag. In the run, approve the **marketplace** deployment. The `publish` job signs in with the identity and publishes. If it fails at the publish step with an access error, open an issue with the (redacted) message. This flow is documented by Microsoft only for Azure Pipelines, and reported working on GitHub Actions by one third-party write-up, not by Microsoft, so a failure here may need a change to the workflow. After **publish**, the run asks for a second **marketplace** approval for **publish-ovsx** (Open VS X): it needs the `OVSX_PAT` secret, which does not exist yet ([#265](https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/issues/265)), so the run stops at "OVSX_PAT is not set" and **release** is skipped — that is expected until the token is stored, and the GitHub release is then created by hand ([JOB_AID_MANUAL_RELEASE.md](./JOB_AID_MANUAL_RELEASE.md)). See [RELEASE.md](./RELEASE.md#how-publishing-works).
 
 ## Afterwards
 
 - Delete the helper workflow (`.github/workflows/entra-identity-id.yml`) in a pull request once Part 5 is done, and confirm the temporary `main` rule from Part 4 is gone.
-- There is no `VSCE_PAT` anywhere and nothing to renew.
+- There is no `VSCE_PAT` anywhere and nothing to renew on the Marketplace path. Open VS X is different: it uses the `OVSX_PAT` token, which does need storing and rotating ([SECRETS.md](./SECRETS.md)).
 
 ## Pitfalls
 

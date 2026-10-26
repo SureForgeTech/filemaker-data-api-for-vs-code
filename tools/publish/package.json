@@ -2,8 +2,9 @@
   "name": "marketplace-publish-tool",
   "version": "0.0.0",
   "private": true,
-  "description": "Only @vscode/vsce, locked, so the publish job installs a fixed dependency tree.",
+  "description": "Only @vscode/vsce and ovsx, locked, so the publish jobs install a fixed dependency tree.",
   "dependencies": {
-    "@vscode/vsce": "4.0.0"
+    "@vscode/vsce": "4.0.0",
+    "ovsx": "1.3.0"
   }
 }

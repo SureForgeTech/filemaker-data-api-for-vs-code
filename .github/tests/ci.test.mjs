@@ -234,3 +234,43 @@ test('the secret rotation reminder stays monthly, dry by default and serialized'
   assert.equal(rotation.concurrency?.group, '${{ github.workflow }}');
   assert.equal(rotation.concurrency['cancel-in-progress'], false);
 });
+
+test('Open VS X publishing fails closed: environment-gated, read-only, token only in step env', () => {
+  const ovsx = ci.jobs['publish-ovsx'];
+  assert.ok(ovsx, 'the tag pipeline has a publish-ovsx job');
+  assert.equal(ovsx.needs, 'publish', 'publish-ovsx runs only after the Marketplace publish');
+  assert.equal(ovsx.environment, 'marketplace', 'the job runs in the environment that can hold OVSX_PAT behind a required reviewer');
+  assert.deepEqual(ovsx.permissions, { contents: 'read' }, 'publish-ovsx gets no write scope and no OIDC token scope');
+  assert.equal(ovsx.env, undefined, 'the token must not be hoisted to job-level env');
+
+  // No GitHub release is cut unless both marketplaces accepted the build.
+  assert.deepEqual(ci.jobs.release.needs, ['publish', 'publish-ovsx']);
+
+  // The secret expression may appear only in a step env block, and no run script may
+  // contain it — not the literal expression (which would work inline) and not the shell
+  // variable on a command line, where the token would land in a process list.
+  const refs = JSON.stringify(ovsx).match(/\$\{\{\s*secrets\.OVSX_PAT\s*\}\}/g) ?? [];
+  assert.equal(refs.length, 2, 'OVSX_PAT is read by exactly the require step and the publish step only');
+  for (const step of ovsx.steps) {
+    assert.ok(
+      !/secrets\.OVSX_PAT/.test(String(step.run ?? '')),
+      `the token expression never appears in the run block of "${step.name ?? 'unnamed step'}"`
+    );
+  }
+
+  const requireIndex = ovsx.steps.findIndex((step) => step.name === 'Require the Open VS X token');
+  const publishIndex = ovsx.steps.findIndex((step) => step.name === 'Publish to Open VS X');
+  assert.ok(requireIndex >= 0, 'the fail-closed require step exists');
+  assert.ok(publishIndex >= 0, 'the publish step exists');
+  assert.ok(requireIndex < publishIndex, 'the token is checked before anything publishes');
+
+  const requireStep = ovsx.steps[requireIndex];
+  assert.equal(requireStep.env.OVSX_PAT, '${{ secrets.OVSX_PAT }}', 'the require step reads the token only from its env block');
+  assert.match(requireStep.run, /exit 1/, 'a missing token stops the job before anything publishes');
+
+  const publishStep = ovsx.steps[publishIndex];
+  assert.equal(publishStep.env.OVSX_PAT, '${{ secrets.OVSX_PAT }}', 'the token is passed only as env');
+  assert.ok(!/OVSX_PAT/.test(publishStep.run), 'the publish script never mentions the token, on the command line or anywhere else');
+  assert.equal(publishStep['continue-on-error'], false, 'a failed Open VS X publish fails the run');
+  assert.match(publishStep.run, /--skip-duplicate/, 'a re-run converges after an ambiguous failure');
+});
