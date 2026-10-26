@@ -10,7 +10,7 @@ Pushing a tag named `vX.Y.Z` starts the **CI** workflow (`.github/workflows/ci.y
 
 1. **build-test**: install, audit, lint, typecheck, tests with coverage, build, package check and the VSIX size budget. This is the required check on `main` as well.
 2. **package**: builds the VSIX and uploads it as the run artifact `extension-vsix`.
-3. **publish**: waits for approval of the **`marketplace`** environment (a required reviewer). It then checks that the tag points at a commit on `main` and that the tag equals `v` plus the version in `extension/package.json`. It installs `vsce` from the pinned lockfile in `tools/publish`, signs in to Azure with a short-lived GitHub OIDC token (Microsoft Entra ID, no stored token) and runs `vsce publish --azure-credential`.
+3. **publish**: waits for approval of the **`marketplace`** environment (a required reviewer). It then checks that the tag points at a commit on `main` and that the tag equals `v` plus the version in `extension/package.json`. It installs the publish tools (`vsce` and `ovsx`) from the pinned lockfile in `tools/publish`, signs in to Azure with a short-lived GitHub OIDC token (Microsoft Entra ID, no stored token) and runs `vsce publish --azure-credential`.
 4. **publish-ovsx**: only after **publish** succeeds, waits for the same **`marketplace`** environment approval (a second reviewer sign-off in the run), then publishes the same VSIX to open-vsx.org (Cursor, Windsurf and other compatible editors). It requires the `OVSX_PAT` secret ([#265](https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/issues/265)) and fails closed without it, so the run stops before **release** with a named error. It is a separate job so that "Re-run failed jobs" never re-runs `vsce publish`, which the Marketplace rejects as a duplicate version ("Re-run all jobs" would re-run it and fail there).
 5. **release**: only after both publishes succeed, creates the GitHub release with the VSIX and the source maps tarball (`sourcemaps-<tag>.tgz`) attached and notes taken from `extension/CHANGELOG.md` by `tools/release-notes.sh`.
 
@@ -82,7 +82,7 @@ Do this against the release branch (the content that will be tagged), not after 
 
 - [ ] Merge the release pull request once the verification above passed and `build-test` is green. Do not add code after verifying; if you must, verify again.
 - [ ] Make sure the release commit is on `origin/main` and `extension/package.json` has the new version there: `git fetch origin && git show origin/main:extension/package.json | grep '"version"'`.
-- [ ] Before tagging: confirm the `OVSX_PAT` secret exists (`gh secret list --repo SureForgeTech/filemaker-data-api-for-vs-code` — it lives in the `marketplace` environment). Once the Entra setup is done, a tag run stops at **publish-ovsx** and cuts no GitHub release without it ([#265](https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/issues/265)).
+- [ ] Before tagging: confirm the `OVSX_PAT` secret exists: `gh secret list --env marketplace --repo SureForgeTech/filemaker-data-api-for-vs-code` (plain `gh secret list` without `--env` only shows repository-level secrets and would print an empty list even when the token is there). Once the Entra setup is done, a tag run stops at **publish-ovsx** and cuts no GitHub release without it ([#265](https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/issues/265)).
 - [ ] Create and push the tag from `main` (as a repository admin):
   ```bash
   git fetch origin
