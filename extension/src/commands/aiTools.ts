@@ -192,5 +192,6 @@ export function registerAiToolCommands(deps: Deps & { statusBar: AiStatusBar }):
 }
 
 export function auditLogPath(globalStoragePath: string): string {
+  // path-join disposition: the file name is a fixed constant under the extension storage folder, so no input can change the path.
   return join(globalStoragePath, 'ai-audit.log');
 }

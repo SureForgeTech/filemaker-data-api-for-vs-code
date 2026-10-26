@@ -546,6 +546,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const aiMcp = new AiMcpController({
     core: aiService,
     globalStoragePath: context.globalStorageUri?.fsPath,
+    // path-join disposition: every segment is a compile-time constant under the extension folder, so no input can change the path.
     extensionShimPath: context.extensionUri ? path.join(context.extensionUri.fsPath, 'dist', 'aiMcpShim.js') : undefined,
     serverInfo: { name: 'filemaker-data-api-tools', version: String(context.extension?.packageJSON?.version ?? '0') },
     isEnabled: () => isExternalServerEnabled(vscode.workspace.getConfiguration('filemaker')),

@@ -163,6 +163,7 @@ export function registerTypeGenCommands(deps: RegisterTypeGenCommandsDeps): vsco
 
       const outputDir = settingsService.getTypegenOutputDir();
 
+      // path-join disposition: the directory comes from the sanitised usableRelativeDir setting, so it has no ".." segment and no absolute path.
       const uri = vscode.Uri.file(join(workspaceFolder.uri.fsPath, outputDir));
       await vscode.workspace.fs.createDirectory(uri);
       await vscode.commands.executeCommand('revealFileInOS', uri);

@@ -6,6 +6,7 @@ import { renameReplacing } from './renameReplacing';
 /** Publish only a complete export, preserving existing modes and replacing links without following them. */
 export async function atomicExport(path: string) {
   await mkdir(dirname(path), { recursive: true });
+  // path-join disposition: the temporary file is written next to the export target the user picked, in the same folder, so it stays inside that folder.
   const temporary = join(dirname(path), `.${basename(path)}.${randomUUID()}.tmp`);
   const file = await open(temporary, 'wx', 0o600);
   let finished = false;
