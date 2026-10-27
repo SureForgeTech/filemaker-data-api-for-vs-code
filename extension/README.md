@@ -30,7 +30,7 @@ One real FileMaker server was exercised on **2026-10-21**, but its version was n
 
 The screenshots show a mock FileMaker Data API with made-up data (names and `example.com` addresses), not a real server. The first screenshot is from the current version; the rest were taken in an older one, so version labels and some field styling differ and panels now follow the editor theme.
 
-![The query builder on the Contacts layout: field pickers, a populated find request and eight matching rows](docs/marketplace/query-builder-hero.png)
+![The query builder on the Contacts layout: field pickers, a populated find request and a preview of the matching rows](docs/marketplace/query-builder-hero.png)
 
 The query builder against the Contacts layout: pick the fields, type your criteria, run the find and page through the found rows.
 
