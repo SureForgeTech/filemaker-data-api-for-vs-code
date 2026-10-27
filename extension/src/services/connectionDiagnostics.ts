@@ -146,7 +146,9 @@ export function buildDiagnosticReport(report: DiagnosticReport, hideAddress = fa
     let safe = value;
     if (hideAddress) {
       safe = safe.split(report.address).join('(hidden)');
+      // regexp disposition: host is the configured server hostname from report.address (the profile's own server URL) and is regex-escaped before the RegExp constructor, so no server- or template-supplied text can inject pattern syntax.
       if (host) safe = safe.replace(new RegExp(host.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), '(hidden)');
+      // regexp disposition: port is URL.port or the literal '443'/'80'; URL.port only ever yields digits, so the pattern cannot carry regex metacharacters.
       if (port) safe = safe.replace(new RegExp(`\\b${port}\\b`, 'g'), '(hidden)');
     }
     return plainLine(safe);

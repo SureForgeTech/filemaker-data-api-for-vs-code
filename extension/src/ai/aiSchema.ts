@@ -52,6 +52,7 @@ export function validateInput(schema: JsonSchema, value: unknown, path = 'input'
       if (schema.maxLength !== undefined && value.length > schema.maxLength) {
         throw new AiInputError(`${path} must have at most ${schema.maxLength} characters.`);
       }
+      // regexp disposition: schema is the static tool definition literal from aiToolDefinitions.ts (validateInput is called with definition.inputSchema); the only pattern is '^[0-9]{1,18}$', so it cannot be attacker-influenced.
       if (schema.pattern !== undefined && !new RegExp(schema.pattern, 'u').test(value)) {
         throw new AiInputError(`${path} has an invalid format.`);
       }
