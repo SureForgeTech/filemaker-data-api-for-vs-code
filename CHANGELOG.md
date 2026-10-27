@@ -36,6 +36,7 @@ PR title prefix matches the highest-tier label added:
 - The Marketplace listing README now has a Security & Trust section right after the product tour: credentials stay in the OS keychain, nothing is collected or sent to the authors, an untrusted folder stays read only, and the security policy is one link away.
 - A privacy policy at the repository root (PRIVACY.md) now says what the extension stores locally, what never leaves your machine, the proxy-mode exception, which third parties are reached, the GDPR/CCPA stance, and where to send privacy questions; the documentation table, the Marketplace listing and the User Guide all link to it.
 - The Marketplace README now opens the product tour with a Query Builder hero screenshot of the Contacts layout: field pickers, a populated find request and the found rows.
+- The Marketplace README now shows a GIF of the connection flow: add a connection profile, connect, and open the Query Builder.
 
 ### [SECURITY]
 
