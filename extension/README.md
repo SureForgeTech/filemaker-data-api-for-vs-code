@@ -6,6 +6,8 @@ For Claris FileMaker Server (Data API). FileMaker Cloud sign-in with a Claris ID
 
 Connect to any FileMaker Data API server and run queries, browse schema, edit records, and export results — without leaving VS Code.
 
+![Connect to a FileMaker server and run a find request in under 10 seconds.](docs/marketplace/connection-wizard.gif)
+
 **Built by [ABD Enterprises](https://abdenterprises.com).** Free, open source (MIT), no telemetry, no cloud account.
 
 Version **1.8.0** adds a **Browse** button in the connection wizard for a custom CA certificate, clearer sign-in errors that explain the two common causes and link to the fix, and the field-order and panel fixes listed in the changelog. See the [upgrade notes](https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/blob/main/extension/UPGRADE.md) before importing a file.
