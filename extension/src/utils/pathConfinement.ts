@@ -92,9 +92,11 @@ export async function resolveConfinedFile(
   platform: NodeJS.Platform = process.platform
 ): Promise<ConfinedPath> {
   const text = validateConfiguredPath(candidate, platform);
+  // path-join disposition: validateConfiguredPath above refuses every ".." segment, and the result is compared with the roots below, so this resolve cannot climb out of a root.
   const absolute = resolve(baseDir, text);
 
   for (const root of roots) {
+    // path-join disposition: the root is the trusted folder the caller passes in; it is the base the candidate is compared against, not a part an input can change.
     const lexicalRoot = resolve(root);
     const rel = relative(lexicalRoot, absolute);
     if (rel === '' || rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
@@ -111,6 +113,7 @@ export async function resolveConfinedFile(
     const parts = rel.split(sep).filter((part) => part.length > 0);
     let current = realRoot;
     for (let index = 0; index < parts.length; index += 1) {
+      // path-join disposition: the part comes from the relative path that was proved to be inside the root, and every existing step is lstat'ed below, so a symbolic link cannot be followed.
       current = join(current, parts[index] as string);
       let stats;
       try {
@@ -135,6 +138,7 @@ export async function resolveConfinedFile(
     }
 
     return {
+      // path-join disposition: the parts are the ones that were checked above and the real path of the root, so the joined file is the confined file that was proved to be inside the root.
       path: join(realRoot, ...parts),
       root,
       relativePath: parts.join('/')
