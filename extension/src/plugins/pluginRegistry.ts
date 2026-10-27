@@ -316,6 +316,7 @@ export class PluginRegistry implements vscode.Disposable {
 
     const candidates = files
       .filter((file) => /\.(js|cjs|mjs)$/i.test(file))
+      // path-join disposition: the name comes from readdir, which cannot return a name with a separator, so the joined file stays in the plugin folder; it is imported only after isApprovedToRun matched the folder hash or the user agreed.
       .map((file) => join(pluginDir, file));
 
     const loaded: FileMakerPlugin[] = [];
@@ -369,6 +370,7 @@ async function listFilesRecursively(dir: string): Promise<string[]> {
   const entries = await readdir(dir, { withFileTypes: true });
   const files: string[] = [];
   for (const entry of entries) {
+    // path-join disposition: the name comes from readdir, which cannot return a name with a separator, and a symbolic link in the folder is refused below, so the joined path stays inside the folder that was hashed.
     const full = join(dir, entry.name);
     if (entry.isSymbolicLink()) {
       // A link could point at code outside the folder, or change without the folder changing.
