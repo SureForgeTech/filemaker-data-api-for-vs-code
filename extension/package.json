@@ -2093,7 +2093,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@modelcontextprotocol/sdk": "1.32.1",
+    "@modelcontextprotocol/sdk": "1.32.2",
     "@types/node": "^22.0.0",
     "@types/vscode": "~1.96.0",
     "@typescript-eslint/eslint-plugin": "^8.72.0",
