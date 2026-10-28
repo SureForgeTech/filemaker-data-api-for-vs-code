@@ -28,7 +28,7 @@ PR title prefix matches the highest-tier label added:
 
 ### [FIX]
 
-- None.
+- The Query Builder results table sizes its Open column to fit both actions, so View and Edit are both visible and clickable instead of clipping Edit to "View ...".
 
 ### [INTERNAL]
 

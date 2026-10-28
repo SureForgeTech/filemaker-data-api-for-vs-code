@@ -340,8 +340,9 @@ th.actions-col {
   background: var(--row-hover);
 }
 
+/* The Open column holds View and Edit: size it to content so Edit is never clipped. */
 td.actions-col {
-  width: 1%;
+  width: auto;
   white-space: nowrap;
 }
 
@@ -521,5 +522,5 @@ button {
 
 /* Action labels stay whole even in a narrow result column. */
 .actions-col a { white-space: nowrap; overflow-wrap: normal; word-break: normal; }
-th.actions-col, td.actions-col { min-width: 64px; }
+th.actions-col, td.actions-col { min-width: 96px; }
 .sort-header { min-height: 0; white-space: nowrap; overflow-wrap: normal; line-height: 1.4; }
