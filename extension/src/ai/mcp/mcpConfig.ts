@@ -6,6 +6,7 @@ import { assertOwnerOnly, ensureOwnerOnlyDirectory } from './discovery';
 
 /** The folder (inside the extension's global storage) that holds discovery files. */
 export function discoveryDirectory(globalStoragePath: string): string {
+  // path-join disposition: "ai-mcp" is a compile-time constant under the extension's global storage folder, so no input can change the path.
   return join(globalStoragePath, 'ai-mcp');
 }
 
@@ -34,6 +35,7 @@ export function buildMcpConfig(args: { shimPath: string; discoveryDir: string; w
 
 /** A stable place for the shim, so a client configuration survives extension updates. */
 export function installedShimPath(globalStoragePath: string): string {
+  // path-join disposition: "ai-mcp-shim" and "aiMcpShim.js" are compile-time constants under the extension's global storage folder, so no input can change the path.
   return join(globalStoragePath, 'ai-mcp-shim', 'aiMcpShim.js');
 }
 

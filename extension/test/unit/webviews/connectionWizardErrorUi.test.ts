@@ -24,8 +24,9 @@ interface JsdomWindow {
   };
   eval(code: string): void;
   dispatchEvent(event: unknown): boolean;
-  MessageEvent: new (type: string, init: { data: unknown }) => unknown;
+  MessageEvent: new (type: string, init: { data: unknown; origin?: string }) => unknown;
   Event: new (type: string) => unknown;
+  location: { origin: string };
 }
 type JsdomCtor = new (html: string, options: { runScripts: string; url: string }) => { window: JsdomWindow };
 let JSDOM: JsdomCtor | undefined;
@@ -65,7 +66,7 @@ describe.skipIf(!JSDOM)('Test Connection failure in the wizard page', () => {
     (window as unknown as { acquireVsCodeApi: () => unknown }).acquireVsCodeApi = () => ({ postMessage: (m: Record<string, unknown>) => posted.push(m) });
     window.eval(uiSource);
     window.document.dispatchEvent(new window.Event('DOMContentLoaded'));
-    const send = (data: unknown) => window.dispatchEvent(new window.MessageEvent('message', { data }));
+    const send = (data: unknown) => window.dispatchEvent(new window.MessageEvent('message', { data, origin: window.location.origin }));
     return { window, document: window.document, posted, send };
   }
 

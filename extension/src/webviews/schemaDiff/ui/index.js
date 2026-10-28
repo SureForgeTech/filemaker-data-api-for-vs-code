@@ -30,6 +30,7 @@ if (diffHeader && diffSections.length > 0) {
 }
 
 window.addEventListener('message', (event) => {
+  if (event.origin !== window.location.origin) { return; }
   const message = event.data;
   if (!message || typeof message.type !== 'string') {
     return;
@@ -40,9 +41,7 @@ window.addEventListener('message', (event) => {
     // instead of leaving the skeleton on screen forever.
     summary.textContent = message.message || 'Something went wrong.';
     setElementsVisible(diffSections, true);
-    diffSections.forEach((section) => {
-      section.classList.add('loaded');
-    });
+    markDiffSectionsLoaded();
     return;
   }
 
@@ -314,6 +313,12 @@ function setElementsVisible(elements, isVisible) {
   });
 
   diffSkeleton.classList.toggle('hidden', isVisible);
+}
+
+function markDiffSectionsLoaded() {
+  diffSections.forEach((section) => {
+    section.classList.add('loaded');
+  });
 }
 
 function revealDiff() {

@@ -6,6 +6,7 @@ import { migrateLayoutDefinition, type LayoutDefinition } from '@fmweb/shared';
 export async function loadLayoutDefinition(id: string): Promise<LayoutDefinition | undefined> {
   const layoutsDir = await resolveLayoutsDir();
   const fileName = `${safeId(id)}.layout.json`;
+  // path-join disposition: safeId() replaces every character that is not a letter, a digit, "-" or "_", so the file name has no separator and no ".." segment and stays in the layouts folder.
   const filePath = path.join(layoutsDir, fileName);
 
   try {

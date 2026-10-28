@@ -66,7 +66,9 @@ export async function createEndpoint(
   const failures: string[] = [];
   for (const { base, variable } of candidates) {
     try {
+      // path-join disposition: the folder name is fmai-<uid>-<8 hex>, built by socketFolderName(), so it has no separator and no ".." segment; the folder is created 0700 and checked by ensureOwnerOnlyDirectory.
       await ensureOwnerOnlyDirectory(join(base, folder));
+      // path-join disposition: the same generated folder name (fmai-<uid>-<8 hex>) is joined to the absolute base folder, so the result cannot climb out of it.
       directory = join(base, folder);
       chosenVariable = variable;
       break;
@@ -80,6 +82,7 @@ export async function createEndpoint(
   if (!directory) {
     throw new Error(`No usable folder for the AI server socket. ${failures.length > 0 ? failures.join(' ') : 'XDG_RUNTIME_DIR and TMPDIR are empty or not absolute paths.'}`);
   }
+  // path-join disposition: the file name is 12 hex characters of a random id with the fixed ".sock" suffix, so it has no separator and no ".." segment.
   const path = join(directory, `${id.slice(0, 12)}.sock`);
   if (Buffer.byteLength(path) > MAX_SOCKET_PATH_BYTES) {
     throw new Error(`The socket path would be ${Buffer.byteLength(path)} bytes, over the ${MAX_SOCKET_PATH_BYTES} byte limit. Set ${chosenVariable} to a shorter folder.`);
@@ -130,6 +133,7 @@ export async function removeStaleSockets(
   }
 
   for (const name of names.filter((entry) => /^[0-9a-f]{12}\.sock$/.test(entry))) {
+    // path-join disposition: the name is filtered by ^[0-9a-f]{12}\.sock$ before the join, so it has no separator and no ".." segment; the file must also be a socket owned by this user.
     const path = join(socketDirectory, name);
     try {
       const stats = await lstat(path);

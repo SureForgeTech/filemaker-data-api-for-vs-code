@@ -43,6 +43,7 @@ if (scriptRunnerHeader && scriptRunnerPanels.length > 0) {
 }
 
 window.addEventListener('message', (event) => {
+  if (event.origin !== window.location.origin) { return; }
   const message = event.data;
   if (!message || typeof message.type !== 'string') {
     return;

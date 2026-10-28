@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Saved connection secrets are decrypted with a fixed 16-byte tag check, so a shortened or tampered tag is refused instead of being misread. Secrets saved earlier keep working. No known exploit.
+- The extension's panels now ignore messages that do not come from VS Code itself, so a stray or badly formed message is dropped before it can act. No known exploit.
+- Files written for generated pages, type generation and AI context now stay inside their folder: a path that tries to escape is refused instead of written. No known exploit.
+- The Marketplace listing README now has a Security & Trust section right after the product tour: credentials stay in the OS keychain, nothing is collected or sent to the authors, an untrusted folder stays read only, and the security policy is one link away.
+- A privacy policy at the repository root (PRIVACY.md) now says what the extension stores locally, what never leaves your machine, the proxy-mode exception, which third parties are reached, the GDPR/CCPA stance, and where to send privacy questions; the documentation table, the Marketplace listing and the User Guide all link to it.
+- The Marketplace README now opens the product tour with a Query Builder hero screenshot of the Contacts layout: field pickers, a populated find request and the found rows.
+- The Marketplace README now shows a GIF of the connection flow: add a connection profile, connect, and open the Query Builder.
+
 ## 1.8.0
 
 _Released 2026-10-25._

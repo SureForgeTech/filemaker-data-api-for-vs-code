@@ -76,6 +76,7 @@ export function isExpectedSocketPath(path: string, uid: number | undefined = cur
     return true;
   }
   const folder = /^fmai-(\d+)-[0-9a-f]{8}$/.exec(basename(dirname(path)));
+  // path-join disposition: resolve(path) === path is the canonical-path check itself: a path with a ".." segment or a doubled separator is not equal to its own resolved form, so it is refused and no file is read here.
   return UNIX_SOCKET_NAME.test(basename(path)) && folder !== null && folder[1] === String(uid ?? 0) && resolve(path) === path;
 }
 
@@ -120,7 +121,9 @@ export async function ensureOwnerOnlyDirectory(path: string): Promise<void> {
 /** Writes the record by creating a new 0600 file and renaming it into place. */
 export async function writeDiscovery(directory: string, fileName: string, record: DiscoveryRecord): Promise<string> {
   await ensureOwnerOnlyDirectory(directory);
+  // path-join disposition: the file name comes from discoveryFileName() (16 hex characters of a SHA-256 digest), so it has no separator and no ".." segment; the folder is owner-only and was just checked.
   const target = join(directory, fileName);
+  // path-join disposition: the temporary name is that same file name with a dot and the process id around it, so it has no separator and no ".." segment either.
   const temporary = join(directory, `.${fileName}.${process.pid}.tmp`);
   try {
     await writeFile(temporary, `${JSON.stringify(record)}\n`, { encoding: 'utf8', flag: 'wx', mode: 0o600 });
@@ -164,6 +167,7 @@ export async function scanDiscovery(directory: string, liveness: Liveness = REAL
   await assertOwnerOnly(directory, 'directory');
 
   for (const name of (await readdir(directory)).filter((entry) => entry.endsWith('.json') && !entry.startsWith('.')).sort()) {
+    // path-join disposition: the name comes from readdir, which cannot return a name with a separator, and the folder was checked with assertOwnerOnly, so the joined file stays inside it.
     const file = join(directory, name);
     try {
       await assertOwnerOnly(file, 'file');
@@ -200,7 +204,9 @@ export type Selection = { ok: true; window: LiveWindow } | { ok: false; message:
  * reports a drive letter in lower case (`c:\\work`) while a person types it in upper case (`C:\\work`).
  */
 export function samePath(a: string, b: string, platform: NodeJS.Platform = process.platform): boolean {
+  // path-join disposition: the two folder names are only resolved so they can be compared; no file is read or written, so a ".." segment cannot be followed.
   const left = platform === 'win32' ? win32.resolve(a) : resolve(a);
+  // path-join disposition: the other folder name is resolved the same way and for the same reason: a comparison of two names, not a file access.
   const right = platform === 'win32' ? win32.resolve(b) : resolve(b);
   return platform === 'win32' ? left.toLowerCase() === right.toLowerCase() : left === right;
 }

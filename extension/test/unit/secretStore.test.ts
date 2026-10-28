@@ -160,6 +160,67 @@ describe('SecretStore', () => {
       expect(logger.error).toHaveBeenCalled();
     });
 
+    it('returns undefined and logs error when the auth tag is truncated', async () => {
+      const failing = new FailingSecretStorage();
+      const store = new SecretStore(failing as never, {
+        fallbackMode: 'workspace-state',
+        workspaceState: memento as never,
+        machineId: 'machine-A',
+        logger,
+        onFallbackEngaged
+      });
+      await store.setPassword('p6', 'tamper-me');
+
+      // Cut one byte off the stored 16-byte GCM auth tag
+      const mapKey = 'filemakerDataApiTools.fallbackSecrets.v1';
+      const map = memento.get<Record<string, Record<string, string>>>(mapKey) ?? {};
+      const [entryKey] = Object.keys(map);
+      assert.isDefined(entryKey);
+      const envelope = map[entryKey as string];
+      assert.isDefined(envelope);
+      const originalTagHex = envelope.tagHex;
+      if (originalTagHex === undefined) {
+        throw new Error('expected the stored envelope to carry an auth tag');
+      }
+      expect(originalTagHex).toHaveLength(32); // 16 bytes
+      envelope.tagHex = originalTagHex.slice(0, -2); // 15 bytes
+      await memento.update(mapKey, map);
+
+      await expect(store.getPassword('p6')).resolves.toBeUndefined();
+      expect(logger.error).toHaveBeenCalled();
+    });
+
+    it('round-trips secrets written before the auth tag length was pinned', async () => {
+      const failing = new FailingSecretStorage();
+      const store = new SecretStore(failing as never, {
+        fallbackMode: 'workspace-state',
+        workspaceState: memento as never,
+        machineId: 'machine-A',
+        logger,
+        onFallbackEngaged
+      });
+
+      await store.setPassword('p7', 'still-works');
+
+      // Stored envelope keeps the original shape: v=1, 12-byte IV, 16-byte tag
+      const map = memento.get<Record<string, Record<string, string>>>(
+        'filemakerDataApiTools.fallbackSecrets.v1'
+      ) ?? {};
+      const [entryKey] = Object.keys(map);
+      assert.isDefined(entryKey);
+      const envelope = map[entryKey as string];
+      assert.isDefined(envelope);
+      const { ivHex, tagHex } = envelope;
+      if (ivHex === undefined || tagHex === undefined) {
+        throw new Error('expected the stored envelope to carry an iv and auth tag');
+      }
+      expect(Buffer.from(ivHex, 'hex')).toHaveLength(12);
+      expect(Buffer.from(tagHex, 'hex')).toHaveLength(16);
+
+      await expect(store.getPassword('p7')).resolves.toBe('still-works');
+      expect(logger.error).not.toHaveBeenCalled();
+    });
+
     it('successful primary write supersedes prior fallback entry', async () => {
       const flaky = new InMemorySecretStorage();
       const failing = new FailingSecretStorage();

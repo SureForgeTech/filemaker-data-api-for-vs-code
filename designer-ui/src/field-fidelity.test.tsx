@@ -64,6 +64,7 @@ function buildLayout(objects: LayoutObject[]): LayoutDefinition {
 function initializeDesigner(layout: LayoutDefinition, fields: string[] = []): void {
   window.dispatchEvent(
     new MessageEvent('message', {
+      origin: window.location.origin,
       data: {
         type: 'init',
         payload: {

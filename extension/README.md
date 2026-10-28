@@ -6,6 +6,8 @@ For Claris FileMaker Server (Data API). FileMaker Cloud sign-in with a Claris ID
 
 Connect to any FileMaker Data API server and run queries, browse schema, edit records, and export results — without leaving VS Code.
 
+![Connect to a FileMaker server and run a find request in under 10 seconds.](docs/marketplace/connection-wizard.gif)
+
 **Built by [ABD Enterprises](https://abdenterprises.com).** Free, open source (MIT), no telemetry, no cloud account.
 
 Version **1.8.0** adds a **Browse** button in the connection wizard for a custom CA certificate, clearer sign-in errors that explain the two common causes and link to the fix, and the field-order and panel fixes listed in the changelog. See the [upgrade notes](https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/blob/main/extension/UPGRADE.md) before importing a file.
@@ -28,7 +30,15 @@ One real FileMaker server was exercised on **2026-10-21**, but its version was n
 
 ## Product tour
 
-The screenshots show a mock FileMaker Data API with made-up data (names and `example.com` addresses), not a real server. They were taken in an older version: version labels and some field styling differ; panels now follow the editor theme.
+The screenshots show a mock FileMaker Data API with made-up data (names and `example.com` addresses), not a real server. The first screenshot is from the current version; the rest were taken in an older one, so version labels and some field styling differ and panels now follow the editor theme.
+
+![The query builder on the Contacts layout: field pickers, a populated find request and a preview of the matching rows](docs/marketplace/query-builder-hero.png)
+
+The query builder against the Contacts layout: pick the fields, type your criteria, run the find and page through the found rows.
+
+![The FileMaker sidebar: layouts, fields and the Layout Inspector](docs/marketplace/explorer.png)
+
+The sidebar lists connections, layouts, fields, saved queries and schema snapshots, and the Layout Inspector shows one layout in detail.
 
 ![The query builder: a find on the Contacts layout with sort, paging and results](docs/marketplace/query-builder.png)
 
@@ -46,14 +56,6 @@ The record editor shows the fields your account can read, previews the update be
 
 The connection wizard takes a direct or proxy connection, tests it step by step, and keeps the password in your operating system keychain.
 
-![The FileMaker sidebar: layouts, fields and the Layout Inspector](docs/marketplace/explorer.png)
-
-The sidebar lists connections, layouts, fields, saved queries and schema snapshots, and the Layout Inspector shows one layout in detail.
-
-![Schema Diff after a field was added and another removed](docs/marketplace/schema-diff.png)
-
-Capture schema snapshots and compare them to see which fields were added, removed or changed.
-
 ![Layout Mode with six fields placed on a layout](docs/marketplace/layout-mode.png)
 
 Layout Mode places fields from a synced layout on a canvas for an FM Web project. Generating and previewing an FM Web app need the source checkout; those commands are not in the Marketplace package. Standard field sizes and spacing, an action that arranges the selection into a standard form, one that standardizes it (each undone in one step) and blank, form, two-column and first-portal starter templates keep layouts tidy. The find form, Record Editor and Record Viewer show fields the same way.
@@ -61,6 +63,17 @@ Layout Mode places fields from a synced layout on a canvas for an FM Web project
 ![@filemaker in the Chat view answering a find](docs/marketplace/chat-participant.png)
 
 `@filemaker` in VS Code's Chat view reads the database through the same safety rules as the AI tools, read only. This screenshot was made with a stand-in language model; the records come from the extension.
+
+![Schema Diff after a field was added and another removed](docs/marketplace/schema-diff.png)
+
+Capture schema snapshots and compare them to see which fields were added, removed or changed.
+
+## Security & Trust
+
+- **Credentials stay in your keychain**: passwords, API keys and session tokens live in the OS keychain through VS Code's SecretStorage API, not in settings or logs.
+- **No telemetry, no cloud account**: no telemetry is collected and nothing is sent to the extension's authors — there is no account to sign in to; it talks only to your FileMaker server or your proxy (and an AI provider you switch on yourself, off by default).
+- **Read only in an untrusted folder**: in Restricted Mode an untrusted workspace stays read only — you can browse, read metadata and run finds; editing, writing and plugins need a trusted workspace.
+- **Report a vulnerability**: follow the [security policy](https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/blob/main/SECURITY.md) for how to report one.
 
 ## Requirements
 
@@ -151,7 +164,7 @@ Details: [Using AI with FileMaker](https://github.com/SureForgeTech/filemaker-da
 - In Restricted Mode (an untrusted folder) you can browse, read metadata and run finds. The connection wizard says so and offers **Manage Workspace Trust**.
 - The extension collects no telemetry. It talks only to your FileMaker server or your proxy.
 
-Read the [security overview](https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/blob/main/docs/security.md), the [data handling notes](https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/blob/main/docs/DATA_HANDLING.md), and the [security policy](https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/blob/main/SECURITY.md) for how to report a vulnerability.
+Read the [security overview](https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/blob/main/docs/security.md), the [data handling notes](https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/blob/main/docs/DATA_HANDLING.md), and the [security policy](https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/blob/main/SECURITY.md) for how to report a vulnerability. What the extension stores and never sends is written down in the [privacy policy](https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/blob/main/PRIVACY.md).
 
 ## Documentation
 

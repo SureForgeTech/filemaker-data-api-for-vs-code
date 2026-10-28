@@ -196,12 +196,16 @@ export class RuntimeTemplateUnavailableError extends Error {
  */
 export async function resolveRuntimeTemplateRoot(extensionRoot: string): Promise<string | undefined> {
   const candidates = [
+    // path-join disposition: the extension folder and the fixed "runtime-next" package name; no input chooses these parts.
     path.join(extensionRoot, '..', 'runtime-next'),
+    // path-join disposition: the extension folder and a fixed package name; the folder is only read.
     path.join(extensionRoot, 'runtime-next'),
+    // path-join disposition: the extension folder and a fixed template folder name; no input chooses these parts.
     path.join(extensionRoot, 'src', 'runtime-template')
   ];
 
   for (const candidate of candidates) {
+    // path-join disposition: the candidate is one of the three fixed template roots above and "package.json" is a fixed name.
     if (await exists(path.join(candidate, 'package.json'))) {
       return candidate;
     }
@@ -318,6 +322,7 @@ export class FmWebRuntimeGenerator {
 
     const sharedRoot = path.join(templateRoot, '..', 'shared');
     const sharedOutput = path.join(outputRoot, 'shared');
+    // path-join disposition: the shared package folder and the names the template lists; the target is confined by assertSafeOutputFolder.
     const sharedFiles = ['package.json', ...await collectFiles(path.join(sharedRoot, 'src'), path.join(sharedRoot, 'src')).then((files) => files.map((file) => path.join('src', file)))];
     for (const file of sharedFiles) {
       const target = path.join(sharedOutput, file);
@@ -470,6 +475,7 @@ export class FmWebRuntimeGenerator {
   }
 
   private async ensureRuntimeGitignore(runtimeRoot: string): Promise<void> {
+    // path-join disposition: the generated runtime folder and a fixed ".gitignore" name; the folder is confined by assertSafeOutputFolder.
     const gitignorePath = path.join(runtimeRoot, '.gitignore');
     const required = ['.env.local', '.env*.local', 'node_modules', '.next'];
     const current = (await exists(gitignorePath)) ? await readFile(gitignorePath, 'utf8') : '';
@@ -527,6 +533,7 @@ async function collectFiles(rootDir: string, currentDir: string): Promise<string
       continue;
     }
 
+    // path-join disposition: the folder being listed and the name the listing gives; a file name cannot climb out of its folder.
     const fullPath = path.join(currentDir, entry.name);
     if (entry.isDirectory()) {
       const nested = await collectFiles(rootDir, fullPath);
@@ -573,6 +580,7 @@ export async function writeManagedFile(target: string, content: Buffer | string)
   if (existing?.isDirectory()) {
     throw new Error(`${path.basename(target)} in the generated runtime is a folder, not a file; remove it and try again.`);
   }
+  // path-join disposition: the folder of the already confined target and a random temporary name; the rename replaces the target.
   const temporary = path.join(path.dirname(target), `.${path.basename(target)}.${process.pid}.${randomBytes(6).toString('hex')}.tmp`);
   try {
     await writeFile(temporary, content, { flag: 'wx', mode: 0o600 });

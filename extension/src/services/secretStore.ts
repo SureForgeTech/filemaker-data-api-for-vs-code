@@ -235,7 +235,7 @@ export class SecretStore {
     const salt = crypto.randomBytes(16);
     const iv = crypto.randomBytes(12);
     const key = this.deriveKey(salt);
-    const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+    const cipher = crypto.createCipheriv('aes-256-gcm', key, iv, { authTagLength: 16 });
     const ct = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
     const tag = cipher.getAuthTag();
     return {
@@ -253,7 +253,7 @@ export class SecretStore {
     const ct = Buffer.from(envelope.ciphertextHex, 'hex');
     const tag = Buffer.from(envelope.tagHex, 'hex');
     const key = this.deriveKey(salt);
-    const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+    const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv, { authTagLength: 16 });
     decipher.setAuthTag(tag);
     return Buffer.concat([decipher.update(ct), decipher.final()]).toString('utf8');
   }

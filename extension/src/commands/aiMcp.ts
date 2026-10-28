@@ -67,6 +67,7 @@ export function registerAiMcpCommands(deps: Deps): vscode.Disposable[] {
         return;
       }
       // The extension folder's name changes with every version; a copy in storage does not.
+      // path-join disposition: every segment is a compile-time constant under the extension folder, so no input can change the path.
       const shim = await installShim(join(deps.extensionPath, 'dist', 'aiMcpShim.js'), storage);
       const config = buildMcpConfig({
         shimPath: shim.path,

@@ -1294,6 +1294,7 @@ export function App(): React.JSX.Element {
 
   React.useEffect(() => {
     const handleMessage = (event: MessageEvent<IncomingMessage>): void => {
+      if (event.origin !== window.location.origin) { return; }
       const message = event.data;
       if (!message || typeof message !== 'object') {
         return;

@@ -69,6 +69,7 @@ export async function assertSafeOutputFolder(directory: string, workspaceRoot?: 
     const rel = relative(folder.uri.fsPath, directory);
     return rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel);
   })?.uri.fsPath ?? directory;
+  // path-join disposition: assertSafeOutputFolder refuses any folder that is not inside the root (the relative() check below) and checks every ancestor folder for a symlink, so this resolve cannot leave the root.
   let root = resolve(configuredRoot);
   while (!await lstat(root).then(() => true, (error: NodeJS.ErrnoException) => {
     if (error.code !== 'ENOENT') throw error;
@@ -82,6 +83,7 @@ export async function assertSafeOutputFolder(directory: string, workspaceRoot?: 
   const canonicalRoot = await realpath(root);
   let current = canonicalRoot;
   for (const part of rel.split(sep).filter(Boolean)) {
+    // path-join disposition: 'part' comes from the escape-checked relative() path above, and every step is lstat/realpath-checked below, so this resolve stays inside the root.
     current = resolve(current, part);
     try {
       const info = await lstat(current);
