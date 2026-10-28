@@ -119,6 +119,20 @@ describe('one stylesheet for extension screens', () => {
     expect(rule(read('extension/src/webviews/recordViewer/ui/styles.css'), '.related-block summary')).not.toMatch(/min-height:|padding:/);
   });
 
+  it('sizes the Query Builder Open column to its content so View and Edit both stay visible', () => {
+    const css = read('extension/src/webviews/queryBuilder/ui/styles.css');
+    // A pinned width (width: 1%) held the cell at its min-width and the generic
+    // overflow rule painted the ellipsis over the Edit button.
+    const cell = rule(css, 'td.actions-col');
+    expect(cell).not.toMatch(/width:\s*1%/);
+    expect(declaration(cell, 'width')).toBe('auto');
+    expect(cell).toContain('white-space: nowrap');
+    // The floor has to cover "View" + "Edit" + the cell padding (about 90px); 64px clipped Edit.
+    const floor = css.match(/th\.actions-col,\s*td\.actions-col\s*\{[^}]*min-width:\s*(\d+)px/);
+    expect(floor).toBeDefined();
+    expect(Number(floor![1])).toBeGreaterThanOrEqual(88);
+  });
+
   it('uses system colors and lets forced colors adjust read-only fields', () => {
     const forced = sharedCss().match(/@media \(forced-colors: active\)\s*\{([\s\S]*?)\n\}/)?.[1];
     expect(forced).toBeDefined();
