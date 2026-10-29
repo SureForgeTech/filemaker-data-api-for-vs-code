@@ -4,7 +4,7 @@ import path from 'path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as vscode from 'vscode';
 
-import { RESTORABLE_PANELS, registerPanelRestoreGuards, renderReopenPage } from '../../src/webviews/common/panelRestore';
+import { LIVE_SERIALIZER_PANELS, RESTORABLE_PANELS, registerPanelRestoreGuards, renderReopenPage } from '../../src/webviews/common/panelRestore';
 
 function sourceFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
@@ -29,9 +29,12 @@ describe('restored webview tabs', () => {
         opened.add(match[1] as string);
       }
     }
+    const restorable = RESTORABLE_PANELS.map((panel) => panel.viewType);
     expect(opened.size).toBeGreaterThanOrEqual(10);
-    expect([...opened].filter((viewType) => !RESTORABLE_PANELS.some((panel) => panel.viewType === viewType))).toEqual([]);
-    expect(RESTORABLE_PANELS.filter((panel) => !opened.has(panel.viewType))).toEqual([]); // and none for a type that does not exist
+    expect([...opened].filter((viewType) => !restorable.includes(viewType) && !LIVE_SERIALIZER_PANELS.includes(viewType))).toEqual([]);
+    expect([...restorable, ...LIVE_SERIALIZER_PANELS].filter((viewType) => !opened.has(viewType))).toEqual([]); // and none for a type that does not exist
+    // The two mechanisms are alternatives: a panel type uses one of them, never both.
+    expect(restorable.filter((viewType) => LIVE_SERIALIZER_PANELS.includes(viewType))).toEqual([]);
   });
 
   it('registers one serializer per view type, and each restored tab gets a static reopen page', async () => {
@@ -39,6 +42,8 @@ describe('restored webview tabs', () => {
     expect(disposables).toHaveLength(RESTORABLE_PANELS.length);
     const calls = vi.mocked(vscode.window.registerWebviewPanelSerializer).mock.calls;
     expect(calls.map(([viewType]) => viewType).sort()).toEqual(RESTORABLE_PANELS.map((panel) => panel.viewType).sort());
+    // The Query Builder has a serializer of its own, so it is not shown the reopen page.
+    expect(calls.map(([viewType]) => viewType)).not.toContain('filemakerQueryBuilder');
 
     for (const [viewType, serializer] of calls) {
       const panel = { title: 'FileMaker Record Editor', webview: { html: '', cspSource: 'vscode-resource:' } };
@@ -70,9 +75,11 @@ describe('restored webview tabs', () => {
     const manifest = JSON.parse(readFileSync(path.resolve(__dirname, '../../package.json'), 'utf8')) as { activationEvents: string[] };
     expect(manifest.activationEvents).toContain('onStartupFinished');
     expect(RESTORABLE_PANELS.filter((panel) => !manifest.activationEvents.includes(`onWebviewPanel:${panel.viewType}`)).map((panel) => panel.viewType)).toEqual([]);
+    expect(LIVE_SERIALIZER_PANELS.filter((viewType) => !manifest.activationEvents.includes(`onWebviewPanel:${viewType}`))).toEqual([]);
     // And no event for a panel type that does not exist.
     const events = manifest.activationEvents.filter((event) => event.startsWith('onWebviewPanel:')).map((event) => event.slice('onWebviewPanel:'.length));
-    expect(events.filter((viewType) => !RESTORABLE_PANELS.some((panel) => panel.viewType === viewType))).toEqual([]);
+    const restorable = RESTORABLE_PANELS.map((panel) => panel.viewType);
+    expect(events.filter((viewType) => !restorable.includes(viewType) && !LIVE_SERIALIZER_PANELS.includes(viewType))).toEqual([]);
     expect(new Set(manifest.activationEvents).size).toBe(manifest.activationEvents.length);
   });
 });

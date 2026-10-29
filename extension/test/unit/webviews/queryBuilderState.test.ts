@@ -153,4 +153,108 @@ describe.skipIf(!JSDOM)('Query Builder panel state', () => {
     expect(page.document.getElementById('profileSelect')!.value).toBe('p2');
     expect(page.document.getElementById('layoutSelect')!.value).toBe('Invoices');
   });
+
+  it('restores form criteria and sort rows from a snapshot', () => {
+    const view = open();
+    const snapshot: Snapshot = {
+      v: 1, profileId: 'p1', layout: 'Contacts', editorMode: 'form',
+      model: {
+        requests: [{ omit: false, criteria: [{ field: 'Name', operator: 'equals', value: 'Ada', value2: '' }] }],
+        sort: [{ fieldName: 'Total', sortOrder: 'descend' }]
+      },
+      findJson: '', sortJson: '', resultView: 'table'
+    };
+    const page = loadPage(view.html, view.source, 'https://panel.invalid/', { state: snapshot });
+    page.send({ type: 'init', payload: { profiles: [devProfile, prodProfile], activeProfileId: 'p1' } });
+    page.send({ type: 'layoutsLoaded', payload: { profileId: 'p1', layouts: ['Contacts', 'Orders'] } });
+
+    // The criteria come back as rows the user can edit, not only as text behind the form.
+    const fields = page.document.querySelectorAll('.criterion-field');
+    expect(fields).toHaveLength(1);
+    expect(fields[0]!.value).toBe('Name');
+    expect(page.document.querySelectorAll('.criterion-operator')[0]!.value).toBe('equals');
+    expect(page.document.querySelectorAll('.criterion-value')[0]!.value).toBe('Ada');
+
+    // The sort row comes back too.
+    const sortFields = page.document.querySelectorAll('.sort-field');
+    expect(sortFields).toHaveLength(1);
+    expect(sortFields[0]!.value).toBe('Total');
+    expect(page.document.querySelectorAll('#sortList select')[0]!.value).toBe('descend');
+
+    // And the panel is in the editor the user left it in.
+    expect(page.document.getElementById('formTab')!.getAttribute('aria-selected')).toBe('true');
+  });
+
+  it('ignores a snapshot with the wrong version or a malformed model', () => {
+    const view = open();
+
+    // A snapshot from another version of the panel is not read at all.
+    const outdated = loadPage(view.html, view.source, 'https://panel.invalid/', {
+      state: {
+        v: 2, profileId: 'p2', layout: 'Invoices', editorMode: 'json',
+        model: { requests: [], sort: [] }, findJson: '[{"Name":"*"}]', sortJson: '', resultView: 'table'
+      }
+    });
+    outdated.send({ type: 'init', payload: { profiles: [devProfile, prodProfile], activeProfileId: 'p1' } });
+    outdated.send({ type: 'layoutsLoaded', payload: { profileId: 'p1', layouts: ['Contacts', 'Orders'] } });
+
+    expect(outdated.document.getElementById('profileSelect')!.value).toBe('p1');
+    expect(outdated.document.getElementById('findJson')!.value).toBe('[{}]');
+    expect(outdated.document.querySelectorAll('.criterion-field')[0]!.value).toBe('');
+
+    // A snapshot whose model is damaged leaves the empty form, and the panel still works.
+    const damaged = loadPage(view.html, view.source, 'https://panel.invalid/', {
+      state: {
+        v: 1, profileId: 'p1', layout: 'Contacts', editorMode: 'form',
+        model: 'nope', findJson: '', sortJson: '', resultView: 'table'
+      }
+    });
+    damaged.send({ type: 'init', payload: { profiles: [devProfile, prodProfile], activeProfileId: 'p1' } });
+    damaged.send({ type: 'layoutsLoaded', payload: { profileId: 'p1', layouts: ['Contacts', 'Orders'] } });
+
+    expect(damaged.document.getElementById('profileSelect')!.value).toBe('p1');
+    expect(damaged.document.querySelectorAll('.criterion-field')[0]!.value).toBe('');
+    expect(damaged.document.querySelectorAll('.sort-field')).toHaveLength(0);
+    expect(damaged.document.getElementById('status')!.textContent ?? '').toContain('Ready');
+  });
+
+  it('drops the stored criteria when the host opens a different profile or layout', () => {
+    const view = open();
+    const snapshot: Snapshot = {
+      v: 1, profileId: 'p2', layout: 'Invoices', editorMode: 'json',
+      model: {
+        requests: [{ omit: false, criteria: [{ field: 'Name', operator: 'match', value: 'Ada', value2: '' }] }],
+        sort: [{ fieldName: 'Total', sortOrder: 'descend' }]
+      },
+      findJson: '[{"Name":"*"}]', sortJson: '', resultView: 'table'
+    };
+
+    // The host opens another profile and layout: the stored criteria belong to another field list.
+    const other = loadPage(view.html, view.source, 'https://panel.invalid/', { state: snapshot });
+    other.send({
+      type: 'init',
+      payload: { profiles: [devProfile, prodProfile], activeProfileId: 'p1', defaults: { profileId: 'p1', layout: 'Contacts' } }
+    });
+    other.send({ type: 'layoutsLoaded', payload: { profileId: 'p1', layouts: ['Contacts', 'Orders'] } });
+
+    expect(other.document.getElementById('profileSelect')!.value).toBe('p1');
+    expect(other.document.getElementById('layoutSelect')!.value).toBe('Contacts');
+    // The stored criteria are not applied: the find text and the form stay as they were.
+    expect(other.document.getElementById('findJson')!.value).toBe('[{}]');
+    expect(other.document.querySelectorAll('.criterion-field')[0]!.value).toBe('');
+    expect(other.document.querySelectorAll('.sort-field')).toHaveLength(0);
+
+    // A stored profile that is gone falls back to the active one, and drops the criteria too.
+    const missing = loadPage(view.html, view.source, 'https://panel.invalid/', {
+      state: { ...snapshot, profileId: 'gone', layout: 'Ghost' }
+    });
+    missing.send({ type: 'init', payload: { profiles: [devProfile, prodProfile], activeProfileId: 'p2' } });
+    missing.send({ type: 'layoutsLoaded', payload: { profileId: 'p2', layouts: ['Invoices'] } });
+
+    expect(missing.document.getElementById('profileSelect')!.value).toBe('p2');
+    expect(missing.document.getElementById('layoutSelect')!.value).toBe('Invoices');
+    expect(missing.document.getElementById('findJson')!.value).toBe('[{}]');
+    expect(missing.document.querySelectorAll('.criterion-field')[0]!.value).toBe('');
+    expect(missing.document.querySelectorAll('.sort-field')).toHaveLength(0);
+  });
 });

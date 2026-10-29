@@ -960,7 +960,9 @@ function asText(value) {
 /**
  * Puts back what the panel held before a window reload. A profile or layout the
  * host asked for wins; a stored id that no longer exists falls back to the usual
- * default. Every part is restored on its own, so one bad value cannot blank the
+ * default. The criteria come back only when the panel stays on the profile and
+ * layout they were written for, so a find is never shown against another field
+ * list. Every part is restored on its own, so one bad value cannot blank the
  * panel.
  */
 function applyPersistedState(saved, payload) {
@@ -987,9 +989,17 @@ function applyPersistedState(saved, payload) {
     state.restoredLayout = savedLayout;
   }
 
+  // The criteria belong to the profile and layout they were written for: they are only put back
+  // when the panel stays on that profile and layout. A host that opens another one, or a stored
+  // profile that is gone (the panel falls back to the active one, with another set of layouts),
+  // would show a find written for a different field list.
+  const criteriaFit = savedProfileId !== ''
+    && (!defaultProfileId || defaultProfileId === savedProfileId)
+    && (!defaultLayout || defaultLayout === savedLayout);
+
   // The criteria come back unless the host asked for a saved query, which brings its own.
   let modelRestored = false;
-  if (!defaults || !defaults.savedQuery) {
+  if (criteriaFit && (!defaults || !defaults.savedQuery)) {
     const model = restoreModel(saved.model);
     if (model) {
       state.model = model;
@@ -1001,7 +1011,7 @@ function applyPersistedState(saved, payload) {
     state.editorMode = saved.editorMode;
   }
 
-  if (state.editorMode === 'json') {
+  if (state.editorMode === 'json' && criteriaFit) {
     const findText = typeof saved.findJson === 'string' ? saved.findJson : undefined;
     const sortText = typeof saved.sortJson === 'string' ? saved.sortJson : undefined;
     if (findText !== undefined || sortText !== undefined) {

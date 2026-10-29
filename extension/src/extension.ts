@@ -62,6 +62,7 @@ import { FMExplorerProvider } from './views/fmExplorer';
 import { LayoutInspectorProvider } from './views/layoutInspector';
 import { OfflineStatusBar } from './views/offlineStatusBar';
 import { registerPanelRestoreGuards } from './webviews/common/panelRestore';
+import { QueryBuilderPanel } from './webviews/queryBuilder';
 import { runAndReport } from './utils/fireAndForget';
 
 type HealthListener = Parameters<FMClient['onHealthChange']>[0];
@@ -867,6 +868,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   // A panel tab that VS Code restores after a reload would otherwise come back empty and dead.
   context.subscriptions.push(...registerPanelRestoreGuards());
+
+  // A restored Query Builder tab must rebuild the real page, not the reopen page.
+  context.subscriptions.push(
+    QueryBuilderPanel.registerSerializer(context, profileStore, savedQueriesStore, historyStore, fmClient, logger)
+  );
 
   registerWalkthroughCommands(context, logger);
   runAndReport('Opening the first-run walkthrough', logger, () =>

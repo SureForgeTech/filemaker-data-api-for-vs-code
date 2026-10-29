@@ -9,13 +9,17 @@ import { createNonce } from './csp';
  *
  * VS Code restores an open webview tab when a window reloads or restarts. Without a serializer for
  * its view type the tab comes back as an empty, dead panel: the page script is gone and nothing
- * listens to it. These panels are rebuilt from live connection state, so they cannot be revived from
- * saved state; instead the restored tab shows a short page that says so and names the command that
- * opens a working one.
+ * listens to it. There are two ways out, and every panel type uses exactly one of them.
+ *
+ * The panels listed here are rebuilt from live connection state, so nothing about them can be
+ * revived from saved state; instead the restored tab shows a short page that says so and names the
+ * command that opens a working one.
+ *
+ * The panels listed in LIVE_SERIALIZER_PANELS keep their own page: their serializer puts the real
+ * page back, and that page reads the snapshot it stored itself.
  */
 export const RESTORABLE_PANELS: ReadonlyArray<{ viewType: string; reopenWith: string }> = [
   { viewType: 'filemakerConnectionWizard', reopenWith: 'FileMaker: Add Connection Profile' },
-  { viewType: 'filemakerQueryBuilder', reopenWith: 'FileMaker: Open Query Builder' },
   { viewType: 'filemakerRecordViewer', reopenWith: 'FileMaker: Open Record Viewer' },
   { viewType: 'filemakerRecordEditor', reopenWith: 'FileMaker: Open Record Editor' },
   { viewType: 'filemakerScriptRunner', reopenWith: 'FileMaker: Open Script Runner' },
@@ -25,6 +29,13 @@ export const RESTORABLE_PANELS: ReadonlyArray<{ viewType: string; reopenWith: st
   { viewType: 'filemakerDiagnosticsDashboard', reopenWith: 'FileMaker: Open Diagnostics Dashboard' },
   { viewType: 'filemakerEffectiveSettings', reopenWith: 'FileMaker: Show Effective Settings' }
 ];
+
+/**
+ * View types restored by a real serializer that rebuilds the panel so the page re-runs and reads
+ * its saved vscode.getState() snapshot, instead of the static reopen page. Every view type the
+ * extension opens must appear in exactly one of RESTORABLE_PANELS or LIVE_SERIALIZER_PANELS.
+ */
+export const LIVE_SERIALIZER_PANELS: ReadonlyArray<string> = ['filemakerQueryBuilder'];
 
 /** A static page: no script, nothing from the saved state. */
 export function renderReopenPage(title: string, reopenWith: string): string {
