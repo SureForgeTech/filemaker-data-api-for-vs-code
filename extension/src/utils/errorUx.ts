@@ -17,9 +17,14 @@ export interface ShowErrorOptions {
    * - `retry`: shown for transient errors (network/timeout/5xx). Invokes the
    *   callback when clicked.
    * - `profileId`: shown for auth errors (HTTP 401/403). Opens the connection
-   *   wizard for that profile.
+   *   wizard for that profile, and offers `Reconnect`, which signs in again
+   *   with that profile in one click after a session expiry or a rejected
+   *   sign-in.
    * - `settingsKey`: shown for timeout/configuration errors. Opens VS Code
    *   settings filtered to that key.
+   *
+   * `Open Troubleshooting` is offered whenever the error carries a link to the
+   * troubleshooting page (`docsUrl`), with or without the other affordances.
    */
   actions?: {
     retry?: () => void | Promise<void>;
@@ -37,14 +42,19 @@ export interface ShowErrorOptions {
 const DETAILS_ACTION = 'Details…';
 const COPY_REPORT_ACTION = 'Copy as Bug Report';
 const RETRY_ACTION = 'Retry';
+const RECONNECT_ACTION = 'Reconnect';
 const EDIT_PROFILE_ACTION = 'Edit Profile';
 const OPEN_SETTINGS_ACTION = 'Open Settings';
+const DOCS_ACTION = 'Open Troubleshooting';
 const TRUST_CERTIFICATE_ACTION = 'Trust this certificate…';
 const RETRUST_CERTIFICATE_ACTION = 'Review and re-trust';
 
 /**
  * Decide which action buttons to surface on an error toast based on the
  * normalized error kind. Exported for unit testing.
+ *
+ * `Reconnect` signs in again with the profile of an auth error, `Open
+ * Troubleshooting` opens the troubleshooting page section the error points at.
  */
 export function selectErrorActions(
   normalized: {
@@ -53,12 +63,14 @@ export function selectErrorActions(
     isRetryable?: boolean;
     networkCode?: string;
     fmCategory?: string;
+    docsUrl?: string;
   },
   actions: ShowErrorOptions['actions']
 ): string[] {
   const out: string[] = [];
   if (!actions) {
-    return out;
+    // The troubleshooting link stands on its own: it needs no other affordance.
+    return normalized.docsUrl ? [DOCS_ACTION] : out;
   }
 
   const status = normalized.status;
@@ -97,10 +109,14 @@ export function selectErrorActions(
     );
   }
   if (actions.profileId && isAuth) {
+    out.push(RECONNECT_ACTION);
     out.push(EDIT_PROFILE_ACTION);
   }
   if (actions.settingsKey && isTimeout) {
     out.push(OPEN_SETTINGS_ACTION);
+  }
+  if (normalized.docsUrl) {
+    out.push(DOCS_ACTION);
   }
   return out;
 }
@@ -171,6 +187,16 @@ export async function showErrorWithDetails(
       'workbench.action.openSettings',
       `@id:${options.actions.settingsKey}`
     );
+    return;
+  }
+  if (selection === RECONNECT_ACTION && options?.actions?.profileId) {
+    await vscode.commands.executeCommand('filemakerDataApiTools.connect', {
+      profileId: options.actions.profileId
+    });
+    return;
+  }
+  if (selection === DOCS_ACTION && normalized.docsUrl) {
+    await vscode.env.openExternal(vscode.Uri.parse(normalized.docsUrl));
     return;
   }
 

@@ -130,6 +130,39 @@ describe('showErrorWithDetails', () => {
     expect(vscode.env.clipboard.writeText).not.toHaveBeenCalled();
     expect(vscode.workspace.openTextDocument).not.toHaveBeenCalled();
   });
+
+  it('signs in again when Reconnect is selected', async () => {
+    vi.mocked(vscode.window.showErrorMessage).mockResolvedValue('Reconnect' as never);
+
+    await showErrorWithDetails(
+      { kind: 'auth', message: 'Unauthorized', status: 401, isRetryable: false },
+      { actions: { profileId: 'p1' } }
+    );
+
+    expect(vscode.commands.executeCommand).toHaveBeenCalledWith(
+      'filemakerDataApiTools.connect',
+      { profileId: 'p1' }
+    );
+  });
+
+  it('opens the troubleshooting page when Open Troubleshooting is selected', async () => {
+    vi.mocked(vscode.window.showErrorMessage).mockResolvedValue('Open Troubleshooting' as never);
+
+    const docsUrl =
+      'https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/blob/main/extension/docs/TROUBLESHOOTING.md#http-403-the-request-was-refused';
+    await showErrorWithDetails({
+      kind: 'auth',
+      message: 'The server refused the request.',
+      status: 403,
+      isRetryable: false,
+      docsUrl
+    });
+
+    expect(vscode.env.openExternal).toHaveBeenCalledTimes(1);
+    expect(String(vi.mocked(vscode.env.openExternal).mock.calls[0]![0])).toBe(docsUrl);
+    // The link opens the page; it does not render a report.
+    expect(vscode.workspace.openTextDocument).not.toHaveBeenCalled();
+  });
 });
 
 describe('toUserErrorMessage', () => {
