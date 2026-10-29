@@ -245,6 +245,9 @@ export class QueryBuilderPanel {
       case 'runQuery':
         await handleRunQuery(this.query, message.payload);
         break;
+      case 'cancelRun':
+        this.cancelRun(message.runId);
+        break;
       case 'saveQuery':
         await handleSaveQuery(this.query, message.payload);
         break;
@@ -278,6 +281,19 @@ export class QueryBuilderPanel {
       default:
         break;
     }
+  }
+
+  /**
+   * Aborts the request of the run the page is waiting on. A run id that is not in flight is
+   * ignored: that run has already finished, and there is nothing left to cancel.
+   */
+  private cancelRun(runId: number): void {
+    const active = this.query.activeRun;
+    if (!active || active.runId !== runId) {
+      return;
+    }
+
+    active.controller.abort();
   }
 
   private async sendInitState(): Promise<void> {

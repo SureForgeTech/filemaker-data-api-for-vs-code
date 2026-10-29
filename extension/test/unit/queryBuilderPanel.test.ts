@@ -101,7 +101,7 @@ describe('QueryBuilderPanel messages', () => {
     expect(panel.fmClient.findRecords).not.toHaveBeenCalled();
     expect(panel.fmClient.listRecords).not.toHaveBeenCalled();
     await panel.send({ type: 'runQuery', payload: { ...payload, listRecords: true } });
-    expect(panel.fmClient.listRecords).toHaveBeenCalledWith(profile, ' Contacts ', { limit: 2, offset: 3, sort: [{ fieldName: ' Name ', sortOrder: 'descend' }] });
+    expect(panel.fmClient.listRecords).toHaveBeenCalledWith(profile, ' Contacts ', { limit: 2, offset: 3, sort: [{ fieldName: ' Name ', sortOrder: 'descend' }] }, expect.objectContaining({ signal: expect.any(AbortSignal) }));
     expect(panel.posted).toContainEqual(expect.objectContaining({ type: 'queryResult', payload: expect.objectContaining({ query: expect.objectContaining({ listRecords: true, runId: 20 }), result: expect.objectContaining({ dataInfo: { foundCount: 9 } }) }) }));
   });
 
@@ -203,7 +203,7 @@ describe('QueryBuilderPanel messages', () => {
       payload: { query: { runId: number; offset: number } };
     };
     expect(result.payload.query).toMatchObject({ runId: 7, offset: 21 });
-    expect(panel.fmClient.findRecords).toHaveBeenCalledWith(profile, 'Contacts', expect.objectContaining({ offset: 21 }));
+    expect(panel.fmClient.findRecords).toHaveBeenCalledWith(profile, 'Contacts', expect.objectContaining({ offset: 21 }), expect.objectContaining({ signal: expect.any(AbortSignal) }));
   });
 
   it('shows script errors reported next to a find that worked, and shows nothing when there are none', async () => {

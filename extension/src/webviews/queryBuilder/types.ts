@@ -57,6 +57,7 @@ export type IncomingMessage =
   | { type: 'loadLayouts'; profileId: string }
   | { type: 'loadFieldNames'; profileId: string; layout: string }
   | { type: 'runQuery'; payload: RunQueryPayload }
+  | { type: 'cancelRun'; runId: number }
   | { type: 'saveQuery'; payload: SaveQueryPayload }
   | { type: 'exportResultsToEditor' }
   | { type: 'exportResultsJsonFile' }
