@@ -333,4 +333,135 @@ describe.skipIf(!JSDOM)('Query Builder panel state', () => {
     expect(home.layout).toBe('Contacts');
     expect(page.document.querySelectorAll('.criterion-field')[0]!.value).toBe('Name');
   });
+
+  it('keeps a loaded saved query when its layout list arrives after the load', () => {
+    const view = open();
+    const states: Snapshot[] = [];
+    const snapshot: Snapshot = {
+      v: 1, profileId: 'p1', layout: 'Contacts', editorMode: 'form',
+      model: {
+        requests: [{ omit: false, criteria: [{ field: 'Name', operator: 'equals', value: 'Ada', value2: '' }] }],
+        sort: []
+      },
+      findJson: '', sortJson: '', resultView: 'table'
+    };
+    const page = loadPage(view.html, view.source, 'https://panel.invalid/', {
+      state: snapshot, onSetState: (value) => states.push(value as Snapshot)
+    });
+    page.send({
+      type: 'init',
+      payload: {
+        profiles: [devProfile, prodProfile], activeProfileId: 'p1',
+        savedQueries: [{
+          id: 'sq1', name: 'Acme', profileId: 'p1', layout: 'Orders',
+          // A saved query carries its find as an array of requests, the way the store keeps it.
+          findJson: [{ Company: 'Acme' }], sortJson: '', limit: 100, offset: 0
+        }]
+      }
+    });
+    // The user loads the saved query before this profile's layouts have arrived.
+    choose(page.window, 'savedQueriesSelect', 'sq1');
+    page.document.getElementById('loadSavedButton')!.click();
+    page.send({ type: 'layoutsLoaded', payload: { profileId: 'p1', layouts: ['Contacts', 'Orders'] } });
+
+    // The loaded query stays on screen: the arriving layouts select its layout, not clear it.
+    expect(page.document.getElementById('layoutSelect')!.value).toBe('Orders');
+    expect(page.document.getElementById('findJson')!.value).toBe(JSON.stringify([{ Company: 'Acme' }], null, 2));
+    expect(page.document.querySelectorAll('.criterion-field')[0]!.value).toBe('Company');
+    expect(page.document.querySelectorAll('.criterion-value')[0]!.value).toBe('Acme');
+  });
+
+  it('stores nothing typed while a profile switch is still loading its layouts', () => {
+    const view = open();
+    const states: Snapshot[] = [];
+    const page = loadPage(view.html, view.source, 'https://panel.invalid/', {
+      onSetState: (value) => states.push(value as Snapshot)
+    });
+    page.send({ type: 'init', payload: { profiles: [devProfile, prodProfile], activeProfileId: 'p1' } });
+    page.send({ type: 'layoutsLoaded', payload: { profileId: 'p1', layouts: ['Contacts', 'Orders'] } });
+
+    const written = states.length;
+    choose(page.window, 'profileSelect', 'p2');
+    typeText(page.window, 'findJson', '[{"Name":"*"}]');
+    // The new profile's layouts are still in flight: the typed text sits on screen, but
+    // nothing is stored, so no snapshot ever pairs it with a layout list that is not there.
+    expect(states.length).toBe(written);
+
+    page.send({ type: 'layoutsLoaded', payload: { profileId: 'p2', layouts: ['Invoices'] } });
+    expect(states.length).toBe(written + 1);
+    const settled = states.at(-1)!;
+    expect(settled.profileId).toBe('p2');
+    expect(settled.layout).toBe('Invoices');
+    expect(settled.findJson).toBe('[{"Name":"*"}]');
+  });
+
+  it('stores the cleared form when a profile has no layouts at all', () => {
+    const view = open();
+    const states: Snapshot[] = [];
+    const snapshot: Snapshot = {
+      v: 1, profileId: 'p1', layout: 'Contacts', editorMode: 'form',
+      model: {
+        requests: [{ omit: false, criteria: [{ field: 'Name', operator: 'equals', value: 'Ada', value2: '' }] }],
+        sort: []
+      },
+      findJson: '', sortJson: '', resultView: 'table'
+    };
+    const page = loadPage(view.html, view.source, 'https://panel.invalid/', {
+      state: snapshot, onSetState: (value) => states.push(value as Snapshot)
+    });
+    page.send({ type: 'init', payload: { profiles: [devProfile, prodProfile], activeProfileId: 'p1' } });
+    const written = states.length;
+    // The profile has no layouts at all: the restored criteria lose their field list and are cleared.
+    page.send({ type: 'layoutsLoaded', payload: { profileId: 'p1', layouts: [] } });
+
+    expect(page.document.querySelectorAll('.criterion-field')[0]!.value).toBe('');
+    // The cleared form is stored too, so the next reload cannot bring the stale criteria back.
+    expect(states.length).toBe(written + 1);
+    expect(JSON.stringify(states.at(-1)!.model)).not.toContain('Name');
+  });
+
+  it('skips the criteria of a snapshot that has no layout at all', () => {
+    const view = open();
+    const snapshot: Snapshot = {
+      v: 1, profileId: 'p1', layout: '', editorMode: 'form',
+      model: {
+        requests: [{ omit: false, criteria: [{ field: 'Name', operator: 'equals', value: 'Ada', value2: '' }] }],
+        sort: []
+      },
+      findJson: '', sortJson: '', resultView: 'table'
+    };
+    const page = loadPage(view.html, view.source, 'https://panel.invalid/', { state: snapshot });
+    page.send({ type: 'init', payload: { profiles: [devProfile, prodProfile], activeProfileId: 'p1' } });
+
+    // Without a stored layout the criteria have no field list to verify against: they are
+    // left out entirely instead of being shown now and cleared when the layouts arrive.
+    expect(page.document.querySelectorAll('.criterion-field')[0]!.value).toBe('');
+
+    page.send({ type: 'layoutsLoaded', payload: { profileId: 'p1', layouts: ['Contacts'] } });
+    expect(page.document.querySelectorAll('.criterion-field')[0]!.value).toBe('');
+    expect(page.document.querySelectorAll('.sort-field')).toHaveLength(0);
+  });
+
+  it('persists an edit typed into a criterion row', () => {
+    const view = open();
+    const states: Snapshot[] = [];
+    const page = loadPage(view.html, view.source, 'https://panel.invalid/', {
+      onSetState: (value) => states.push(value as Snapshot)
+    });
+    page.send({ type: 'init', payload: { profiles: [devProfile, prodProfile], activeProfileId: 'p1' } });
+    page.send({ type: 'layoutsLoaded', payload: { profileId: 'p1', layouts: ['Contacts', 'Orders'] } });
+
+    const written = states.length;
+    // A real keystroke bubbles up to the editor's delegated listener, so the typed field
+    // name reaches the stored snapshot — the same window.eval pattern the saved-query
+    // regression uses, because a bare non-bubbling 'input' event would miss that listener.
+    page.window.eval(`
+      const field = document.querySelector('.criterion-field');
+      field.value = 'Name';
+      field.dispatchEvent(new Event('input', { bubbles: true }));
+    `);
+
+    expect(states.length).toBe(written + 1);
+    expect(JSON.stringify(states.at(-1)!.model)).toContain('Name');
+  });
 });

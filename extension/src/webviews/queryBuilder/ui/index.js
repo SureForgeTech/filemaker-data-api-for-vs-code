@@ -76,6 +76,9 @@ const queryBuilderSkeleton = createLoadingSkeleton(['short', 'long', 'medium', '
 let queryBuilderReady = false;
 // True while the panel is putting back a stored snapshot, so it does not write one back half-restored.
 let restoringState = false;
+// True between a profile switch (or saved-query load) and the moment its layouts are on
+// screen; persistState stays quiet through that gap so no mixed snapshot is stored.
+let profileSwitchPending = false;
 
 const queryBuilderHeader = document.querySelector('.header');
 if (queryBuilderHeader && queryBuilderPanels.length > 0) {
@@ -159,10 +162,11 @@ window.addEventListener('message', (event) => {
 // ---------------------------------------------------------------------------
 
 profileSelect.addEventListener('change', () => {
+  // The new profile's layouts arrive asynchronously: mark the gap so nothing typed in
+  // between stores a snapshot pairing the new profile with the old profile's layout.
+  // renderLayouts clears the flag and stores the settled pair once the layouts are on screen.
+  profileSwitchPending = true;
   requestLayouts(profileSelect.value);
-  // No persistState here: the new profile's layouts arrive asynchronously, and storing
-  // now would freeze a snapshot pairing the new profile with the old profile's layout.
-  // renderLayouts stores the settled pair once the layouts are on screen.
 });
 
 layoutSelect.addEventListener('change', () => {
@@ -861,7 +865,9 @@ sortJson.addEventListener('input', () => {
  * history and results stay with the host.
  */
 function persistState() {
-  if (restoringState) {
+  // Nothing is stored while a restore, profile switch or saved-query load is still in
+  // flight: what is on screen is not the settled state yet.
+  if (restoringState || profileSwitchPending) {
     return;
   }
 
@@ -998,10 +1004,11 @@ function applyPersistedState(saved, payload) {
   }
 
   // The criteria belong to the profile and layout they were written for: they are only
-  // put back when the host does not ask for a different one and the stored profile still
-  // exists. Whether the stored layout itself still exists is decided later, when the
-  // layouts arrive (renderLayouts clears provisional criteria then).
+  // put back when the host does not ask for a different one, the stored profile still
+  // exists, and a layout was stored at all — without one there is no field list to
+  // verify the criteria against, so they are skipped rather than shown and cleared later.
   const criteriaFit = savedProfileId !== ''
+    && savedLayout !== ''
     && (!defaultProfileId || defaultProfileId === savedProfileId)
     && (!defaultLayout || defaultLayout === savedLayout);
 
@@ -1142,12 +1149,17 @@ function clearRestoredCriteria() {
 }
 
 function renderLayouts(layouts, preferredLayout) {
+  // The layout list on screen is settled now, whatever gap it came out of.
+  profileSwitchPending = false;
   const list = Array.isArray(layouts) ? layouts : [];
   if (!syncSelectOptions(layoutSelect, list, (layout) => layout, (layout) => layout, 'No layouts available')) {
     // No layouts at all: the select is empty, so restored criteria lost their field list too.
     if (state.restoredCriteriaLayout !== undefined) {
       clearRestoredCriteria();
     }
+    // The settled truth is an empty list; storing it stops an older snapshot from
+    // bringing the cleared criteria back on the next reload.
+    persistState();
     return;
   }
 
@@ -1242,6 +1254,11 @@ function renderSavedQueries() {
 function applySavedQuery(query) {
   state.currentQueryId = query.id;
   state.currentQueryName = query.name || '';
+  // The loaded query replaces whatever the snapshot had: its own layout comes with the
+  // request below, so the provisional marker must not outlive it and wipe the load.
+  state.restoredCriteriaLayout = undefined;
+  // Same in-flight gap as a profile switch: store nothing until the layouts settle.
+  profileSwitchPending = true;
 
   profileSelect.value = query.profileId;
   requestLayouts(query.profileId, query.layout);
