@@ -24,6 +24,7 @@ const state = {
   model: FindForm.createEmptyModel(),
   restoredProfileId: undefined,
   restoredLayout: undefined,
+  restoredCriteriaLayout: undefined,
   fieldNames: [],
   fieldMetadata: [],
   resultSort: undefined,
@@ -159,7 +160,9 @@ window.addEventListener('message', (event) => {
 
 profileSelect.addEventListener('change', () => {
   requestLayouts(profileSelect.value);
-  persistState();
+  // No persistState here: the new profile's layouts arrive asynchronously, and storing
+  // now would freeze a snapshot pairing the new profile with the old profile's layout.
+  // renderLayouts stores the settled pair once the layouts are on screen.
 });
 
 layoutSelect.addEventListener('change', () => {
@@ -960,14 +963,19 @@ function asText(value) {
 /**
  * Puts back what the panel held before a window reload. A profile or layout the
  * host asked for wins; a stored id that no longer exists falls back to the usual
- * default. The criteria come back only when the panel stays on the profile and
- * layout they were written for, so a find is never shown against another field
- * list. Every part is restored on its own, so one bad value cannot blank the
- * panel.
+ * default. The criteria and sort rows are only put back when nothing conflicts:
+ * a host that asks for another profile or layout, or a stored profile that is
+ * gone, leaves the panel with its empty form — nothing on screen is removed, the
+ * find was simply never applied. When they are put back they stay provisional
+ * until the layouts arrive: renderLayouts clears them if the stored layout has
+ * disappeared from the profile's layouts, so a find is never shown or run
+ * against another field list. Every part is restored on its own, so one bad
+ * value cannot blank the panel.
  */
 function applyPersistedState(saved, payload) {
   state.restoredProfileId = undefined;
   state.restoredLayout = undefined;
+  state.restoredCriteriaLayout = undefined;
 
   if (!saved) {
     return;
@@ -989,10 +997,10 @@ function applyPersistedState(saved, payload) {
     state.restoredLayout = savedLayout;
   }
 
-  // The criteria belong to the profile and layout they were written for: they are only put back
-  // when the panel stays on that profile and layout. A host that opens another one, or a stored
-  // profile that is gone (the panel falls back to the active one, with another set of layouts),
-  // would show a find written for a different field list.
+  // The criteria belong to the profile and layout they were written for: they are only
+  // put back when the host does not ask for a different one and the stored profile still
+  // exists. Whether the stored layout itself still exists is decided later, when the
+  // layouts arrive (renderLayouts clears provisional criteria then).
   const criteriaFit = savedProfileId !== ''
     && (!defaultProfileId || defaultProfileId === savedProfileId)
     && (!defaultLayout || defaultLayout === savedLayout);
@@ -1003,6 +1011,10 @@ function applyPersistedState(saved, payload) {
     const model = restoreModel(saved.model);
     if (model) {
       state.model = model;
+      // Provisional: the layout list has not arrived yet, so the stored layout cannot be
+      // verified here. renderLayouts anchors them once that layout is selected for real,
+      // or clears them when the layout has disappeared.
+      state.restoredCriteriaLayout = savedLayout;
       modelRestored = true;
     }
   }
@@ -1115,27 +1127,53 @@ function renderProfiles() {
   requestLayouts(selectedProfileId, (state.defaults && state.defaults.layout) || state.restoredLayout);
 }
 
+/**
+ * Throws away criteria and sort rows that came from the snapshot but lost their field
+ * list: the layout they were written for is no longer among the profile's layouts. The
+ * JSON editors follow the empty model, so a stale query never survives behind the form,
+ * and the marker clears so a later explicit layout choice by the user is never mistaken
+ * for an unconfirmed restore.
+ */
+function clearRestoredCriteria() {
+  state.model = FindForm.createEmptyModel();
+  renderForm();
+  writeModelToJson();
+  state.restoredCriteriaLayout = undefined;
+}
+
 function renderLayouts(layouts, preferredLayout) {
-  if (
-    !syncSelectOptions(
-      layoutSelect,
-      Array.isArray(layouts) ? layouts : [],
-      (layout) => layout,
-      (layout) => layout,
-      'No layouts available'
-    )
-  ) {
+  const list = Array.isArray(layouts) ? layouts : [];
+  if (!syncSelectOptions(layoutSelect, list, (layout) => layout, (layout) => layout, 'No layouts available')) {
+    // No layouts at all: the select is empty, so restored criteria lost their field list too.
+    if (state.restoredCriteriaLayout !== undefined) {
+      clearRestoredCriteria();
+    }
     return;
   }
 
-  if (preferredLayout && layouts.includes(preferredLayout)) {
-    layoutSelect.value = preferredLayout;
-    persistState();
-    return;
+  // The snapshot's layout is the fallback preference when the caller did not name one: a
+  // profile switch can race the layout load and drop the pending request, and the user's
+  // own choice should come back whenever it still exists.
+  const want = preferredLayout
+    || ((state.restoredCriteriaLayout !== undefined && list.includes(state.restoredCriteriaLayout))
+      ? state.restoredCriteriaLayout
+      : undefined);
+
+  if (want && list.includes(want)) {
+    layoutSelect.value = want;
+  } else if (!list.includes(layoutSelect.value)) {
+    layoutSelect.value = list[0];
   }
 
-  if (!layouts.includes(layoutSelect.value)) {
-    layoutSelect.value = layouts[0];
+  if (state.restoredCriteriaLayout !== undefined) {
+    if (layoutSelect.value === state.restoredCriteriaLayout) {
+      // Their layout really exists: the criteria are anchored to it.
+      state.restoredCriteriaLayout = undefined;
+    } else {
+      // Silent fallback: the layout the criteria were written for is gone (renamed or
+      // removed in FileMaker) — clear rather than show a find against another field list.
+      clearRestoredCriteria();
+    }
   }
   persistState();
 }

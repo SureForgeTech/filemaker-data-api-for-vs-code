@@ -218,7 +218,7 @@ describe.skipIf(!JSDOM)('Query Builder panel state', () => {
     expect(damaged.document.getElementById('status')!.textContent ?? '').toContain('Ready');
   });
 
-  it('drops the stored criteria when the host opens a different profile or layout', () => {
+  it('does not restore the stored criteria when the host opens a different profile or layout', () => {
     const view = open();
     const snapshot: Snapshot = {
       v: 1, profileId: 'p2', layout: 'Invoices', editorMode: 'json',
@@ -244,7 +244,7 @@ describe.skipIf(!JSDOM)('Query Builder panel state', () => {
     expect(other.document.querySelectorAll('.criterion-field')[0]!.value).toBe('');
     expect(other.document.querySelectorAll('.sort-field')).toHaveLength(0);
 
-    // A stored profile that is gone falls back to the active one, and drops the criteria too.
+    // A stored profile that is gone falls back to the active one, and the criteria are not restored either.
     const missing = loadPage(view.html, view.source, 'https://panel.invalid/', {
       state: { ...snapshot, profileId: 'gone', layout: 'Ghost' }
     });
@@ -256,5 +256,81 @@ describe.skipIf(!JSDOM)('Query Builder panel state', () => {
     expect(missing.document.getElementById('findJson')!.value).toBe('[{}]');
     expect(missing.document.querySelectorAll('.criterion-field')[0]!.value).toBe('');
     expect(missing.document.querySelectorAll('.sort-field')).toHaveLength(0);
+  });
+
+  it('clears the restored criteria when the snapshot layout is gone from the profile', () => {
+    const view = open();
+    const states: Snapshot[] = [];
+    const snapshot: Snapshot = {
+      v: 1, profileId: 'p1', layout: 'Invoices', editorMode: 'json',
+      model: {
+        requests: [{ omit: false, criteria: [{ field: 'Customer', operator: 'equals', value: 'Acme', value2: '' }] }],
+        sort: [{ fieldName: 'Total', sortOrder: 'descend' }]
+      },
+      findJson: '[{"Customer":"Acme"}]', sortJson: '', resultView: 'table'
+    };
+    const page = loadPage(view.html, view.source, 'https://panel.invalid/', {
+      state: snapshot, onSetState: (value) => states.push(value as Snapshot)
+    });
+    page.send({ type: 'init', payload: { profiles: [devProfile, prodProfile], activeProfileId: 'p1' } });
+    // The snapshot's layout was renamed in FileMaker and no longer exists.
+    page.send({ type: 'layoutsLoaded', payload: { profileId: 'p1', layouts: ['Billing', 'Contacts'] } });
+
+    // The panel lands on the first real layout…
+    expect(page.document.getElementById('layoutSelect')!.value).toBe('Billing');
+    // …and the criteria and sort rows written for the gone layout are cleared, not shown against it.
+    expect(page.document.querySelectorAll('.criterion-field')[0]!.value).toBe('');
+    expect(page.document.querySelectorAll('.sort-field')).toHaveLength(0);
+    // The stale query text is gone from the JSON editor too.
+    expect(page.document.getElementById('findJson')!.value).not.toContain('Acme');
+    // The snapshot stored for the next reload now matches the screen: real layout, empty model.
+    const stored = states.at(-1)!;
+    expect(stored.profileId).toBe('p1');
+    expect(stored.layout).toBe('Billing');
+    expect(JSON.stringify(stored.model)).not.toContain('Acme');
+  });
+
+  it('stores a profile switch only after the new layouts arrive', () => {
+    const view = open();
+    const states: Snapshot[] = [];
+    const snapshot: Snapshot = {
+      v: 1, profileId: 'p1', layout: 'Contacts', editorMode: 'form',
+      model: {
+        requests: [{ omit: false, criteria: [{ field: 'Name', operator: 'equals', value: 'Ada', value2: '' }] }],
+        sort: []
+      },
+      findJson: '', sortJson: '', resultView: 'table'
+    };
+    const page = loadPage(view.html, view.source, 'https://panel.invalid/', {
+      state: snapshot, onSetState: (value) => states.push(value as Snapshot)
+    });
+    page.send({ type: 'init', payload: { profiles: [devProfile, prodProfile], activeProfileId: 'p1' } });
+    page.send({ type: 'layoutsLoaded', payload: { profileId: 'p1', layouts: ['Contacts', 'Orders'] } });
+    // The reload landed on the snapshot's own layout: the criteria are anchored and stored as they are.
+    expect(states.at(-1)!.layout).toBe('Contacts');
+
+    const written = states.length;
+    choose(page.window, 'profileSelect', 'p2');
+    // The new profile's layouts have not arrived: nothing is stored, so no snapshot ever
+    // pairs the new profile with the old profile's layout.
+    expect(states.length).toBe(written);
+    expect(states.some((s) => s.profileId === 'p2')).toBe(false);
+
+    page.send({ type: 'layoutsLoaded', payload: { profileId: 'p2', layouts: ['Invoices'] } });
+    const after = states.at(-1)!;
+    expect(after.profileId).toBe('p2');
+    expect(after.layout).toBe('Invoices');
+    expect(states.some((s) => s.profileId === 'p2' && s.layout === 'Contacts')).toBe(false);
+    // An explicit profile switch keeps today's behavior: the criteria stay on screen.
+    expect(page.document.querySelectorAll('.criterion-field')[0]!.value).toBe('Name');
+
+    // Switching back to an already-loaded profile stores one consistent snapshot right away.
+    const back = states.length;
+    choose(page.window, 'profileSelect', 'p1');
+    expect(states.length).toBe(back + 1);
+    const home = states.at(-1)!;
+    expect(home.profileId).toBe('p1');
+    expect(home.layout).toBe('Contacts');
+    expect(page.document.querySelectorAll('.criterion-field')[0]!.value).toBe('Name');
   });
 });
