@@ -90,6 +90,41 @@ describe('selectErrorActions', () => {
       { kind: 'auth', status: 401, isRetryable: true },
       { retry, profileId: 'p1' }
     );
-    expect(actions).toEqual(['Retry', 'Edit Profile']);
+    expect(actions).toEqual(['Retry', 'Reconnect', 'Edit Profile']);
+  });
+
+  it('offers Reconnect on auth errors when profileId is provided', () => {
+    expect(
+      selectErrorActions({ kind: 'auth', status: 401 }, { profileId: 'p1' })
+    ).toContain('Reconnect');
+    expect(
+      selectErrorActions({ kind: 'validation', fmCategory: 'credentials' }, { profileId: 'p1' })
+    ).toContain('Reconnect');
+  });
+
+  it('does not offer Reconnect for a privilege problem or without a profile', () => {
+    expect(
+      selectErrorActions({ kind: 'auth', status: 403 }, { profileId: 'p1' })
+    ).not.toContain('Reconnect');
+    expect(
+      selectErrorActions({ kind: 'auth', status: 401 }, {})
+    ).not.toContain('Reconnect');
+  });
+
+  it('offers Open Troubleshooting only when the error carries a troubleshooting link', () => {
+    const docsUrl = 'https://example.invalid/TROUBLESHOOTING.md#a-section';
+    expect(selectErrorActions({ kind: 'unknown', docsUrl }, {})).toContain('Open Troubleshooting');
+    expect(selectErrorActions({ kind: 'unknown' }, {})).not.toContain('Open Troubleshooting');
+    expect(selectErrorActions({ kind: 'unknown', docsUrl }, undefined)).toEqual([
+      'Open Troubleshooting'
+    ]);
+  });
+
+  it('puts the troubleshooting button last, after the other buttons', () => {
+    const actions = selectErrorActions(
+      { kind: 'auth', status: 401, docsUrl: 'https://example.invalid/TROUBLESHOOTING.md#a-section' },
+      { profileId: 'p1' }
+    );
+    expect(actions).toEqual(['Reconnect', 'Edit Profile', 'Open Troubleshooting']);
   });
 });

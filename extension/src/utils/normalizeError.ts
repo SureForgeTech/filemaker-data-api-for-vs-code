@@ -2,7 +2,8 @@ import type { AxiosError } from 'axios';
 
 import { FMClientError } from '../services/errors';
 import type { NormalizeErrorOptions, NormalizedError, NormalizedErrorKind } from '../types/errors';
-import { docsUrlForCode, getFileMakerErrorInfo } from './fileMakerCodes';
+import { TROUBLESHOOTING_BASE_URL, docsUrlForCode, docsUrlForStatus, getFileMakerErrorInfo } from './fileMakerCodes';
+import type { NetworkFailure } from './networkErrors';
 import { describeNetworkFailure, extractNetworkCode, extractNetworkMessage, targetOfUrl } from './networkErrors';
 import { proxyConnectionFailure } from './proxyConnectionFailure';
 import { plainTextPreview } from './plainText';
@@ -83,12 +84,14 @@ function normalizeAxiosError(error: AxiosError, options?: NormalizeErrorOptions)
     });
     if (failure) {
       const proxyMessage = proxyConnectionFailure(error, failure);
+      const docsUrl = networkFailureDocsUrl(failure, proxyMessage);
       return {
         ...(proxyMessage ? { code: 'PROXY_UNREACHABLE' } : {}),
         kind: failure.kind,
         message: proxyMessage ?? failure.message,
         networkCode: failure.code,
         isRetryable: failure.retryable,
+        ...(docsUrl ? { docsUrl } : {}),
         details,
         originalName: error.name
       };
@@ -146,8 +149,9 @@ function normalizeAxiosError(error: AxiosError, options?: NormalizeErrorOptions)
   const code = fmMessage?.code;
   const info = getFileMakerErrorInfo(code);
   // Only the codes with a section in the troubleshooting page get a link; every other code keeps
-  // the plain message it has always had.
-  const docsUrl = code === undefined ? undefined : docsUrlForCode(code);
+  // the plain message it has always had. When there is no code at all, the HTTP status may still
+  // name a section.
+  const docsUrl = (code === undefined ? undefined : docsUrlForCode(code)) ?? docsUrlForStatus(status);
   // A FileMaker credentials problem is an authentication failure whatever the HTTP status was.
   const kind: NormalizedErrorKind = info?.category === 'credentials' ? 'auth' : inferKind(status);
   const rejectedLogin = info?.category === 'credentials' || status === 401;
@@ -177,6 +181,31 @@ function normalizeAxiosError(error: AxiosError, options?: NormalizeErrorOptions)
     details,
     originalName: error.name
   };
+}
+
+/**
+ * The troubleshooting section for a connection that never produced an answer. A certificate
+ * problem points at the certificate sections, a proxy that could not be reached at the proxy
+ * section, and every other connection failure at the page's "cannot be reached" section.
+ */
+function networkFailureDocsUrl(
+  failure: NetworkFailure,
+  proxyMessage: string | undefined
+): string | undefined {
+  if (failure.kind === 'certificate') {
+    const anchor =
+      failure.code === 'FM_CERT_PIN_MISMATCH' || failure.code === 'FM_CERT_PIN_EXPIRED'
+        ? 'the-certificate-was-revoked-expired-or-replaced'
+        : 'certificate-errors-the-server-certificate-is-not-trusted';
+    return `${TROUBLESHOOTING_BASE_URL}#${anchor}`;
+  }
+  if (proxyMessage) {
+    return `${TROUBLESHOOTING_BASE_URL}#a-proxy-or-a-cors-rule-is-in-the-way`;
+  }
+  if (failure.kind === 'timeout' || failure.kind === 'network') {
+    return `${TROUBLESHOOTING_BASE_URL}#the-server-cannot-be-reached-or-times-out`;
+  }
+  return undefined;
 }
 
 /** Classify the logical request before falling back to a direct Data API endpoint. */

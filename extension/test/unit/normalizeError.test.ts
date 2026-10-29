@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { FMClientError, toFMClientError } from '../../src/services/errors';
-import { docsUrlForCode } from '../../src/utils/fileMakerCodes';
+import { docsUrlForCode, docsUrlForStatus } from '../../src/utils/fileMakerCodes';
 import { normalizeError } from '../../src/utils/normalizeError';
 
 describe('normalizeError', () => {
@@ -121,7 +121,7 @@ describe('normalizeError', () => {
     );
   });
 
-  it('keeps the generic message and adds no link for a FileMaker code without a section', () => {
+  it('keeps the generic message and falls back to the HTTP section for a code without one', () => {
     const error = normalizeError({
       isAxiosError: true,
       message: 'Unauthorized',
@@ -134,7 +134,82 @@ describe('normalizeError', () => {
     });
 
     expect(error.message).toMatch(/^FileMaker API error \(HTTP 401\) \[100\]: File is missing/);
-    expect(error.docsUrl).toBeUndefined();
+    expect(error.docsUrl).toBe(
+      'https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/blob/main/extension/docs/TROUBLESHOOTING.md#http-401-the-server-refused-the-request'
+    );
+  });
+
+  it('links the HTTP section when the server answers without a FileMaker code', () => {
+    const error = normalizeError({
+      isAxiosError: true,
+      message: 'Forbidden',
+      response: {
+        status: 403,
+        data: '<html>Forbidden</html>'
+      }
+    });
+
+    expect(error.code).toBeUndefined();
+    expect(error.docsUrl).toBe(
+      'https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/blob/main/extension/docs/TROUBLESHOOTING.md#http-403-the-request-was-refused'
+    );
+  });
+
+  it('links the section of the FileMaker codes that have one', () => {
+    const error = normalizeError({
+      isAxiosError: true,
+      message: 'Error',
+      response: {
+        status: 500,
+        data: { messages: [{ code: '956', message: 'Too many sessions' }] }
+      }
+    });
+
+    expect(error.docsUrl).toBe(
+      'https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/blob/main/extension/docs/TROUBLESHOOTING.md#error-956-no-free-data-api-sessions'
+    );
+  });
+
+  it('links the certificate section when the connection fails on a certificate', () => {
+    const error = normalizeError({
+      isAxiosError: true,
+      code: 'CERT_HAS_EXPIRED',
+      message: 'certificate has expired',
+      config: { url: 'https://fm.example/fmi/data/vLatest/databases/Contacts/sessions' }
+    });
+
+    expect(error.kind).toBe('certificate');
+    expect(error.docsUrl).toBe(
+      'https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/blob/main/extension/docs/TROUBLESHOOTING.md#certificate-errors-the-server-certificate-is-not-trusted'
+    );
+  });
+
+  it('links the changed-certificate section when a trusted certificate no longer matches', () => {
+    const error = normalizeError({
+      isAxiosError: true,
+      code: 'FM_CERT_PIN_MISMATCH',
+      message: 'the certificate is not the one you trusted',
+      config: { url: 'https://fm.example/fmi/data/vLatest/databases/Contacts/sessions' }
+    });
+
+    expect(error.kind).toBe('certificate');
+    expect(error.docsUrl).toBe(
+      'https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/blob/main/extension/docs/TROUBLESHOOTING.md#the-certificate-was-revoked-expired-or-replaced'
+    );
+  });
+
+  it('links the unreachable section when the server cannot be reached', () => {
+    const error = normalizeError({
+      isAxiosError: true,
+      code: 'ECONNREFUSED',
+      message: 'connect ECONNREFUSED',
+      config: { url: 'https://fm.example/fmi/data/vLatest/databases/Contacts/sessions' }
+    });
+
+    expect(error.kind).toBe('network');
+    expect(error.docsUrl).toBe(
+      'https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/blob/main/extension/docs/TROUBLESHOOTING.md#the-server-cannot-be-reached-or-times-out'
+    );
   });
 });
 
@@ -148,8 +223,38 @@ describe('docsUrlForCode', () => {
     );
   });
 
+  it.each([
+    ['956', 'error-956-no-free-data-api-sessions'],
+    ['214', 'error-214-too-many-sign-in-attempts'],
+    ['1703', 'error-1703-or-a-filemaker-cloud-sign-in']
+  ])('gives the troubleshooting link for FileMaker %s', (code, anchor) => {
+    expect(docsUrlForCode(code)).toBe(
+      `https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/blob/main/extension/docs/TROUBLESHOOTING.md#${anchor}`
+    );
+  });
+
   it('gives no link for a code without a section', () => {
     expect(docsUrlForCode('100')).toBeUndefined();
+  });
+});
+
+describe('docsUrlForStatus', () => {
+  it('gives the troubleshooting link for the HTTP statuses that have a section', () => {
+    expect(docsUrlForStatus(401)).toBe(
+      'https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/blob/main/extension/docs/TROUBLESHOOTING.md#http-401-the-server-refused-the-request'
+    );
+    expect(docsUrlForStatus(403)).toBe(
+      'https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/blob/main/extension/docs/TROUBLESHOOTING.md#http-403-the-request-was-refused'
+    );
+    expect(docsUrlForStatus(404)).toBe(
+      'https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/blob/main/extension/docs/TROUBLESHOOTING.md#http-404-nothing-answered-at-that-address'
+    );
+  });
+
+  it('gives no link for a status without a section', () => {
+    expect(docsUrlForStatus(undefined)).toBeUndefined();
+    expect(docsUrlForStatus(500)).toBeUndefined();
+    expect(docsUrlForStatus(429)).toBeUndefined();
   });
 });
 

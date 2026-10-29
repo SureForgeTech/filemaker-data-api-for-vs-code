@@ -203,24 +203,46 @@ export function getFileMakerErrorInfo(code: number | string | undefined): FileMa
 }
 
 /**
+ * The troubleshooting page every link points into. One constant, so the code map and the status
+ * map cannot drift apart.
+ */
+export const TROUBLESHOOTING_BASE_URL =
+  'https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/blob/main/extension/docs/TROUBLESHOOTING.md';
+
+/**
  * The troubleshooting page section for the FileMaker codes that have one. The link points at the
  * section, not the page, so it stays useful as the page grows. A Map, so a code from an untrusted
- * response cannot reach anything but the two entries below.
+ * response cannot reach anything but the entries below.
  */
 const DOCS_URLS = new Map<string, string>([
-  [
-    '212',
-    'https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/blob/main/extension/docs/TROUBLESHOOTING.md#http-401-the-server-refused-the-request'
-  ],
-  [
-    '9',
-    'https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/blob/main/extension/docs/TROUBLESHOOTING.md#the-account-lacks-a-privilege'
-  ]
+  ['212', `${TROUBLESHOOTING_BASE_URL}#http-401-the-server-refused-the-request`],
+  ['9', `${TROUBLESHOOTING_BASE_URL}#the-account-lacks-a-privilege`],
+  ['956', `${TROUBLESHOOTING_BASE_URL}#error-956-no-free-data-api-sessions`],
+  ['214', `${TROUBLESHOOTING_BASE_URL}#error-214-too-many-sign-in-attempts`],
+  ['1703', `${TROUBLESHOOTING_BASE_URL}#error-1703-or-a-filemaker-cloud-sign-in`]
+]);
+
+/**
+ * The troubleshooting page section for the HTTP statuses that have one. A status is what is left
+ * when the server answers without a FileMaker code, so these are the links that catch it.
+ */
+const DOCS_STATUS_URLS = new Map<number, string>([
+  [401, `${TROUBLESHOOTING_BASE_URL}#http-401-the-server-refused-the-request`],
+  [403, `${TROUBLESHOOTING_BASE_URL}#http-403-the-request-was-refused`],
+  [404, `${TROUBLESHOOTING_BASE_URL}#http-404-nothing-answered-at-that-address`]
 ]);
 
 /** The troubleshooting link for a FileMaker code, or nothing when the code has no section. */
 export function docsUrlForCode(code: string): string | undefined {
   return DOCS_URLS.get(code);
+}
+
+/** The troubleshooting link for an HTTP status, or nothing when the status has no section. */
+export function docsUrlForStatus(status: number | undefined): string | undefined {
+  if (status === undefined) {
+    return undefined;
+  }
+  return DOCS_STATUS_URLS.get(status);
 }
 
 /** Codes where signing in again with the same stored credentials cannot work. */
