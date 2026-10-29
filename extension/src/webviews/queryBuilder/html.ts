@@ -97,6 +97,7 @@ export function getHtmlForWebview(webview: vscode.Webview, extensionUri: vscode.
 
       <div class="actions">
         <button id="runButton" type="button" title="Run query (Ctrl/Cmd+Enter)">Run</button>
+        <button id="cancelButton" type="button" class="secondary hidden" title="Cancel the query in flight">Cancel</button>
         <button id="saveButton" type="button" class="secondary" title="Save this query (asks for a name)">Save…</button>
         <details class="menu" id="exportMenu">
           <summary class="secondary">Export</summary>

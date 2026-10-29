@@ -25,6 +25,7 @@ PR title prefix matches the highest-tier label added:
 ### [FEATURE]
 
 - The Query Builder remembers the selected connection, layout, find request, editor tab and result view, so reopening the panel after a window reload restores the work in progress instead of an empty form.
+- The Query Builder shows a Cancel button while a query is running; pressing it aborts the request in flight and the panel reports the query as cancelled.
 
 ### [FIX]
 

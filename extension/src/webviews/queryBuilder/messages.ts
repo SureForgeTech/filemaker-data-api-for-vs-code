@@ -61,6 +61,15 @@ export function parseIncomingMessage(rawMessage: unknown): IncomingMessage | und
         payload
       };
     }
+    case 'cancelRun': {
+      // The run id names the request to abort; without it there is nothing to cancel.
+      const runId = getOptionalNumberField(value, 'runId', { min: 0 });
+      if (runId === undefined || !Number.isInteger(runId)) {
+        return undefined;
+      }
+
+      return { type, runId };
+    }
     case 'exportResultsToEditor':
     case 'exportResultsJsonFile':
     case 'exportResultsCsvFile':

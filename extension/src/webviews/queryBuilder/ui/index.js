@@ -52,6 +52,7 @@ const limitInput = document.getElementById('limitInput');
 const offsetInput = document.getElementById('offsetInput');
 const includeAuthCheckbox = document.getElementById('includeAuthCheckbox');
 const runButton = document.getElementById('runButton');
+const cancelButton = document.getElementById('cancelButton');
 const listRecordsButton = document.getElementById('listRecordsButton');
 const saveButton = document.getElementById('saveButton');
 const exportEditorButton = document.getElementById('exportEditorButton');
@@ -106,8 +107,15 @@ window.addEventListener('message', (event) => {
       applyFieldNames(message.payload);
       break;
     case 'queryResult':
-      if (isCurrentRun(message.payload)) {
+      if (isCurrentRun(message.payload && message.payload.query ? message.payload.query.runId : undefined)) {
         renderQueryResult(message.payload);
+      }
+      break;
+    case 'runCancelled':
+      if (isCurrentRun(message.runId)) {
+        // The results already on screen stay: the run was stopped, not undone.
+        setRunning(false);
+        setStatus('Query cancelled.');
       }
       break;
     case 'savedQueries':
@@ -570,6 +578,19 @@ document.addEventListener('keydown', (event) => {
 });
 
 listRecordsButton.addEventListener('click', () => runQuery(true));
+
+cancelButton.addEventListener('click', () => {
+  if (!state.running) {
+    return;
+  }
+
+  // The button is disabled right away, so one click aborts the request once.
+  cancelButton.disabled = true;
+  vscode.postMessage({
+    type: 'cancelRun',
+    runId: state.latestRunId
+  });
+});
 
 function runQuery(listRecords = false) {
   if (state.running || state.savingQuery) {
@@ -1808,8 +1829,7 @@ function revealQueryBuilder() {
 }
 
 /** Results from an older run (one that a newer Run superseded) are ignored. */
-function isCurrentRun(payload) {
-  const runId = payload && payload.query ? payload.query.runId : undefined;
+function isCurrentRun(runId) {
   return runId === undefined || runId === state.latestRunId;
 }
 
@@ -1819,6 +1839,9 @@ function setRunning(isRunning) {
   listRecordsButton.disabled = isRunning || state.savingQuery;
   saveButton.disabled = isRunning || state.savingQuery;
   runButton.textContent = isRunning ? 'Running…' : 'Run';
+  // Cancel is only offered while a run is in flight, and is ready again for the next one.
+  cancelButton.classList.toggle('hidden', !isRunning);
+  cancelButton.disabled = false;
 }
 
 function setStatus(message, isError = false, offerList = false) {
