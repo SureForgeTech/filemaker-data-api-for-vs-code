@@ -325,13 +325,14 @@ describe('extension lazy FM runtime loading', () => {
   });
 
   it('activation registers a serializer for every webview panel type, so restored tabs are not dead', async () => {
-    const { RESTORABLE_PANELS } = await import('../../src/webviews/common/panelRestore');
+    const { RESTORABLE_PANELS, LIVE_SERIALIZER_PANELS } = await import('../../src/webviews/common/panelRestore');
     const { activate } = await import('../../src/extension');
     const context = createActivationContext();
     await activate(context);
     const registered = vi.mocked(vscode.window.registerWebviewPanelSerializer).mock.calls.map(([viewType]) => viewType);
     disposeSubscriptions(context);
-    expect(registered.sort()).toEqual(RESTORABLE_PANELS.map((panel) => panel.viewType).sort());
+    const expected = [...RESTORABLE_PANELS.map((panel) => panel.viewType), ...LIVE_SERIALIZER_PANELS];
+    expect(registered.sort()).toEqual(expected.sort());
   });
 
   it.each(['openWelcomeWalkthrough', 'openUserGuide'])('opens the requested %s help surface', async (name) => {

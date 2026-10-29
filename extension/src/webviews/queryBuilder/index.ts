@@ -101,6 +101,58 @@ export class QueryBuilderPanel {
     );
   }
 
+  /**
+   * Restores a Query Builder tab that VS Code brings back after a window reload. The serializer
+   * rebuilds the real page, so the page runs again and reads the snapshot it stored itself.
+   */
+  public static registerSerializer(
+    context: vscode.ExtensionContext,
+    profileStore: ProfileStore,
+    savedQueriesStore: SavedQueriesStore,
+    historyStore: HistoryStore | undefined,
+    fmClient: FMClient,
+    logger: Logger
+  ): vscode.Disposable {
+    // VS Code has already put the saved state back on `webview.state` when this runs, so the
+    // rebuilt page reads the pre-restart snapshot with getState(); `state` carries that same value.
+    return vscode.window.registerWebviewPanelSerializer('filemakerQueryBuilder', {
+      async deserializeWebviewPanel(panel: vscode.WebviewPanel, state: unknown) {
+        void state; // the page reads the same snapshot itself via vscode.getState()
+        QueryBuilderPanel.restore(panel, context, profileStore, savedQueriesStore, historyStore, fmClient, logger);
+      }
+    });
+  }
+
+  /**
+   * Rebuilds the panel over a revived webview. The constructor sets the page, the page posts
+   * `ready`, and the host answers with the init payload, so the panel behaves like a new one.
+   */
+  private static restore(
+    panel: vscode.WebviewPanel,
+    context: vscode.ExtensionContext,
+    profileStore: ProfileStore,
+    savedQueriesStore: SavedQueriesStore,
+    historyStore: HistoryStore | undefined,
+    fmClient: FMClient,
+    logger: Logger
+  ): void {
+    // Only one Query Builder panel is open at a time, so a revived duplicate is closed again.
+    if (QueryBuilderPanel.currentPanel) {
+      panel.dispose();
+      return;
+    }
+
+    QueryBuilderPanel.currentPanel = new QueryBuilderPanel(
+      panel,
+      context,
+      profileStore,
+      savedQueriesStore,
+      historyStore ?? new HistoryStore(context.workspaceState),
+      fmClient,
+      logger
+    );
+  }
+
   public static requestSaveCurrentQuery(): boolean {
     const current = QueryBuilderPanel.currentPanel;
     if (!current) {

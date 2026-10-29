@@ -24,11 +24,12 @@ PR title prefix matches the highest-tier label added:
 
 ### [FEATURE]
 
-- None.
+- The Query Builder remembers the selected connection, layout, find request, editor tab and result view, so reopening the panel after a window reload restores the work in progress instead of an empty form.
 
 ### [FIX]
 
 - The Query Builder results table sizes its Open column to fit both actions, so View and Edit are both visible and clickable instead of clipping Edit to "View ...".
+- The Query Builder clears restored criteria and sort rows when the layout they were written for is no longer among the profile's layouts, so a saved find is never shown or run against another layout.
 
 ### [INTERNAL]
 
