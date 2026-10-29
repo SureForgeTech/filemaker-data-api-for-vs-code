@@ -10,6 +10,7 @@
 - The Marketplace README now opens the product tour with a Query Builder hero screenshot of the Contacts layout: field pickers, a populated find request and the found rows.
 - The Marketplace README now shows a GIF of the connection flow: add a connection profile, connect, and open the Query Builder.
 - The Query Builder results table sizes its Open column to fit both actions, so View and Edit are both visible and clickable instead of clipping Edit to "View ...".
+- The Query Builder remembers the selected connection, layout, find request, editor tab and result view, so reopening the panel after a window reload restores the work in progress instead of an empty form.
 
 ## 1.8.0
 

@@ -5,6 +5,7 @@ const DEFAULT_LIMIT = 100;
 const VIRTUALIZE_THRESHOLD = 50;
 const MAX_COLUMNS = 60;
 const MAX_CLIPBOARD_TEXT_LENGTH = 5_000_000;
+const STATE_VERSION = 1;
 const US_DATE_PATTERN = /^\d{1,2}\/\d{1,2}\/\d{4}(?: \d{1,2}:\d{2}(?::\d{2})?)?$/;
 
 const state = {
@@ -21,6 +22,8 @@ const state = {
   history: [],
   editorMode: 'form',
   model: FindForm.createEmptyModel(),
+  restoredProfileId: undefined,
+  restoredLayout: undefined,
   fieldNames: [],
   fieldMetadata: [],
   resultSort: undefined,
@@ -70,6 +73,8 @@ const menus = Array.from(document.querySelectorAll('details.menu'));
 const queryBuilderPanels = Array.from(document.querySelectorAll('.panel'));
 const queryBuilderSkeleton = createLoadingSkeleton(['short', 'long', 'medium', 'long', 'medium']);
 let queryBuilderReady = false;
+// True while the panel is putting back a stored snapshot, so it does not write one back half-restored.
+let restoringState = false;
 
 const queryBuilderHeader = document.querySelector('.header');
 if (queryBuilderHeader && queryBuilderPanels.length > 0) {
@@ -154,10 +159,12 @@ window.addEventListener('message', (event) => {
 
 profileSelect.addEventListener('change', () => {
   requestLayouts(profileSelect.value);
+  persistState();
 });
 
 layoutSelect.addEventListener('change', () => {
   requestFieldNamesForCurrentLayout();
+  persistState();
 });
 
 loadSavedButton.addEventListener('click', () => {
@@ -208,6 +215,7 @@ function setEditorMode(mode) {
   jsonTab.tabIndex = isForm ? -1 : 0;
   formEditor.classList.toggle('hidden', !isForm);
   jsonEditor.classList.toggle('hidden', isForm);
+  persistState();
 }
 
 function handleTabArrowKeys(event) {
@@ -821,6 +829,199 @@ function parseNumber(value) {
 }
 
 // ---------------------------------------------------------------------------
+// Persisted panel state
+// ---------------------------------------------------------------------------
+
+// The rows are re-rendered on every edit, so one delegated listener keeps up with them.
+formEditor.addEventListener('input', () => {
+  persistState();
+});
+formEditor.addEventListener('change', () => {
+  persistState();
+});
+// Adding or removing a request or a sort field is a click, not an input.
+formEditor.addEventListener('click', () => {
+  persistState();
+});
+
+findJson.addEventListener('input', () => {
+  persistState();
+});
+
+sortJson.addEventListener('input', () => {
+  persistState();
+});
+
+/**
+ * Keeps the work in progress in VS Code's per-webview store, so a window reload
+ * brings it back. Only what the user typed is stored; profiles, saved queries,
+ * history and results stay with the host.
+ */
+function persistState() {
+  if (restoringState) {
+    return;
+  }
+
+  vscode.setState({
+    v: STATE_VERSION,
+    profileId: profileSelect.value,
+    layout: layoutSelect.value,
+    editorMode: state.editorMode,
+    model: copyModel(state.model),
+    findJson: findJson.value,
+    sortJson: sortJson.value,
+    resultView: state.resultView
+  });
+}
+
+/** The stored snapshot, or undefined when there is none (or it is from another version). */
+function readPersistedState() {
+  let stored;
+  try {
+    stored = vscode.getState();
+  } catch {
+    return undefined;
+  }
+
+  if (!stored || typeof stored !== 'object' || Array.isArray(stored)) {
+    return undefined;
+  }
+  if (stored.v !== undefined && stored.v !== STATE_VERSION) {
+    return undefined;
+  }
+
+  return stored;
+}
+
+/** A plain copy of the form model, so the stored snapshot never shares state with the panel. */
+function copyModel(model) {
+  try {
+    return JSON.parse(JSON.stringify(model));
+  } catch {
+    return FindForm.createEmptyModel();
+  }
+}
+
+/**
+ * The stored form model when it is complete enough to show; undefined when it is
+ * not, so a damaged snapshot leaves the empty form rather than a broken one.
+ */
+function restoreModel(model) {
+  if (!model || typeof model !== 'object' || Array.isArray(model)) {
+    return undefined;
+  }
+  if (!Array.isArray(model.requests) || !Array.isArray(model.sort)) {
+    return undefined;
+  }
+
+  const requests = model.requests.map((request) => {
+    const source = asObject(request);
+    const criteria = Array.isArray(source.criteria) ? source.criteria : [];
+    return {
+      omit: source.omit === true,
+      criteria: criteria.length > 0
+        ? criteria.map((criterion) => restoreCriterion(criterion))
+        : FindForm.createEmptyRequest().criteria
+    };
+  });
+
+  const sort = model.sort.map((item) => {
+    const source = asObject(item);
+    return {
+      fieldName: asText(source.fieldName),
+      sortOrder: source.sortOrder === 'descend' ? 'descend' : 'ascend'
+    };
+  });
+
+  return {
+    requests: requests.length > 0 ? requests : [FindForm.createEmptyRequest()],
+    sort
+  };
+}
+
+function restoreCriterion(criterion) {
+  const source = asObject(criterion);
+  return {
+    field: asText(source.field),
+    operator: FindForm.OPERATOR_IDS.has(source.operator) ? source.operator : 'match',
+    value: asText(source.value),
+    value2: asText(source.value2)
+  };
+}
+
+function asObject(value) {
+  return value && typeof value === 'object' ? value : {};
+}
+
+function asText(value) {
+  return value === undefined || value === null ? '' : String(value);
+}
+
+/**
+ * Puts back what the panel held before a window reload. A profile or layout the
+ * host asked for wins; a stored id that no longer exists falls back to the usual
+ * default. Every part is restored on its own, so one bad value cannot blank the
+ * panel.
+ */
+function applyPersistedState(saved, payload) {
+  state.restoredProfileId = undefined;
+  state.restoredLayout = undefined;
+
+  if (!saved) {
+    return;
+  }
+
+  const defaults = payload.defaults;
+  const defaultProfileId = defaults && typeof defaults.profileId === 'string' ? defaults.profileId : '';
+  const defaultLayout = defaults && typeof defaults.layout === 'string' ? defaults.layout : '';
+  const savedProfileId = typeof saved.profileId === 'string' && state.profiles.some((profile) => profile.id === saved.profileId)
+    ? saved.profileId
+    : '';
+  const savedLayout = typeof saved.layout === 'string' ? saved.layout : '';
+
+  if (!defaultProfileId && savedProfileId) {
+    state.restoredProfileId = savedProfileId;
+  }
+  // The stored layout belongs to the stored profile, so it is only used for that profile.
+  if (!defaultLayout && savedProfileId && savedLayout && (!defaultProfileId || defaultProfileId === savedProfileId)) {
+    state.restoredLayout = savedLayout;
+  }
+
+  // The criteria come back unless the host asked for a saved query, which brings its own.
+  let modelRestored = false;
+  if (!defaults || !defaults.savedQuery) {
+    const model = restoreModel(saved.model);
+    if (model) {
+      state.model = model;
+      modelRestored = true;
+    }
+  }
+
+  if (saved.editorMode === 'json' || saved.editorMode === 'form') {
+    state.editorMode = saved.editorMode;
+  }
+
+  if (state.editorMode === 'json') {
+    const findText = typeof saved.findJson === 'string' ? saved.findJson : undefined;
+    const sortText = typeof saved.sortJson === 'string' ? saved.sortJson : undefined;
+    if (findText !== undefined || sortText !== undefined) {
+      if (findText !== undefined) {
+        findJson.value = findText;
+      }
+      if (sortText !== undefined) {
+        sortJson.value = sortText;
+      }
+    } else if (modelRestored) {
+      writeModelToJson();
+    }
+  }
+
+  if (saved.resultView === 'raw') {
+    setResultView('raw');
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Init, profiles, layouts, saved queries
 // ---------------------------------------------------------------------------
 
@@ -834,13 +1035,21 @@ function applyInit(payload) {
   state.neutralizeFormulas = payload.neutralizeFormulas !== false;
   state.recordEditEnabled = payload.recordEditEnabled !== false;
 
-  renderProfiles();
-  renderSavedQueries();
-  renderForm();
-  setEditorMode(state.editorMode);
+  const saved = readPersistedState();
 
-  if (payload.defaults && payload.defaults.savedQuery) {
-    applySavedQuery(payload.defaults.savedQuery);
+  restoringState = true;
+  try {
+    applyPersistedState(saved, payload);
+    renderProfiles();
+    renderSavedQueries();
+    renderForm();
+    setEditorMode(state.editorMode);
+
+    if (payload.defaults && payload.defaults.savedQuery) {
+      applySavedQuery(payload.defaults.savedQuery);
+    }
+  } finally {
+    restoringState = false;
   }
 
   setStatus('Ready. Press Ctrl/Cmd+Enter to run.');
@@ -885,7 +1094,7 @@ function renderProfiles() {
 
   let selectedProfileId = state.defaults && state.defaults.profileId;
   if (!selectedProfileId) {
-    selectedProfileId = state.activeProfileId || state.profiles[0].id;
+    selectedProfileId = state.restoredProfileId || state.activeProfileId || state.profiles[0].id;
   }
 
   if (!state.profiles.some((profile) => profile.id === selectedProfileId)) {
@@ -893,7 +1102,7 @@ function renderProfiles() {
   }
 
   profileSelect.value = selectedProfileId;
-  requestLayouts(selectedProfileId, state.defaults && state.defaults.layout);
+  requestLayouts(selectedProfileId, (state.defaults && state.defaults.layout) || state.restoredLayout);
 }
 
 function renderLayouts(layouts, preferredLayout) {
@@ -911,12 +1120,14 @@ function renderLayouts(layouts, preferredLayout) {
 
   if (preferredLayout && layouts.includes(preferredLayout)) {
     layoutSelect.value = preferredLayout;
+    persistState();
     return;
   }
 
   if (!layouts.includes(layoutSelect.value)) {
     layoutSelect.value = layouts[0];
   }
+  persistState();
 }
 
 function requestLayouts(profileId, preferredLayout) {
@@ -1017,6 +1228,7 @@ function setResultView(view) {
   tableViewTab.tabIndex = view === 'table' ? 0 : -1;
   rawViewTab.tabIndex = view === 'raw' ? 0 : -1;
   renderResultView();
+  persistState();
 }
 
 function renderQueryResult(payload) {

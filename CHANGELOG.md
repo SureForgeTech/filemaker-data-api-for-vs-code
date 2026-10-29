@@ -24,7 +24,7 @@ PR title prefix matches the highest-tier label added:
 
 ### [FEATURE]
 
-- None.
+- The Query Builder remembers the selected connection, layout, find request, editor tab and result view, so reopening the panel after a window reload restores the work in progress instead of an empty form.
 
 ### [FIX]
 

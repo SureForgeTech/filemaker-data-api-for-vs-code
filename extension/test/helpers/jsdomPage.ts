@@ -40,15 +40,31 @@ try {
   JSDOM = undefined;
 }
 
+export interface WebviewStateOptions {
+  /** The snapshot the page reads with `getState()`. */
+  state?: unknown;
+  /** Receives every snapshot the page writes with `setState()`. */
+  onSetState?: (value: unknown) => void;
+}
+
 /** Loads a webview's HTML and runs its page script; returns the window, what the page posts, and a way to message it. */
-export function loadPage(html: string, uiSource: string, url = 'https://panel.invalid/') {
+export function loadPage(html: string, uiSource: string, url = 'https://panel.invalid/', options: WebviewStateOptions = {}) {
   const dom = new (JSDOM as JsdomCtor)(html.replace(/<script[^>]*src=[^>]*><\/script>/g, ''), { runScripts: 'outside-only', url });
   const { window } = dom;
   const posted: Array<Record<string, unknown>> = [];
+  // Only a page that asks for it sees a stored state; every other caller keeps the old no-op store.
+  const tracksState = 'state' in options || 'onSetState' in options;
+  let storedState = options.state;
   (window as unknown as { acquireVsCodeApi: () => unknown }).acquireVsCodeApi = () => ({
     postMessage: (message: Record<string, unknown>) => posted.push(message),
-    getState: () => undefined,
-    setState: () => undefined
+    getState: () => (tracksState ? storedState : undefined),
+    setState: (value: unknown) => {
+      if (!tracksState) {
+        return;
+      }
+      storedState = value;
+      options.onSetState?.(value);
+    }
   });
   if (html.includes('fieldStandards.js')) {
     window.eval(buildSync({ entryPoints: [path.resolve(__dirname, '../../../shared/src/field-standards.ts')],
