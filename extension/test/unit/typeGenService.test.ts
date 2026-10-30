@@ -1,8 +1,9 @@
 import { runInNewContext } from 'vm';
 import { execFileSync } from 'child_process';
+import { createHash } from 'crypto';
 import { mkdtemp, readFile, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
-import { dirname, join } from 'path';
+import { basename, dirname, join } from 'path';
 // TypeScript 7 supplies the CLI; this alias keeps the compiler API for checking generated code.
 import * as ts from 'typescript6';
 import { describe, expect, it, vi } from 'vitest';
@@ -253,6 +254,113 @@ void run;
 
     expect(diagnostics.map(formatDiagnostic)).toEqual([]);
   }, 30_000);
+
+  it('keeps a layout called FileMaker from redeclaring the FileMakerRecord helper in the client', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'fm-client-reserved-'));
+    try {
+      const schema = { supported: true, fromCache: false, fields: [{ name: 'Name', type: 'normal', result: 'text' }], metadata: {} };
+      const service = new TypeGenService({ getLayoutSchema: vi.fn(async () => schema) } as never, {} as never,
+        { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() } as never, { getWorkspaceRoot: () => root });
+      const layouts = ['FileMaker', 'FileMakerLayout', 'Sales'];
+      const client = await service.generateTypeScriptClient(createProfile(), layouts, join(root, 'client'));
+      const types = await readFile(client.typesPath, 'utf8');
+      const source = await readFile(client.clientPath, 'utf8');
+
+      expect(types.match(/\bFileMakerRecord\b(?=<TFieldData>)/g)).toHaveLength(1);
+      expect(types).toContain('export type FileMakerLayout2Record = FileMakerRecord<FileMakerLayout2FieldData>;');
+      // Names that do not collide keep their usual spelling, and the API mapping keeps the raw layout names.
+      expect(types).toContain('export type FileMakerLayoutRecord = FileMakerRecord<FileMakerLayoutFieldData>;');
+      expect(types).toContain('export type SalesRecord = FileMakerRecord<SalesFieldData>;');
+      expect(types).toContain('"FileMaker": FileMakerLayout2Record;');
+      expect(types).toContain('"FileMakerLayout": FileMakerLayoutRecord;');
+      expect(source).toContain('findFileMakerLayout2(');
+      expect(source).toContain('encodeURIComponent("FileMaker")');
+
+      const program = ts.createProgram([client.typesPath, client.clientPath], {
+        noEmit: true, strict: true, target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS,
+        moduleResolution: ts.ModuleResolutionKind.Node10, ignoreDeprecations: '6.0',
+        lib: ['lib.es2020.d.ts', 'lib.dom.d.ts'], types: [], skipLibCheck: true
+      });
+      expect(ts.getPreEmitDiagnostics(program).map(formatDiagnostic)).toEqual([]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it('writes layouts whose names differ only by case or by sanitizing to distinct files', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'fm-case-files-'));
+    try {
+      const layouts = ['Sales', 'sales', 'SALES', 'Sales ', 'Orders'];
+      const service = new TypeGenService(
+        { getLayoutSchema: vi.fn(async () => ({ supported: true, fields: [], metadata: {} })) } as never,
+        { listLayouts: vi.fn(async () => layouts) } as never,
+        { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() } as never,
+        { getWorkspaceRoot: () => root }
+      );
+
+      const first = await service.generateTypesForAllLayouts(createProfile());
+      const second = await service.generateTypesForAllLayouts(createProfile());
+
+      expect(first.map((artifact) => artifact.layout)).toEqual(layouts);
+      const names = first.map((artifact) => basename(artifact.filePath));
+      expect(new Set(names.map((name) => name.toLowerCase())).size).toBe(layouts.length);
+      // Every member of a colliding set gets a hashed name; a name that does not collide keeps its usual name.
+      for (const name of names.slice(0, 3)) {
+        expect(name).toMatch(/^[Ss][Aa][Ll][Ee][Ss]-[0-9a-f]{8}\.ts$/);
+      }
+      expect(names).not.toContain('Sales.ts');
+      expect(names[4]).toBe('Orders.ts');
+      // The same list gives the same names, so a refresh rewrites the same files.
+      expect(second.map((artifact) => artifact.filePath)).toEqual(first.map((artifact) => artifact.filePath));
+      for (const artifact of first) {
+        expect(await readFile(artifact.filePath, 'utf8')).toContain(` * Layout: ${artifact.layout}\n`);
+      }
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('gives each layout the same file and content whatever order the server lists layouts in', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'fm-order-files-'));
+    try {
+      const hashOfSales = createHash('sha1').update('Sales').digest('hex').slice(0, 8);
+      // `Sales-<hash>` is an explicit layout that looks like the hashed name of `Sales`; `Sales ` and `A/B`
+      // sanitize to names that already carry a hash of their own.
+      const layouts = ['Sales', 'sales', 'SALES', `Sales-${hashOfSales}`, 'Sales ', 'A/B', 'a_b', 'Orders'];
+      const outputByOrder: Array<Map<string, { filePath: string; content: string }>> = [];
+      for (const order of [layouts, [...layouts].reverse(), [layouts[3]!, layouts[1]!, layouts[7]!, layouts[0]!, layouts[5]!, layouts[2]!, layouts[6]!, layouts[4]!]]) {
+        const service = new TypeGenService(
+          { getLayoutSchema: vi.fn(async () => ({ supported: true, fields: [{ name: 'Name', type: 'normal', result: 'text' }], metadata: {} })) } as never,
+          { listLayouts: vi.fn(async () => order) } as never,
+          { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() } as never,
+          { getWorkspaceRoot: () => root }
+        );
+        const artifacts = await service.generateTypesForAllLayouts(createProfile());
+        expect(artifacts.map((artifact) => artifact.layout)).toEqual(order);
+        outputByOrder.push(new Map(await Promise.all(artifacts.map(async (artifact) =>
+          [artifact.layout, { filePath: artifact.filePath, content: (await readFile(artifact.filePath, 'utf8')).replace(/^ \* Generated at: .*$/m, '') }] as const))));
+      }
+
+      const [forward, ...others] = outputByOrder;
+      for (const other of others) {
+        for (const layout of layouts) {
+          expect(other.get(layout)).toEqual(forward!.get(layout));
+          expect(other.get(layout)!.content).toContain(` * Layout: ${layout}\n`);
+        }
+      }
+
+      const paths = layouts.map((layout) => forward!.get(layout)!.filePath);
+      expect(new Set(paths.map((path) => path.toLowerCase())).size).toBe(layouts.length);
+      // No member of the case-colliding set owns the bare name, and the explicit hashed-looking layout does not
+      // take `Sales`'s hashed name (the earlier raw name keeps it).
+      expect(paths.map((path) => basename(path))).not.toContain('Sales.ts');
+      expect(basename(forward!.get('Sales')!.filePath)).toBe(`Sales-${hashOfSales}.ts`);
+      expect(basename(forward!.get(`Sales-${hashOfSales}`)!.filePath)).toBe(`Sales-${hashOfSales}-1.ts`);
+      expect(basename(forward!.get('Orders')!.filePath)).toBe('Orders.ts');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
 });
 
 function formatDiagnostic(diagnostic: ts.Diagnostic): string {

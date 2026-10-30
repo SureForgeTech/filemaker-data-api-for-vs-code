@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import { lstat, readFile } from 'fs/promises';
 import { basename, isAbsolute, relative, resolve, sep } from 'path';
 
@@ -42,7 +43,8 @@ export class TypeGenService {
 
   public async generateTypesForLayout(
     profile: ConnectionProfile,
-    layout: string
+    layout: string,
+    fileStem?: string
   ): Promise<GeneratedLayoutArtifacts> {
     const schema = await this.schemaService.getLayoutSchema(profile, layout);
     if (!schema.supported) {
@@ -51,7 +53,7 @@ export class TypeGenService {
 
     const metadataHash = hashObject(schema.metadata ?? schema.fields);
     const content = this.renderTypeFile(profile, layout, schema.fields, metadataHash);
-    const filePath = await this.writeTypeFile(layout, content).catch((error: unknown) => {
+    const filePath = await this.writeTypeFile(fileStem ?? sanitizeLayoutFileName(layout), content).catch((error: unknown) => {
       if (error instanceof GenerationCancelledError || error instanceof GenerationSkippedError) throw error;
       throw new GenerationOutputError(error instanceof Error ? error.message : String(error), { cause: error });
     });
@@ -67,10 +69,11 @@ export class TypeGenService {
   public async generateTypesForAllLayouts(profile: ConnectionProfile): Promise<GeneratedLayoutArtifacts[]> {
     const layouts = await this.fmClient.listLayouts(profile);
     const artifacts: GeneratedLayoutArtifacts[] = [];
+    const fileStems = allocateLayoutFileStems(layouts);
 
-    for (const layout of layouts) {
+    for (const [index, layout] of layouts.entries()) {
       try {
-        artifacts.push(await this.generateTypesForLayout(profile, layout));
+        artifacts.push(await this.generateTypesForLayout(profile, layout, fileStems[index]));
       } catch (error) {
         if (error instanceof GenerationCancelledError || error instanceof GenerationOutputError) throw error;
         this.logger.warn('Skipping type generation for layout due to metadata error.', {
@@ -177,7 +180,7 @@ export class TypeGenService {
     }
 
     const generatedAt = new Date().toISOString();
-    const layoutNames = createNameMap(selectedLayouts);
+    const layoutNames = allocateClientTypeSuffixes(selectedLayouts);
     const typesContent = renderClientTypes(profile, schemas, layoutNames, generatedAt);
     const clientContent = renderClientSource(profile, schemas, layoutNames, generatedAt);
     const readmeContent = renderClientReadme(profile, selectedLayouts, generatedAt);
@@ -209,7 +212,7 @@ export class TypeGenService {
     };
   }
 
-  private async writeTypeFile(layout: string, content: string): Promise<string> {
+  private async writeTypeFile(fileStem: string, content: string): Promise<string> {
     if (!this.isWorkspaceTrusted()) {
       throw new Error('Workspace is untrusted. Type generation to files is disabled.');
     }
@@ -220,7 +223,7 @@ export class TypeGenService {
     }
 
     const outputDir = sanitizeRelativeOutputDir(this.getOutputDir());
-    const fileName = `${sanitizeLayoutFileName(layout)}.ts`;
+    const fileName = `${fileStem}.ts`;
     const filePath = await resolveConfinedWorkspaceFile(root, outputDir, 'layouts', fileName);
 
     const skipped = await writeGeneratedFiles([{ path: filePath, content }], root);
@@ -389,7 +392,7 @@ function normalizeLayouts(layouts: string[]): string[] {
 function renderClientTypes(
   profile: ConnectionProfile,
   schemas: GeneratedClientSchema[],
-  layoutNames: ReturnType<typeof createNameMap>,
+  layoutNames: Map<string, string>,
   generatedAt: string
 ): string {
   const layoutBlocks = schemas.map((schema) => {
@@ -463,7 +466,7 @@ export type LayoutName = keyof LayoutRecordMap;
 function renderClientSource(
   profile: ConnectionProfile,
   schemas: GeneratedClientSchema[],
-  layoutNames: ReturnType<typeof createNameMap>,
+  layoutNames: Map<string, string>,
   generatedAt: string
 ): string {
   const imports = schemas
@@ -662,7 +665,7 @@ function renderClientReadme(
   generatedAt: string
 ): string {
   const firstLayout = layouts[0] ?? 'Layout';
-  const firstMethod = typeSuffixForLayout(createNameMap(layouts), firstLayout);
+  const firstMethod = typeSuffixForLayout(allocateClientTypeSuffixes(layouts), firstLayout);
 
   return `<!-- ${GENERATED_MARKER} -->
 # FileMaker TypeScript Client
@@ -711,9 +714,49 @@ Regenerating this client overwrites these files with a new timestamp.
 `;
 }
 
-function typeSuffixForLayout(layoutNames: ReturnType<typeof createNameMap>, layout: string): string {
-  const friendly = layoutNames.rawToFriendly[layout] ?? sanitizeLayoutFileName(layout);
-  return toPascalCaseIdentifier(friendly);
+/** Names the generated client files declare themselves; a layout type must not reuse one. */
+const RESERVED_CLIENT_TYPE_NAMES = new Set([
+  'FileMakerMessage',
+  'FileMakerRecord',
+  'FileMakerClientConfig',
+  'FileMakerDataApiError',
+  'FileMakerDataApiClient',
+  'DataApiEnvelope',
+  'FindResponse',
+  'MutateResponse',
+  'LayoutRecordMap',
+  'LayoutFieldDataMap',
+  'LayoutFindRequestMap',
+  'LayoutName'
+]);
+
+/**
+ * The type name prefix of each layout (`Sales` gives `SalesFieldData`, `SalesRecord`, `SalesFindRequest`).
+ * A layout called `FileMaker` would declare `FileMakerRecord` twice, so a prefix that makes a
+ * reserved name gets `Layout` added; all other prefixes stay as they were.
+ */
+function allocateClientTypeSuffixes(layouts: string[]): Map<string, string> {
+  const nameMap = createNameMap(layouts);
+  const natural = new Map(layouts.map((layout): [string, string] => [layout, toPascalCaseIdentifier(nameMap.rawToFriendly[layout] ?? layout)]));
+  const used = new Set(natural.values());
+  const suffixes = new Map<string, string>();
+  for (const [layout, suffix] of natural) {
+    let chosen = suffix;
+    for (let attempt = 1; isReservedClientSuffix(chosen) || (chosen !== suffix && used.has(chosen)); attempt += 1) {
+      chosen = `${suffix}Layout${attempt === 1 ? '' : attempt}`;
+    }
+    used.add(chosen);
+    suffixes.set(layout, chosen);
+  }
+  return suffixes;
+}
+
+function isReservedClientSuffix(suffix: string): boolean {
+  return ['FieldData', 'Record', 'FindRequest'].some((name) => RESERVED_CLIENT_TYPE_NAMES.has(`${suffix}${name}`));
+}
+
+function typeSuffixForLayout(layoutNames: Map<string, string>, layout: string): string {
+  return layoutNames.get(layout) ?? toPascalCaseIdentifier(layout);
 }
 
 function indent(value: string, spaces: number): string {
@@ -742,6 +785,41 @@ function sanitizeLayoutFileName(layout: string): string {
     .replace(/^_+|_+$/g, '');
 
   return distinctFileName(layout, normalized);
+}
+
+/**
+ * File names for a batch of layouts, the same whatever order the server lists them in.
+ * `Sales` and `sales` are one file on a case-insensitive host (macOS, Windows), so every
+ * layout whose sanitized name matches another's, ignoring case, gets a short hash of its raw
+ * name; none of them keeps the bare name. A name that does not collide keeps its usual name.
+ * A hashed name that still meets a taken name (an explicit layout that looks like a hashed
+ * name) gets a numeric suffix, and names are settled in raw-name order, so the result never
+ * depends on list order.
+ */
+function allocateLayoutFileStems(layouts: string[]): string[] {
+  const unique = [...new Set(layouts)].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+  const bases = new Map(unique.map((layout) => [layout, sanitizeLayoutFileName(layout)]));
+  const groupSizes = new Map<string, number>();
+  for (const base of bases.values()) {
+    const key = base.toLowerCase();
+    groupSizes.set(key, (groupSizes.get(key) ?? 0) + 1);
+  }
+
+  const taken = new Set<string>();
+  const stems = new Map<string, string>();
+  for (const layout of unique) {
+    const base = bases.get(layout)!;
+    const hash = createHash('sha1').update(layout).digest('hex').slice(0, 8);
+    const wanted = (groupSizes.get(base.toLowerCase()) ?? 0) > 1 ? `${base}-${hash}` : base;
+    let stem = wanted;
+    for (let attempt = 1; taken.has(stem.toLowerCase()); attempt += 1) {
+      stem = `${wanted}-${attempt}`;
+    }
+    taken.add(stem.toLowerCase());
+    stems.set(layout, stem);
+  }
+
+  return layouts.map((layout) => stems.get(layout)!);
 }
 
 function sanitizeSnippetKey(layout: string): string {

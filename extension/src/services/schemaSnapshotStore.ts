@@ -11,6 +11,8 @@ import type {
   SchemaSnapshotStorage,
   SchemaSnapshotSummary
 } from '../types/fm';
+import { resolveConfinedFile } from '../utils/pathConfinement';
+import { assertSafeOutputFolder } from './generatedFileWriter';
 import type { Logger } from './logger';
 
 const SNAPSHOT_SCHEMA_VERSION = 1;
@@ -158,9 +160,7 @@ export class SchemaSnapshotStore {
       return;
     }
 
-    const dir = join(root, SNAPSHOT_FILE_DIR);
-    const indexPath = join(dir, SNAPSHOT_INDEX_FILE);
-    const index = await this.readIndexFile(indexPath);
+    const index = await this.readIndexFile(root, SNAPSHOT_INDEX_FILE);
 
     const matching = index.items
       .filter((item) => item.profileId === profileId && item.layout === layout)
@@ -176,14 +176,14 @@ export class SchemaSnapshotStore {
     for (const item of toRemove) {
       try {
         // path-join disposition: the file name comes from the index file and is checked by isIndexEntry/isPlainJsonFileName, so it has no separator and no ".." segment.
-        await unlink(join(dir, item.fileName));
+        await unlink(await confinedSnapshotFile(root, item.fileName));
       } catch {
         this.logger.warn('Failed to delete pruned snapshot file.', { fileName: item.fileName });
       }
     }
 
     index.items = index.items.filter((item) => !idsToRemove.has(item.id));
-    await writeFile(indexPath, JSON.stringify(index, null, 2), 'utf8');
+    await writeFile(await confinedSnapshotFile(root, SNAPSHOT_INDEX_FILE), JSON.stringify(index, null, 2), 'utf8');
 
     this.logger.info(`Pruned ${toRemove.length} old snapshot(s) for layout "${layout}".`);
   }
@@ -235,26 +235,25 @@ export class SchemaSnapshotStore {
     }
 
     const dir = join(root, SNAPSHOT_FILE_DIR);
+    await assertSafeOutputFolder(dir, root);
     await mkdir(dir, { recursive: true });
+    await assertSafeOutputFolder(dir, root);
 
     const safeProfile = toSafeFileName(snapshot.profileId);
     const safeLayout = toSafeFileName(snapshot.layout);
     const safeId = toSafeFileName(snapshot.id);
     const safeDate = snapshot.capturedAt.replace(/[:.]/g, '-');
     const fileName = `${safeProfile}__${safeLayout}__${safeDate}__${safeId}.json`;
-    // path-join disposition: the name is built from toSafeFileName values, so it has no separator and no ".." segment.
-    const snapshotPath = join(dir, fileName);
-    await writeFile(snapshotPath, JSON.stringify({ snapshot }, null, 2), 'utf8');
+    await writeFile(await confinedSnapshotFile(root, fileName), JSON.stringify({ snapshot }, null, 2), 'utf8');
 
-    const indexPath = join(dir, SNAPSHOT_INDEX_FILE);
-    const index = await this.readIndexFile(indexPath);
+    const index = await this.readIndexFile(root, SNAPSHOT_INDEX_FILE);
 
     index.items.push({
       ...toSummary(snapshot),
       fileName
     });
 
-    await writeFile(indexPath, JSON.stringify(index, null, 2), 'utf8');
+    await writeFile(await confinedSnapshotFile(root, SNAPSHOT_INDEX_FILE), JSON.stringify(index, null, 2), 'utf8');
   }
 
   private async loadAllSnapshots(): Promise<SchemaSnapshot[]> {
@@ -279,6 +278,7 @@ export class SchemaSnapshotStore {
     const dir = join(root, SNAPSHOT_FILE_DIR);
     let fileNames: string[];
     try {
+      await assertSafeOutputFolder(dir, root);
       fileNames = await readdir(dir);
     } catch {
       return [];
@@ -292,7 +292,7 @@ export class SchemaSnapshotStore {
       }
 
       try {
-        const content = await readFile(join(dir, fileName), 'utf8');
+        const content = await readFile(await confinedSnapshotFile(root, fileName), 'utf8');
         const parsed = JSON.parse(content) as { snapshot?: SchemaSnapshot };
         const normalized = normalizeSnapshot(parsed.snapshot);
         if (normalized) {
@@ -306,9 +306,9 @@ export class SchemaSnapshotStore {
     return snapshots.sort((left, right) => right.capturedAt.localeCompare(left.capturedAt));
   }
 
-  private async readIndexFile(indexPath: string): Promise<SnapshotIndexFile> {
+  private async readIndexFile(root: string, fileName: string): Promise<SnapshotIndexFile> {
     try {
-      const content = await readFile(indexPath, 'utf8');
+      const content = await readFile(await confinedSnapshotFile(root, fileName), 'utf8');
       const parsed = JSON.parse(content) as SnapshotIndexFile;
       if (!Array.isArray(parsed.items)) {
         throw new Error('Invalid index file.');
@@ -326,6 +326,11 @@ export class SchemaSnapshotStore {
       };
     }
   }
+}
+
+/** A file in the snapshot folder, proved to have no link anywhere on its path below the workspace root. */
+async function confinedSnapshotFile(root: string, fileName: string): Promise<string> {
+  return (await resolveConfinedFile(join(SNAPSHOT_FILE_DIR, fileName), root, [root])).path;
 }
 
 function toSummary(snapshot: SchemaSnapshot): SchemaSnapshotSummary {

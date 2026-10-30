@@ -109,7 +109,16 @@ export class SchemaService {
       const fields = extractFieldsFromMetadata(metadata);
 
       if (this.offlineModeService) {
-        await this.offlineModeService.cacheLayoutMetadata(profile, layout, metadata);
+        try {
+          await this.offlineModeService.cacheLayoutMetadata(profile, layout, metadata);
+        } catch (cacheError) {
+          // The offline cache is optional; the schema from the server is still good.
+          this.logger.warn('Failed to write the offline metadata cache.', {
+            profileId: profile.id,
+            layout,
+            error: cacheError
+          });
+        }
       }
 
       const result: SchemaMetadataResult = {

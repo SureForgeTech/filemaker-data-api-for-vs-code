@@ -23,6 +23,14 @@ import { exportResultsToEditor, exportResultsJsonFile, exportResultsCsvFile, cop
 import { getHtmlForWebview } from './html';
 import { guardDispatch, requestType } from '../common/dispatch';
 
+/** What the page may run and load: its own script, from this extension's UI folder only. */
+function webviewOptions(extensionUri: vscode.Uri): vscode.WebviewOptions {
+  return {
+    enableScripts: true,
+    localResourceRoots: [vscode.Uri.joinPath(extensionUri, 'dist', 'webviews', 'queryBuilder', 'ui')]
+  };
+}
+
 export class QueryBuilderPanel {
   private requestInFlight = false;
   private static currentPanel: QueryBuilderPanel | undefined;
@@ -85,13 +93,7 @@ export class QueryBuilderPanel {
       'filemakerQueryBuilder',
       'FileMaker Query Builder',
       column,
-      {
-        enableScripts: true,
-        retainContextWhenHidden: true,
-        localResourceRoots: [
-          vscode.Uri.joinPath(context.extensionUri, 'dist', 'webviews', 'queryBuilder', 'ui')
-        ]
-      }
+      { ...webviewOptions(context.extensionUri), retainContextWhenHidden: true }
     );
 
     QueryBuilderPanel.currentPanel = new QueryBuilderPanel(
@@ -146,6 +148,9 @@ export class QueryBuilderPanel {
       panel.dispose();
       return;
     }
+
+    // A revived webview keeps the options it was saved with, which can name an older extension folder.
+    panel.webview.options = webviewOptions(context.extensionUri);
 
     QueryBuilderPanel.currentPanel = new QueryBuilderPanel(
       panel,

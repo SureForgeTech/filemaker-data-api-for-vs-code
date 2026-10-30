@@ -12,6 +12,29 @@ const LOG_LEVEL_ORDER: Record<LogLevel, number> = {
   error: 40
 };
 
+/**
+ * JSON.stringify drops the message of an Error. Keep only name, message and code: an HTTP
+ * error also carries its request config and response, which can hold credentials.
+ *
+ * JSON.stringify calls an object's toJSON() before the replacer, so `value` may already be
+ * a serialized copy (an AxiosError becomes its full config). Read the original from the
+ * holder instead.
+ */
+function errorReplacer(this: unknown, key: string, value: unknown): unknown {
+  const original =
+    typeof this === 'object' && this !== null ? (this as Record<string, unknown>)[key] : value;
+  if (!(original instanceof Error)) {
+    return value;
+  }
+
+  const { code } = original as { code?: unknown };
+  return {
+    name: original.name,
+    message: original.message,
+    ...(typeof code === 'string' || typeof code === 'number' ? { code } : {})
+  };
+}
+
 export class Logger {
   private readonly channel: vscode.OutputChannel;
   private readonly settingsService: SettingsService;
@@ -78,9 +101,13 @@ export class Logger {
     }
 
     try {
-      return JSON.stringify(meta);
+      return JSON.stringify(meta, errorReplacer);
     } catch {
-      return String(meta);
+      try {
+        return String(meta);
+      } catch {
+        return '[unserializable log data]';
+      }
     }
   }
 

@@ -38,6 +38,11 @@ PR title prefix matches the highest-tier label added:
 - Canceling Browse for a CA certificate keeps the previously selected file path.
 - The Query Builder results table sizes its Open column to fit both actions, so View and Edit are both visible and clickable instead of clipping Edit to "View ...".
 - The Query Builder clears restored criteria and sort rows when the layout they were written for is no longer among the profile's layouts, so a saved find is never shown or run against another layout.
+- A failure to save the optional offline schema cache no longer fails a layout schema that the server returned; it is logged as a warning instead.
+- Script parameters sent through the FM Web bridge keep their spaces, line breaks and empty value exactly as written.
+- Log lines that include an error now show the error's name, message and code instead of an empty `{}`, with secrets still hidden.
+- A layout named `FileMaker` no longer produces a generated TypeScript client with two `FileMakerRecord` types. Layout names that differ only by letter case, such as `Sales` and `sales`, now get separate generated type files, each named with a short hash, so the files no longer swap places when the server lists layouts in a different order; delete any old `Sales.ts`-style file left by an earlier build.
+- A restored Query Builder tab now uses the current extension folder and script settings instead of the ones saved before the window reload.
 
 ### [INTERNAL]
 
@@ -46,10 +51,13 @@ PR title prefix matches the highest-tier label added:
 - A privacy policy at the repository root (PRIVACY.md) now says what the extension stores locally, what never leaves your machine, the proxy-mode exception, which third parties are reached, the GDPR/CCPA stance, and where to send privacy questions; the documentation table, the Marketplace listing and the User Guide all link to it.
 - The Marketplace README now opens the product tour with a Query Builder hero screenshot of the Contacts layout: field pickers, a populated find request and the found rows.
 - The Marketplace README now shows a GIF of the connection flow: add a connection profile, connect, and open the Query Builder.
+- The unit tests no longer pass an IP address as a TLS server name, which Node 22 warns about and Node 26 rejects.
+- The real VS Code proxy-patch TLS test now skips, with the reason logged, when a plain TCP connection to this machine's own LAN address cannot be opened. Once TCP connects, every certificate, pin and sign-in failure still fails the test.
 
 ### [SECURITY]
 
 - Open Generated Types Folder refuses output paths that pass through a symlink outside the workspace.
+- Schema snapshots and the offline metadata cache refuse to read, write or delete through a symlink under `.vscode/filemaker`, so a cloned repository cannot point them at files outside the workspace.
 - Saved connection secrets are decrypted with a fixed 16-byte tag check, so a shortened or tampered tag is refused instead of being misread. Secrets saved earlier keep working. No known exploit.
 - The extension's panels now ignore messages that do not come from VS Code itself, so a stray or badly formed message is dropped before it can act. No known exploit.
 - Files written for generated pages, type generation and AI context now stay inside their folder: a path that tries to escape is refused instead of written. No known exploit.
