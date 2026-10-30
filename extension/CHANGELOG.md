@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- The Query Builder keeps the previous results available to export when a later search is canceled.
 - FM Web displays, validates and saves a repeated field under its lowest available repetition key when `Name(1)` is absent.
 - [SECURITY] Open Generated Types Folder refuses output paths that pass through a symlink outside the workspace.
 - The Query Builder can cancel a search while it is still loading its connection profile, and closing the panel stops that search.
