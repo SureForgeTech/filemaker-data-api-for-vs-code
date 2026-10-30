@@ -11,7 +11,7 @@ const roots: string[] = [];
 const logger = { debug: vi.fn(), warn: vi.fn(), info: vi.fn(), error: vi.fn() };
 async function fixture() {
   const root = await mkdtemp(join(tmpdir(), 'fm-generator-safety-')); roots.push(root);
-  const service = new TypeGenService({ getLayoutSchema: async () => ({ supported: true, fields: [{ name: ' Name ', type: 'text' }] }) } as never,
+  const service = new TypeGenService({ isOfflineModeEnabled: () => false, getLayoutSchema: async () => ({ supported: true, fields: [{ name: ' Name ', type: 'text' }] }) } as never,
     { listLayouts: async () => [' Contacts '] } as never, logger, { getWorkspaceRoot: () => root });
   return { root, service };
 }

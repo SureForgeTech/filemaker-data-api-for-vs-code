@@ -75,7 +75,7 @@ describe('write path confinement', () => {
   it('keeps a generated type file inside the workspace when the output folder tries to escape', async () => {
     const { base, workspace, outside } = await fixture();
     const service = new TypeGenService(
-      { getLayoutSchema: async () => ({ supported: true, fields: [{ name: ' Name ', type: 'text' }] }) } as never,
+      { isOfflineModeEnabled: () => false, getLayoutSchema: async () => ({ supported: true, fields: [{ name: ' Name ', type: 'text' }] }) } as never,
       { listLayouts: async () => ['Contacts'] } as never,
       logger,
       { getWorkspaceRoot: () => workspace, getOutputDir: () => '../../escape' }
@@ -91,7 +91,7 @@ describe('write path confinement', () => {
   it('keeps a generated type file inside the workspace when the layout name tries to escape', async () => {
     const { base, workspace, outside } = await fixture();
     const service = new TypeGenService(
-      { getLayoutSchema: async () => ({ supported: true, fields: [{ name: ' Name ', type: 'text' }] }) } as never,
+      { isOfflineModeEnabled: () => false, getLayoutSchema: async () => ({ supported: true, fields: [{ name: ' Name ', type: 'text' }] }) } as never,
       { listLayouts: async () => ['../../evil'] } as never,
       logger,
       { getWorkspaceRoot: () => workspace }

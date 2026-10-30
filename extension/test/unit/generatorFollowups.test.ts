@@ -79,7 +79,7 @@ it('allows project, template and env generation through a linked workspace', asy
 
 it('all-layout generation propagates an unsafe output refusal instead of returning zero files', async () => {
   await mkdir(path.join(root, 'real')); await symlink(path.join(root, 'real'), path.join(root, 'filemaker-types'));
-  const service = new TypeGenService({ getLayoutSchema: async () => ({ supported: true, fields: [{ name: ' Name ', type: 'text' }] }) } as never,
+  const service = new TypeGenService({ isOfflineModeEnabled: () => false, getLayoutSchema: async () => ({ supported: true, fields: [{ name: ' Name ', type: 'text' }] }) } as never,
     { listLayouts: async () => [' Contacts '] } as never, logger, { getWorkspaceRoot: () => root });
   await expect(service.generateTypesForAllLayouts(profile)).rejects.toThrow(/symlink/);
   resetCommandMocks();
@@ -92,7 +92,7 @@ it('all-layout generation propagates an unsafe output refusal instead of returni
 });
 
 it('still skips unavailable metadata and files the user chose to skip in all-layout generation', async () => {
-  const service = new TypeGenService({ getLayoutSchema: async (_profile: unknown, layout: string) => {
+  const service = new TypeGenService({ isOfflineModeEnabled: () => false, getLayoutSchema: async (_profile: unknown, layout: string) => {
     if (layout === 'Missing') throw new Error('metadata unavailable');
     return { supported: true, fields: [] };
   } } as never, { listLayouts: async () => ['Missing', 'Keep', 'New'] } as never, logger, { getWorkspaceRoot: () => root });

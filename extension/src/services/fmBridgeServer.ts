@@ -322,7 +322,8 @@ export class FmBridgeServer {
           {
             layout,
             scriptName,
-            scriptParam: readString(payload.scriptParam),
+            // A script parameter is data for the script: keep it byte for byte.
+            scriptParam: typeof payload.scriptParam === 'string' ? payload.scriptParam : undefined,
             recordId: readString(payload.recordId)
           },
           {

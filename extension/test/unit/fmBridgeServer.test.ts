@@ -60,6 +60,14 @@ describe('FmBridgeServer', () => {
     }, { signal: expect.any(AbortSignal) });
   });
 
+  it.each(['', '   ', '\n', ' \tkeep\r\nme \n'])('passes the script parameter %j through unchanged', async (scriptParam) => {
+    const runScript = vi.fn().mockResolvedValue({ response: {}, messages: [] });
+    const server = new FmBridgeServer(createProfileStoreStub(), createFmClientStub({ runScript }), createFmWebProjectServiceStub(), logger);
+    const result = await invokeBridgeRequest(server, '/fm/runScript', { payload: { layout: 'L', scriptName: 'S', scriptParam } });
+    expect(result.status).toBe(200);
+    expect(runScript.mock.calls[0]?.[1].scriptParam).toBe(scriptParam);
+  });
+
   it('keeps layout and script names intact in preview script requests', async () => {
     const runScript = vi.fn().mockResolvedValue({ response: {}, messages: [] });
     const server = new FmBridgeServer(createProfileStoreStub(), createFmClientStub({ runScript }), createFmWebProjectServiceStub(), logger);

@@ -138,6 +138,47 @@ describe.skipIf(!JSDOM)('Query Builder restore', () => {
     expect(vi.mocked(vscode.window.createWebviewPanel)).not.toHaveBeenCalled();
   });
 
+  it('resets a revived webview to the current extension folder before it writes the page', async () => {
+    const panel = revivedPanel();
+    const calls: string[] = [];
+    const staleRoot = { fsPath: '/old-extension/dist/webviews/queryBuilder/ui' };
+    let options: unknown = { enableScripts: false, localResourceRoots: [staleRoot] };
+    Object.defineProperty(panel.webview, 'options', {
+      get: () => options,
+      set: (value) => { options = value; calls.push('options'); }
+    });
+    let html = '';
+    Object.defineProperty(panel.webview, 'html', {
+      get: () => html,
+      set: (value: string) => { html = value; calls.push('html'); }
+    });
+    const serializer = registerSerializer();
+
+    await serializer.deserializeWebviewPanel(panel as never, { v: 1 });
+
+    const restored = options as { enableScripts: boolean; localResourceRoots: Array<{ fsPath: string }> };
+    expect(vi.mocked(vscode.Uri.joinPath)).toHaveBeenCalledWith({ fsPath: '/ext' }, 'dist', 'webviews', 'queryBuilder', 'ui');
+    expect(restored.enableScripts).toBe(true);
+    expect(restored.localResourceRoots).toHaveLength(1);
+    expect(restored.localResourceRoots).not.toContain(staleRoot);
+    expect(restored.localResourceRoots[0]!.fsPath).toBe('dist/webviews/queryBuilder/ui');
+    expect(calls).toEqual(['options', 'html']);
+  });
+
+  it('opens a new panel with the same options a restored one gets', async () => {
+    open();
+    const [, , , newOptions] = vi.mocked(vscode.window.createWebviewPanel).mock.calls.at(-1)!;
+    const panel = revivedPanel() as ReturnType<typeof revivedPanel> & { webview: { options?: unknown } };
+    (QueryBuilderPanel as unknown as { currentPanel: unknown }).currentPanel = undefined;
+    await registerSerializer().deserializeWebviewPanel(panel as never, { v: 1 });
+
+    const restored = panel.webview.options as { enableScripts: boolean; localResourceRoots: Array<{ fsPath: string }> };
+    const created = newOptions as unknown as typeof restored & { retainContextWhenHidden: boolean };
+    expect(created.enableScripts).toBe(restored.enableScripts);
+    expect(created.localResourceRoots.map((root) => root.fsPath)).toEqual(restored.localResourceRoots.map((root) => root.fsPath));
+    expect(created.retainContextWhenHidden).toBe(true);
+  });
+
   it('brings the snapshot back through the serializer path', async () => {
     const view = open();
     const states: unknown[] = [];

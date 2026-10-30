@@ -12,6 +12,7 @@ import type { ConnectionProfile } from '../../../src/types/fm';
 import { installVscodeProxyPatch } from '../../helpers/vscodeProxyPatch';
 import { InMemorySecretStorage } from '../mocks';
 import { hasOpenssl, startMockProcess, type RunningMock } from './mockHelper';
+import { probeTcpAccept } from './tcpProbe';
 
 /**
  * Every non-loopback IPv4 address of this machine. A machine can have several (a VPN tunnel, a
@@ -76,8 +77,20 @@ describe.skipIf(!lanAddresses.length || !hasOpenssl)('real VS Code proxy patch w
       console.warn(`Real VS Code proxy-patch TLS test skipped: ${skipReason}.`);
       return;
     }
+    // The mock must exist before anything connects to the relay: its callback reads mock.baseUrl.
     mock = await startMockProcess({ TLS: 'claris-default-cert', ADMIN_PORT: '0' });
-    serverUrl = `https://${address}:${(relay.address() as AddressInfo).port}`;
+    const port = (relay.address() as AddressInfo).port;
+    // Binding a LAN address does not prove this machine can reach it: some hosts time out on a
+    // connection to their own LAN address, or complete the handshake and never hand it to the
+    // listener. Only a plain TCP failure skips; once the relay accepts, every TLS, pin and auth
+    // failure below stays a hard failure.
+    const reach = await probeTcpAccept(relay, address, port);
+    if (!reach.reachable) {
+      skipReason = `this machine cannot reach its own LAN address over plain TCP (${reach.reason})`;
+      console.warn(`Real VS Code proxy-patch TLS test skipped: ${skipReason}.`);
+      return;
+    }
+    serverUrl = `https://${address}:${port}`;
     pin = (await inspectServerCertificate(serverUrl)).sha256;
   }, 30000);
 

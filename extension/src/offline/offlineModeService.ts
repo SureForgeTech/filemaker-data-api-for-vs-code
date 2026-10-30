@@ -5,7 +5,9 @@ import { join } from 'path';
 import * as vscode from 'vscode';
 
 import type { ConnectionProfile } from '../types/fm';
+import { assertSafeOutputFolder } from '../services/generatedFileWriter';
 import { hashObjectWithAlgorithm } from '../utils/hash';
+import { resolveConfinedFile } from '../utils/pathConfinement';
 import { isOfflineModeOn } from '../utils/policySetting';
 
 const OFFLINE_CACHE_DIR = '.vscode/filemaker/offline-metadata';
@@ -140,10 +142,9 @@ export class OfflineModeService {
       metadata
     };
 
-    await writeFile(join(dir, fileName), JSON.stringify(payload, null, 2), 'utf8');
+    await writeFile(await this.confinedCacheFile(fileName), JSON.stringify(payload, null, 2), 'utf8');
 
-    const indexPath = join(dir, OFFLINE_INDEX_FILE);
-    const index = await this.readIndex(indexPath);
+    const index = await this.readIndex(OFFLINE_INDEX_FILE);
     const key = cacheKey(profile.id, profile.database, profile.apiBasePath, profile.apiVersionPath, layout);
 
     const retained = index.items.filter((item) => {
@@ -162,7 +163,7 @@ export class OfflineModeService {
     });
 
     index.items = retained.slice(0, 1000);
-    await writeFile(indexPath, JSON.stringify(index, null, 2), 'utf8');
+    await writeFile(await this.confinedCacheFile(OFFLINE_INDEX_FILE), JSON.stringify(index, null, 2), 'utf8');
   }
 
   public async getCachedLayoutMetadata(
@@ -173,13 +174,11 @@ export class OfflineModeService {
     hash: string;
     capturedAt: string;
   } | undefined> {
-    const dir = this.getCacheDir();
-    if (!dir) {
+    if (!this.getCacheDir()) {
       return undefined;
     }
 
-    const indexPath = join(dir, OFFLINE_INDEX_FILE);
-    const index = await this.readIndex(indexPath);
+    const index = await this.readIndex(OFFLINE_INDEX_FILE);
     const key = cacheKey(profile.id, profile.database, profile.apiBasePath, profile.apiVersionPath, layout);
 
     const match = index.items.find(
@@ -192,7 +191,7 @@ export class OfflineModeService {
     }
 
     try {
-      const raw = await readFile(join(dir, match.fileName), 'utf8');
+      const raw = await readFile(await this.confinedCacheFile(match.fileName), 'utf8');
       const parsed = JSON.parse(raw) as {
         metadata?: Record<string, unknown>;
         hash?: string;
@@ -249,12 +248,11 @@ export class OfflineModeService {
   }
 
   public async listCacheEntries(): Promise<OfflineIndexRecord[]> {
-    const dir = this.getCacheDir();
-    if (!dir) {
+    if (!this.getCacheDir()) {
       return [];
     }
 
-    const index = await this.readIndex(join(dir, OFFLINE_INDEX_FILE));
+    const index = await this.readIndex(OFFLINE_INDEX_FILE);
     return [...index.items];
   }
 
@@ -277,13 +275,22 @@ export class OfflineModeService {
       return undefined;
     }
 
+    const root = this.getWorkspaceRoot() as string;
+    await assertSafeOutputFolder(dir, root);
     await mkdir(dir, { recursive: true });
+    await assertSafeOutputFolder(dir, root);
     return dir;
   }
 
-  private async readIndex(indexPath: string): Promise<OfflineIndexDocument> {
+  /** A file in the cache folder, proved to have no link anywhere on its path below the workspace root. */
+  private async confinedCacheFile(fileName: string): Promise<string> {
+    const root = this.getWorkspaceRoot() as string;
+    return (await resolveConfinedFile(join(OFFLINE_CACHE_DIR, fileName), root, [root])).path;
+  }
+
+  private async readIndex(fileName: string): Promise<OfflineIndexDocument> {
     try {
-      const raw = await readFile(indexPath, 'utf8');
+      const raw = await readFile(await this.confinedCacheFile(fileName), 'utf8');
       const parsed = JSON.parse(raw) as OfflineIndexDocument;
 
       if (!Array.isArray(parsed.items)) {

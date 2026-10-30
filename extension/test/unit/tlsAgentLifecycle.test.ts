@@ -177,7 +177,7 @@ describe('a pinned agent and kept-alive sockets', () => {
 
   it('does not change the request options it is given (Node files a kept-alive socket under a name built from them, so changing them stranded the socket)', () => {
     const agent = new PinnedCertificateAgent({ keepAlive: true }, { sha256: 'ab'.repeat(32), allowExpired: false });
-    const options = { host: '127.0.0.1', port: 1, servername: '127.0.0.1' };
+    const options = { host: '127.0.0.1', port: 1, servername: 'fm.internal' };
     const before = JSON.stringify(options);
     const socket = agent.createConnection(options);
     socket.on('error', () => undefined);

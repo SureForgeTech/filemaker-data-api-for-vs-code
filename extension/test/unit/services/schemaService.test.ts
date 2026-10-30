@@ -181,6 +181,30 @@ describe('SchemaService.getLayoutSchema', () => {
     expect(result.message).toMatch(/offline/i);
   });
 
+  it('returns the server schema and caches it when the optional offline cache cannot be written', async () => {
+    const offlineModeService: Partial<OfflineModeService> = {
+      isOfflineModeEnabled: () => false,
+      cacheLayoutMetadata: vi.fn().mockRejectedValue(new Error('EACCES: read-only cache'))
+    };
+    const getLayoutMetadata = vi.fn().mockResolvedValue(metadataWith([{ name: 'live' }]));
+    const logger = createLogger();
+    const svc = new SchemaService({ getLayoutMetadata } as unknown as FMClient, logger, {
+      offlineModeService: offlineModeService as never
+    });
+
+    const first = await svc.getLayoutSchema(profile(), 'Contacts');
+    const second = await svc.getLayoutSchema(profile(), 'Contacts');
+
+    expect(first.supported).toBe(true);
+    expect(first.fields.map((f) => f.name)).toEqual(['live']);
+    expect(second.fromCache).toBe(true);
+    expect(getLayoutMetadata).toHaveBeenCalledTimes(1);
+    expect(logger.warn).toHaveBeenCalledWith(
+      'Failed to write the offline metadata cache.',
+      expect.objectContaining({ profileId: 'p1', layout: 'Contacts' })
+    );
+  });
+
   it('invalidateProfile clears only the matching profile entries', async () => {
     const getLayoutMetadata = vi
       .fn()

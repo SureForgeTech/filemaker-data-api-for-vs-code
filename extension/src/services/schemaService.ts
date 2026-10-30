@@ -51,6 +51,11 @@ export class SchemaService {
     this.cache.delete(buildSchemaCacheKey(profile, layout));
   }
 
+  /** Whether layouts are answered from the offline cache only, with no call to the server. */
+  public isOfflineModeEnabled(): boolean {
+    return this.offlineModeService?.isOfflineModeEnabled() ?? false;
+  }
+
   public async getFields(profile: ConnectionProfile, layout: string): Promise<SchemaMetadataResult> {
     return this.getLayoutSchema(profile, layout);
   }
@@ -68,8 +73,8 @@ export class SchemaService {
     const cacheKey = buildSchemaCacheKey(profile, layout);
     const now = Date.now();
 
-    if (this.offlineModeService?.isOfflineModeEnabled()) {
-      const offlineMetadata = await this.offlineModeService.getCachedLayoutMetadata(profile, layout);
+    if (this.isOfflineModeEnabled()) {
+      const offlineMetadata = await this.offlineModeService!.getCachedLayoutMetadata(profile, layout);
       if (!offlineMetadata) {
         return {
           supported: false,
@@ -109,7 +114,16 @@ export class SchemaService {
       const fields = extractFieldsFromMetadata(metadata);
 
       if (this.offlineModeService) {
-        await this.offlineModeService.cacheLayoutMetadata(profile, layout, metadata);
+        try {
+          await this.offlineModeService.cacheLayoutMetadata(profile, layout, metadata);
+        } catch (cacheError) {
+          // The offline cache is optional; the schema from the server is still good.
+          this.logger.warn('Failed to write the offline metadata cache.', {
+            profileId: profile.id,
+            layout,
+            error: cacheError
+          });
+        }
       }
 
       const result: SchemaMetadataResult = {
