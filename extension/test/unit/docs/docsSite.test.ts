@@ -159,6 +159,9 @@ it('stages the website alongside TypeDoc without changing the workflow security 
 });
 
 
+// This test parses the whole documentation site with JSDOM and reads computed styles for every
+// table cell, so it runs for seconds. The default five-second timeout is a measure of the
+// runner, not of the work, and the test above it already carries a budget for the same reason.
 it('keeps table cells and code readable inside horizontal scrolling regions', () => {
   const dom = new JSDOM!(html('guide/index.html'), { runScripts: 'outside-only', url: 'https://docs.invalid/' });
   const window = dom.window as typeof dom.window & {
@@ -182,7 +185,7 @@ it('keeps table cells and code readable inside horizontal scrolling regions', ()
     expect(style.overflowWrap).toBe('normal');
     expect(style.wordBreak).toBe('normal');
   }
-});
+}, 30_000);
 
 it('maps absolute repository links to generated pages from the guide, changelog and home', () => {
   const source = fixture(`# Guide\n\n[upgrade](${repo}/blob/main/extension/UPGRADE.md?from=guide#upgrade) [compatibility](${repo}/blob/main/extension/docs/COMPATIBILITY.md) [other](${repo}/blob/main/SUPPORT.md)`);
