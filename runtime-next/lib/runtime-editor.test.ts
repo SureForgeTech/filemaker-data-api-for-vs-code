@@ -262,3 +262,21 @@ it('saves a required repeating field whose value is under its repetition key', a
     expect(calls.find((call) => call.route === 'editRecord')?.body.fieldData).toEqual({ 'Notes(1)': 'edited' });
   } finally { layout.objects = previous; }
 });
+
+it('displays, validates, and saves a field whose only available key is Notes(2)', async () => {
+  const previous = layout.objects;
+  fields = { 'Notes(2)': 'second' };
+  records = [{ recordId: '19', modId, fieldData: fields }];
+  layout.objects = [{ id: '00000000-0000-4000-8000-000000000099', name: 'Notes', fmFieldName: 'Notes', type: 'field',
+    format: 'text', kind: 'normal', displayType: 'editBox', required: true, labelPosition: 'top', width: 240, height: 34,
+    x: 24, y: 0, zIndex: 0, anchors: { left: true, top: true, right: false, bottom: false } } as FieldLayoutObject];
+  try {
+    await mount();
+    expect(host.querySelector<HTMLInputElement>('[aria-label="Notes"]')?.value).toBe('second');
+    await click('Edit');
+    change('Notes', 'edited');
+    await click('Save');
+    expect(host.textContent).not.toContain('Field is required by metadata hints.');
+    expect(calls.find((call) => call.route === 'editRecord')?.body.fieldData).toEqual({ 'Notes(2)': 'edited' });
+  } finally { layout.objects = previous; }
+});

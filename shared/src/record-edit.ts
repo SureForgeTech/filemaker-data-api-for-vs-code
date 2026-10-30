@@ -48,14 +48,24 @@ export function fieldKindNote(kind?: FieldKind): string | undefined {
 
 /**
  * The key a record holds the value of the field `name` under: the exact name when the record has
- * it, otherwise the first repetition `Name(1)`, which is where a repeating field keeps its value.
+ * it, otherwise the lowest numbered repetition, which is where the record keeps its value.
  * An edit must be written back under the key the value came from, so that one repetition of a
  * repeating field never overwrites another.
  */
 export function recordFieldKey(values: Record<string, unknown>, name: string): string {
   if (Object.prototype.hasOwnProperty.call(values, name)) return name;
   const first = `${name}(1)`;
-  return Object.prototype.hasOwnProperty.call(values, first) ? first : name;
+  if (Object.prototype.hasOwnProperty.call(values, first)) return first;
+  const prefix = `${name}(`;
+  let lowest: { key: string; number: number } | undefined;
+  for (const key of Object.keys(values)) {
+    if (!key.startsWith(prefix) || !key.endsWith(')')) continue;
+    const repetition = key.slice(prefix.length, -1);
+    if (!/^\d+$/.test(repetition)) continue;
+    const number = Number(repetition);
+    if (Number.isSafeInteger(number) && number >= 2 && (!lowest || number < lowest.number)) lowest = { key, number };
+  }
+  return lowest?.key ?? name;
 }
 
 export function computeRecordPatch(originalFieldData: Record<string, unknown>, draftFieldData: Record<string, unknown>): Record<string, unknown> {
@@ -108,7 +118,7 @@ export function validateRecordDraft(draftFieldData: Record<string, unknown>, fie
         continue;
       }
 
-      // A repeated field keeps its value under `Name(1)`, so the record holds it under that
+      // A repeated field keeps its value under its lowest available repetition, so the record holds it under that
       // key; the required check looks where the value is, not under the bare field name.
       const value = draftFieldData[recordFieldKey(draftFieldData, field.name)];
       if (value === undefined || value === null || value === '') {
