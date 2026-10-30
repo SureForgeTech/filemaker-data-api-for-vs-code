@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- [SECURITY] Open Generated Types Folder refuses output paths that pass through a symlink outside the workspace.
 - The Query Builder can cancel a search while it is still loading its connection profile, and closing the panel stops that search.
 - The Query Builder now restores the page size and offset after a window reload for the same connection and layout; host saved-query values take precedence.
 

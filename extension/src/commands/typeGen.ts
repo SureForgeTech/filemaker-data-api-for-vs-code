@@ -1,11 +1,12 @@
 import * as vscode from 'vscode';
-import { dirname, join } from 'path';
+import { dirname } from 'path';
 
 import type { FMClient } from '../services/fmClient';
 import type { Logger } from '../services/logger';
 import type { ProfileStore } from '../services/profileStore';
 import type { SettingsService } from '../services/settingsService';
 import type { TypeGenService } from '../services/typeGenService';
+import { resolveConfinedWorkspaceFile } from '../services/typeGenService';
 import type { ConnectionProfile } from '../types/fm';
 import {
   parseLayoutArg,
@@ -161,12 +162,19 @@ export function registerTypeGenCommands(deps: RegisterTypeGenCommandsDeps): vsco
         return;
       }
 
-      const outputDir = settingsService.getTypegenOutputDir();
-
-      // path-join disposition: the directory comes from the sanitised usableRelativeDir setting, so it has no ".." segment and no absolute path.
-      const uri = vscode.Uri.file(join(workspaceFolder.uri.fsPath, outputDir));
-      await vscode.workspace.fs.createDirectory(uri);
-      await vscode.commands.executeCommand('revealFileInOS', uri);
+      try {
+        const outputDir = settingsService.getTypegenOutputDir();
+        const candidateFile = await resolveConfinedWorkspaceFile(workspaceFolder.uri.fsPath, outputDir, '.filemaker-types-check');
+        const uri = vscode.Uri.file(dirname(candidateFile));
+        await vscode.workspace.fs.createDirectory(uri);
+        await vscode.commands.executeCommand('revealFileInOS', uri);
+      } catch (error) {
+        await showCommandError(error, {
+          fallbackMessage: 'Cannot open the generated types folder because its path is outside the workspace or passes through a symbolic link.',
+          logger,
+          logMessage: 'Cannot open the generated types folder.'
+        });
+      }
     })
   ];
 }
