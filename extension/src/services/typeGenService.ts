@@ -46,6 +46,10 @@ export class TypeGenService {
     layout: string,
     fileStem?: string
   ): Promise<GeneratedLayoutArtifacts> {
+    // A single layout still gets the file name the batch would give it, so `Sales` and `sales`
+    // generated one at a time never share a file on a case-insensitive host. If the layout list
+    // cannot be read, stop before writing rather than guess a bare name that could replace another layout's file.
+    const stem = fileStem ?? await this.allocateSingleLayoutFileStem(profile, layout);
     const schema = await this.schemaService.getLayoutSchema(profile, layout);
     if (!schema.supported) {
       throw new Error(schema.message ?? 'Schema metadata is not available for this layout.');
@@ -53,7 +57,7 @@ export class TypeGenService {
 
     const metadataHash = hashObject(schema.metadata ?? schema.fields);
     const content = this.renderTypeFile(profile, layout, schema.fields, metadataHash);
-    const filePath = await this.writeTypeFile(fileStem ?? sanitizeLayoutFileName(layout), content).catch((error: unknown) => {
+    const filePath = await this.writeTypeFile(stem, content).catch((error: unknown) => {
       if (error instanceof GenerationCancelledError || error instanceof GenerationSkippedError) throw error;
       throw new GenerationOutputError(error instanceof Error ? error.message : String(error), { cause: error });
     });
@@ -64,6 +68,21 @@ export class TypeGenService {
       content,
       metadataHash
     };
+  }
+
+  private async allocateSingleLayoutFileStem(profile: ConnectionProfile, layout: string): Promise<string> {
+    let listed: string[];
+    try {
+      listed = await this.fmClient.listLayouts(profile);
+    } catch (error) {
+      throw new GenerationOutputError(
+        `Could not list layouts to choose a safe file name for ${JSON.stringify(layout)}: ${error instanceof Error ? error.message : String(error)}`,
+        { cause: error }
+      );
+    }
+    // The selected layout is always part of the set, even if the server's list leaves it out.
+    const stems = allocateLayoutFileStems([...listed, layout]);
+    return stems[stems.length - 1]!;
   }
 
   public async generateTypesForAllLayouts(profile: ConnectionProfile): Promise<GeneratedLayoutArtifacts[]> {

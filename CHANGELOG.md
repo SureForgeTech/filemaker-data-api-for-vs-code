@@ -41,7 +41,7 @@ PR title prefix matches the highest-tier label added:
 - A failure to save the optional offline schema cache no longer fails a layout schema that the server returned; it is logged as a warning instead.
 - Script parameters sent through the FM Web bridge keep their spaces, line breaks and empty value exactly as written.
 - Log lines that include an error now show the error's name, message and code instead of an empty `{}`, with secrets still hidden.
-- A layout named `FileMaker` no longer produces a generated TypeScript client with two `FileMakerRecord` types. Layout names that differ only by letter case, such as `Sales` and `sales`, now get separate generated type files, each named with a short hash, so the files no longer swap places when the server lists layouts in a different order; delete any old `Sales.ts`-style file left by an earlier build.
+- A layout named `FileMaker` no longer produces a generated TypeScript client with two `FileMakerRecord` types. Layout names that differ only by letter case, such as `Sales` and `sales`, now get separate generated type files, each named with a short hash, so the files no longer swap places when the server lists layouts in a different order. This applies to Generate Types for Layout as well as Generate Types for All Layouts: a single layout is named from the server's layout list, and generation stops without writing if that list cannot be read; delete any old `Sales.ts`-style file left by an earlier build.
 - A restored Query Builder tab now uses the current extension folder and script settings instead of the ones saved before the window reload.
 
 ### [INTERNAL]

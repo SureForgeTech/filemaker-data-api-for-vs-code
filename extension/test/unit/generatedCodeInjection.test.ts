@@ -44,7 +44,7 @@ describe('generated code from hostile names', () => {
         fields: [{ name: HOSTILE, type: 'text' }]
       })
     };
-    const service = new TypeGenService(schemaService as never, {} as never, logger, {
+    const service = new TypeGenService(schemaService as never, { listLayouts: vi.fn().mockResolvedValue([HOSTILE]) } as never, logger, {
       getWorkspaceRoot: () => root,
       isWorkspaceTrusted: () => true
     });
@@ -81,7 +81,7 @@ describe('generated code from hostile names', () => {
     const schemaService = {
       getLayoutSchema: vi.fn().mockResolvedValue({ supported: true, fromCache: false, metadata: {}, fields: [] })
     };
-    const service = new TypeGenService(schemaService as never, {} as never, logger, {
+    const service = new TypeGenService(schemaService as never, { listLayouts: vi.fn().mockResolvedValue(['A/B', 'A:B']) } as never, logger, {
       getWorkspaceRoot: () => root,
       isWorkspaceTrusted: () => true
     });

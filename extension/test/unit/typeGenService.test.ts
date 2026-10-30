@@ -1,7 +1,7 @@
 import { runInNewContext } from 'vm';
 import { execFileSync } from 'child_process';
 import { createHash } from 'crypto';
-import { mkdtemp, readFile, rm, writeFile } from 'fs/promises';
+import { mkdtemp, readdir, readFile, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { basename, dirname, join } from 'path';
 // TypeScript 7 supplies the CLI; this alias keeps the compiler API for checking generated code.
@@ -35,7 +35,7 @@ describe('TypeGenService', () => {
       ];
       const schema = { supported: true, fromCache: false, fields, metadata: duplicatePhotoMetadata };
       const service = new TypeGenService({ getLayoutSchema: vi.fn(async () => schema) } as never,
-        {} as never, { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }, { getWorkspaceRoot: () => root });
+        { listLayouts: vi.fn().mockResolvedValue(['Contact Details']) } as never, { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }, { getWorkspaceRoot: () => root });
       const artifact = await service.generateTypesForLayout(createProfile(), 'Contact Details');
       const client = await service.generateTypeScriptClient(createProfile(), ['Contact Details'], join(root, 'client'));
       const expected = ['Photo', 'Phones(1)', 'Phones(2)', 'Phones(3)'];
@@ -361,6 +361,87 @@ void run;
       await rm(root, { recursive: true, force: true });
     }
   });
+
+  describe('single-layout generation uses the same collision-safe file names', () => {
+    const logger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() } as never;
+    const make = (root: string, listLayouts: () => Promise<string[]>) => new TypeGenService(
+      { getLayoutSchema: vi.fn(async (_profile: unknown, layout: string) => ({ supported: true, fields: [{ name: `Field of ${layout}`, type: 'normal', result: 'text' }], metadata: {} })) } as never,
+      { listLayouts: vi.fn(listLayouts) } as never,
+      logger,
+      { getWorkspaceRoot: () => root }
+    );
+    const inTempDir = async (run: (root: string) => Promise<void>) => {
+      const root = await mkdtemp(join(tmpdir(), 'fm-single-files-'));
+      try {
+        await run(root);
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
+    };
+
+    it('keeps `Sales` and `sales` generated one at a time in separate files with their own contents', async () => {
+      await inTempDir(async (root) => {
+        const service = make(root, async () => ['Sales', 'sales']);
+        const upper = await service.generateTypesForLayout(createProfile(), 'Sales');
+        const lower = await service.generateTypesForLayout(createProfile(), 'sales');
+
+        expect(upper.filePath.toLowerCase()).not.toBe(lower.filePath.toLowerCase());
+        expect(await readFile(upper.filePath, 'utf8')).toContain(' * Layout: Sales\n');
+        expect(await readFile(lower.filePath, 'utf8')).toContain(' * Layout: sales\n');
+        expect(await readFile(upper.filePath, 'utf8')).toContain('Field of Sales');
+        expect(await readFile(lower.filePath, 'utf8')).toContain('Field of sales');
+      });
+    });
+
+    it('uses the same paths whether layouts are generated one at a time or all together', async () => {
+      await inTempDir(async (root) => {
+        const layouts = ['Sales', 'sales', 'Orders'];
+        const service = make(root, async () => layouts);
+        const single = [await service.generateTypesForLayout(createProfile(), 'sales'), await service.generateTypesForLayout(createProfile(), 'Orders')];
+        const batch = await service.generateTypesForAllLayouts(createProfile());
+
+        expect(single[0]!.filePath).toBe(batch[1]!.filePath);
+        expect(single[1]!.filePath).toBe(batch[2]!.filePath);
+        expect(basename(single[1]!.filePath)).toBe('Orders.ts');
+      });
+    });
+
+    it('gives the same path whatever order the server lists layouts in', async () => {
+      await inTempDir(async (root) => {
+        const forward = await make(root, async () => ['Sales', 'sales', 'SALES']).generateTypesForLayout(createProfile(), 'sales');
+        const reversed = await make(root, async () => ['SALES', 'sales', 'Sales']).generateTypesForLayout(createProfile(), 'sales');
+        expect(reversed.filePath).toBe(forward.filePath);
+      });
+    });
+
+    it('keeps the plain file name when the layout collides with nothing', async () => {
+      await inTempDir(async (root) => {
+        const result = await make(root, async () => ['Contacts', 'Orders']).generateTypesForLayout(createProfile(), 'Contacts');
+        expect(basename(result.filePath)).toBe('Contacts.ts');
+      });
+    });
+
+    it('counts the selected layout even when the server list leaves it out', async () => {
+      await inTempDir(async (root) => {
+        const result = await make(root, async () => ['Sales']).generateTypesForLayout(createProfile(), 'sales');
+        const other = await make(root, async () => ['Sales']).generateTypesForLayout(createProfile(), 'Sales');
+        expect(result.filePath.toLowerCase()).not.toBe(other.filePath.toLowerCase());
+        expect(await readFile(result.filePath, 'utf8')).toContain(' * Layout: sales\n');
+      });
+    });
+
+    it('writes nothing, and overwrites nothing, when the layout list is unavailable', async () => {
+      await inTempDir(async (root) => {
+        const existing = await make(root, async () => ['Sales']).generateTypesForLayout(createProfile(), 'Sales');
+        const before = await readFile(existing.filePath, 'utf8');
+        const failing = make(root, async () => { throw new Error('layout list denied'); });
+
+        await expect(failing.generateTypesForLayout(createProfile(), 'sales')).rejects.toThrow(/layout list denied/);
+        expect(await readFile(existing.filePath, 'utf8')).toBe(before);
+        expect(await readdir(dirname(existing.filePath))).toEqual([basename(existing.filePath)]);
+      });
+    });
+  });
 });
 
 function formatDiagnostic(diagnostic: ts.Diagnostic): string {
@@ -378,7 +459,7 @@ function formatDiagnostic(diagnostic: ts.Diagnostic): string {
     try {
       for (const [configured, expected] of [['out/\uFE0F', 'filemaker-types'], ['out/☀️', 'out/☀️']]) {
         const schema = { getLayoutSchema: async () => ({ supported: true, fields: [], metadata: {} }) };
-        const service = new TypeGenService(schema as never, {} as never,
+        const service = new TypeGenService(schema as never, { listLayouts: async () => ['Contacts'] } as never,
           { debug() {}, info() {}, warn() {}, error() {} } as never,
           { getOutputDir: () => configured!, getWorkspaceRoot: () => root, isWorkspaceTrusted: () => true });
         const result = await service.generateTypesForLayout(createProfile(), 'Contacts');
