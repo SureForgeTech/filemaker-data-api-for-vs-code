@@ -159,9 +159,10 @@ it('stages the website alongside TypeDoc without changing the workflow security 
 });
 
 
-// This test parses the whole documentation site with JSDOM and reads computed styles for every
-// table cell, so it runs for seconds. The default five-second timeout is a measure of the
-// runner, not of the work, and the test above it already carries a budget for the same reason.
+// This test parses the built guide page - roughly 214 KB with 588 table cells - with JSDOM and
+// reads the computed style of every one of them, so it takes a noticeable part of a second. The
+// default five-second timeout measures the runner, not the work, and a test earlier in this file
+// already carries a budget for the same reason.
 it('keeps table cells and code readable inside horizontal scrolling regions', () => {
   const dom = new JSDOM!(html('guide/index.html'), { runScripts: 'outside-only', url: 'https://docs.invalid/' });
   const window = dom.window as typeof dom.window & {
