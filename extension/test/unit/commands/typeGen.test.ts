@@ -1,5 +1,7 @@
 import { GenerationCancelledError, GenerationSkippedError } from '../../../src/services/generatedFileWriter';
+import { mkdir, mkdtemp, readFile, readdir, realpath, rm, symlink } from 'fs/promises';
 import { join } from 'path';
+import { tmpdir } from 'os';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as vscode from 'vscode';
 
@@ -162,9 +164,40 @@ describe('type generation commands', () => {
 
   it('creates and reveals the configured generated types folder', async () => {
     setup();
-    await command('openGeneratedTypesFolder')();
-    expect(vscode.workspace.fs.createDirectory).toHaveBeenCalledWith(expect.objectContaining({ fsPath: join('/tmp', 'workspace', '.filemaker', 'types') }));
-    expect(vscode.commands.executeCommand).toHaveBeenCalledWith('revealFileInOS', expect.objectContaining({ fsPath: join('/tmp', 'workspace', '.filemaker', 'types') }));
+    const root = await realpath(await mkdtemp(join(tmpdir(), 'fm-typegen-folder-')));
+    (vscode.workspace as unknown as { workspaceFolders: unknown }).workspaceFolders = [{ uri: vscode.Uri.file(root) }];
+    try {
+      await command('openGeneratedTypesFolder')();
+      const output = join(root, '.filemaker', 'types');
+      expect(vscode.workspace.fs.createDirectory).toHaveBeenCalledWith(expect.objectContaining({ fsPath: output }));
+      expect(vscode.commands.executeCommand).toHaveBeenCalledWith('revealFileInOS', expect.objectContaining({ fsPath: output }));
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses a generated types folder reached through a symlink outside the workspace', async () => {
+    const base = await realpath(await mkdtemp(join(tmpdir(), 'fm-typegen-folder-')));
+    const workspace = join(base, 'workspace');
+    const outside = join(base, 'outside');
+    const escaped = join(workspace, '.filemaker');
+    const { settings } = setup();
+    await Promise.all([mkdir(workspace), mkdir(outside)]);
+    await symlink(outside, escaped, 'dir');
+    (vscode.workspace as unknown as { workspaceFolders: unknown }).workspaceFolders = [{ uri: vscode.Uri.file(workspace) }];
+    settings.getTypegenOutputDir.mockReturnValue(join('.filemaker', 'types'));
+
+    try {
+      await expect(command('openGeneratedTypesFolder')()).resolves.toBeUndefined();
+      const errorCalls = vi.mocked(vscode.window.showErrorMessage).mock.calls;
+      expect(errorCalls[0]?.[0]).toEqual(expect.stringMatching(/symbolic link|symlink/i));
+      expect(vscode.workspace.fs.createDirectory).not.toHaveBeenCalled();
+      expect(vscode.commands.executeCommand).not.toHaveBeenCalledWith('revealFileInOS', expect.anything());
+      expect(await readdir(outside)).toEqual([]);
+      await expect(readFile(join(outside, 'types', '.filemaker-types-check'))).rejects.toThrow();
+    } finally {
+      await rm(base, { recursive: true, force: true });
+    }
   });
 });
 

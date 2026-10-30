@@ -47,6 +47,7 @@ PR title prefix matches the highest-tier label added:
 
 ### [SECURITY]
 
+- Open Generated Types Folder refuses output paths that pass through a symlink outside the workspace.
 - Saved connection secrets are decrypted with a fixed 16-byte tag check, so a shortened or tampered tag is refused instead of being misread. Secrets saved earlier keep working. No known exploit.
 - The extension's panels now ignore messages that do not come from VS Code itself, so a stray or badly formed message is dropped before it can act. No known exploit.
 - Files written for generated pages, type generation and AI context now stay inside their folder: a path that tries to escape is refused instead of written. No known exploit.
