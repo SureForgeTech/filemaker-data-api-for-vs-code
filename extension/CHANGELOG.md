@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- The Query Builder now restores the page size and offset after a window reload for the same connection and layout; host saved-query values take precedence.
+
 - Canceling Browse for a CA certificate keeps the previously selected file path.
 - Saved connection secrets are decrypted with a fixed 16-byte tag check, so a shortened or tampered tag is refused instead of being misread. Secrets saved earlier keep working. No known exploit.
 - The extension's panels now ignore messages that do not come from VS Code itself, so a stray or badly formed message is dropped before it can act. No known exploit.

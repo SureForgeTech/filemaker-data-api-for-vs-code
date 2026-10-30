@@ -880,6 +880,14 @@ sortJson.addEventListener('input', () => {
   persistState();
 });
 
+limitInput.addEventListener('input', () => {
+  persistState();
+});
+
+offsetInput.addEventListener('input', () => {
+  persistState();
+});
+
 /**
  * Keeps the work in progress in VS Code's per-webview store, so a window reload
  * brings it back. Only what the user typed is stored; profiles, saved queries,
@@ -900,6 +908,8 @@ function persistState() {
     model: copyModel(state.model),
     findJson: findJson.value,
     sortJson: sortJson.value,
+    limit: limitInput.value,
+    offset: offsetInput.value,
     resultView: state.resultView
   });
 }
@@ -1032,6 +1042,17 @@ function applyPersistedState(saved, payload) {
     && savedLayout !== ''
     && (!defaultProfileId || defaultProfileId === savedProfileId)
     && (!defaultLayout || defaultLayout === savedLayout);
+
+  // Paging values belong to the same profile and layout as the saved find. A host
+  // default or saved query owns its paging values and takes precedence over the snapshot.
+  if (criteriaFit && (!defaults || !defaults.savedQuery)) {
+    if (typeof saved.limit === 'string') {
+      limitInput.value = saved.limit;
+    }
+    if (typeof saved.offset === 'string') {
+      offsetInput.value = saved.offset;
+    }
+  }
 
   // The criteria come back unless the host asked for a saved query, which brings its own.
   let modelRestored = false;

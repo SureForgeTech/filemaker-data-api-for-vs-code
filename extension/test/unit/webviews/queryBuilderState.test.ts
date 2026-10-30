@@ -17,6 +17,8 @@ interface Snapshot {
   model: { requests: unknown[]; sort: unknown[] };
   findJson: string;
   sortJson: string;
+  limit?: string;
+  offset?: string;
   resultView: string;
 }
 
@@ -121,6 +123,74 @@ describe.skipIf(!JSDOM)('Query Builder panel state', () => {
     expect(reloaded.document.getElementById('jsonTab')!.getAttribute('aria-selected')).toBe('true');
     expect(reloaded.document.getElementById('formTab')!.getAttribute('aria-selected')).toBe('false');
     expect(reloaded.document.getElementById('findJson')!.value).toBe('[{"Name":"*"}]');
+  });
+
+  it('stores and restores a page-size-only edit immediately', () => {
+    const view = open();
+    const states: Snapshot[] = [];
+    const first = loadPage(view.html, view.source, 'https://panel.invalid/', {
+      onSetState: (value) => states.push(value as Snapshot)
+    });
+    first.send({ type: 'init', payload: { profiles: [devProfile], activeProfileId: 'p1' } });
+    first.send({ type: 'layoutsLoaded', payload: { profileId: 'p1', layouts: ['Contacts'] } });
+    typeText(first.window, 'limitInput', '007');
+
+    expect(states.at(-1)?.limit).toBe('007');
+
+    const reloaded = loadPage(view.html, view.source, 'https://panel.invalid/', { state: states.at(-1) });
+    reloaded.send({ type: 'init', payload: { profiles: [devProfile], activeProfileId: 'p1' } });
+    reloaded.send({ type: 'layoutsLoaded', payload: { profileId: 'p1', layouts: ['Contacts'] } });
+    expect(element(reloaded.window, 'limitInput').value).toBe('007');
+  });
+
+  it('restores both paging strings for the same profile and layout', () => {
+    const view = open();
+    const snapshot: Snapshot = {
+      v: 1, profileId: 'p1', layout: 'Contacts', editorMode: 'form',
+      model: { requests: [], sort: [] }, findJson: '', sortJson: '',
+      limit: '007', offset: '0009', resultView: 'table'
+    };
+    const page = loadPage(view.html, view.source, 'https://panel.invalid/', { state: snapshot });
+    page.send({ type: 'init', payload: { profiles: [devProfile], activeProfileId: 'p1' } });
+    page.send({ type: 'layoutsLoaded', payload: { profileId: 'p1', layouts: ['Contacts'] } });
+    expect(element(page.window, 'limitInput').value).toBe('007');
+    expect(element(page.window, 'offsetInput').value).toBe('0009');
+  });
+
+  it('lets host saved-query paging values win over the stored values', () => {
+    const view = open();
+    const snapshot: Snapshot = {
+      v: 1, profileId: 'p1', layout: 'Contacts', editorMode: 'form',
+      model: { requests: [], sort: [] }, findJson: '', sortJson: '',
+      limit: '007', offset: '0009', resultView: 'table'
+    };
+    const page = loadPage(view.html, view.source, 'https://panel.invalid/', { state: snapshot });
+    page.send({
+      type: 'init', payload: {
+        profiles: [devProfile], activeProfileId: 'p1',
+        defaults: { profileId: 'p1', layout: 'Contacts', savedQuery: { id: 'q1', name: 'Host', layout: 'Contacts', limit: 25, offset: 4 } }
+      }
+    });
+    page.send({ type: 'layoutsLoaded', payload: { profileId: 'p1', layouts: ['Contacts'] } });
+    expect(element(page.window, 'limitInput').value).toBe('25');
+    expect(element(page.window, 'offsetInput').value).toBe('4');
+  });
+
+  it('does not restore paging from a different layout', () => {
+    const view = open();
+    const snapshot: Snapshot = {
+      v: 1, profileId: 'p1', layout: 'Orders', editorMode: 'form',
+      model: { requests: [], sort: [] }, findJson: '', sortJson: '',
+      limit: '007', offset: '0009', resultView: 'table'
+    };
+    const page = loadPage(view.html, view.source, 'https://panel.invalid/', { state: snapshot });
+    page.send({
+      type: 'init', payload: { profiles: [devProfile], activeProfileId: 'p1', defaults: { profileId: 'p1', layout: 'Contacts' } }
+    });
+    page.send({ type: 'layoutsLoaded', payload: { profileId: 'p1', layouts: ['Orders', 'Contacts'] } });
+    expect(element(page.window, 'layoutSelect').value).toBe('Contacts');
+    expect(element(page.window, 'limitInput').value).toBe('');
+    expect(element(page.window, 'offsetInput').value).toBe('');
   });
 
   it('lets the profile and layout the host asks for win over the stored ones', () => {
