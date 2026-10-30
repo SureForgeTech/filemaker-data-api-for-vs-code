@@ -1250,7 +1250,7 @@ Open an issue at <https://github.com/SureForgeTech/filemaker-data-api-for-vs-cod
 
 **Why is the Command Palette missing some commands?** Many appear only with a profile; enterprise and power-user commands need those modes. See [The FileMaker sidebar](#the-filemaker-sidebar).
 
-**Are there keyboard shortcuts?** None by default. Bind any command in VS Code's Keyboard Shortcuts editor.
+**Are there keyboard shortcuts?** Yes, five come bound: **Open Query Builder** `Ctrl+Alt+Q`, **Open Record Viewer** `Ctrl+Alt+V`, **Open Script Runner** `Ctrl+Alt+E`, **Show Request History** `Ctrl+Alt+H` and **Open FM Web Layout Mode** `Ctrl+Alt+L`. On macOS each becomes `Cmd+Alt` plus the same letter (`Cmd+Alt+Q`, `Cmd+Alt+V`, `Cmd+Alt+E`, `Cmd+Alt+L`) — except Show Request History, which stays `Ctrl+Alt+H` there too, because `Cmd+Alt+H` is the system's Hide Others shortcut. Each key runs the same command as its Command Palette entry and follows the same rules (a profile for the first three, power-user mode for the history, an FM Web project for Layout Mode). They were checked against VS Code's own default shortcuts, and you can change or clear any of them in Keyboard Shortcuts (`Ctrl+K Ctrl+S`).
 
 **Can the extension edit scripts or layouts in the database?** No. It uses the Data API, which reads and writes records, runs scripts and reads metadata. It does not change the database design.
 
