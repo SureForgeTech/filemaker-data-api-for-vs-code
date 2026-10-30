@@ -8,23 +8,38 @@ import type { QueryBuilderContext } from './context';
 
 export async function handleRunQuery(context: QueryBuilderContext, payload: RunQueryPayload): Promise<void> {
   context.lastResult = undefined;
-  const profile = await context.profileStore.getProfile(payload.profileId);
-  if (!profile) {
-    await context.postError('The selected connection profile no longer exists.', payload.runId);
-    return;
-  }
-
-  // The page can cancel the run it is waiting on, so the request carries a signal of its own.
   const controller = new AbortController();
-  context.activeRun = { runId: payload.runId ?? 0, controller };
+  const run = { runId: payload.runId ?? 0, controller };
+  context.activeRun = run;
+  const isCurrent = () => context.activeRun === run && !context.disposed;
 
   try {
+    const profile = await context.profileStore.getProfile(payload.profileId);
+    if (controller.signal.aborted || context.disposed) {
+      if (!context.disposed) {
+        await context.panel.webview.postMessage({ type: 'runCancelled', runId: payload.runId });
+      }
+      return;
+    }
+    if (!isCurrent()) return;
+    if (!profile) {
+      await context.postError('The selected connection profile no longer exists.', payload.runId);
+      return;
+    }
+
     const request = toFindRequest(payload, payload.listRecords === true);
     const { limit, offset, sort } = request;
     const control = { signal: controller.signal };
     const result = payload.listRecords === true
       ? await context.fmClient.listRecords(profile, payload.layout, { limit, offset, sort }, control)
       : await context.fmClient.findRecords(profile, payload.layout, request, control);
+    if (controller.signal.aborted) {
+      if (!context.disposed) {
+        await context.panel.webview.postMessage({ type: 'runCancelled', runId: payload.runId });
+      }
+      return;
+    }
+    if (!isCurrent()) return;
     if (result.scriptErrors && result.scriptErrors.length > 0) {
       void vscode.window.showWarningMessage(`The find worked, but ${describeScriptErrors(result.scriptErrors)}.`);
     }
@@ -44,16 +59,14 @@ export async function handleRunQuery(context: QueryBuilderContext, payload: RunQ
       payload: context.lastResult
     });
   } catch (error) {
+    if (context.disposed) return;
     // A cancelled run is not a failure: the user asked for it, so it is reported as cancelled.
     if (controller.signal.aborted) {
-      await context.panel.webview.postMessage({
-        type: 'runCancelled',
-        runId: payload.runId
-      });
+      await context.panel.webview.postMessage({ type: 'runCancelled', runId: payload.runId });
       return;
     }
 
-    await context.postError(context.formatError(error), payload.runId);
+    if (isCurrent()) await context.postError(context.formatError(error), payload.runId);
     return;
   } finally {
     // Only this run's own entry is cleared; a newer run must not be clobbered.
@@ -62,6 +75,7 @@ export async function handleRunQuery(context: QueryBuilderContext, payload: RunQ
     }
   }
 
+  if (context.disposed || controller.signal.aborted || context.activeRun !== undefined) return;
   try {
     await context.sendHistory();
   } catch (error) {

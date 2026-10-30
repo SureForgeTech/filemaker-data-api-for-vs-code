@@ -31,6 +31,7 @@ PR title prefix matches the highest-tier label added:
 
 ### [FIX]
 
+- The Query Builder can cancel a search while it is still loading its connection profile, and closing the panel stops that search.
 - The Query Builder now restores the page size and offset after a window reload for the same connection and layout; host saved-query values take precedence.
 - Canceling Browse for a CA certificate keeps the previously selected file path.
 - The Query Builder results table sizes its Open column to fit both actions, so View and Edit are both visible and clickable instead of clipping Edit to "View ...".
