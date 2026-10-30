@@ -164,7 +164,7 @@ describe('layout (and script and field) names are used exactly, ` Sales` is not 
     const make = async () => {
       const root = await mkdtemp(join(tmpdir(), 'fm-exact-'));
       const getLayoutSchema = vi.fn().mockResolvedValue({ supported: true, fromCache: false, metadata: { fieldMetaData: fields }, fields });
-      const service = new TypeGenService({ getLayoutSchema } as never, { listLayouts: vi.fn().mockResolvedValue(['Sales', ' Sales']) } as never, logger, {
+      const service = new TypeGenService({ isOfflineModeEnabled: () => false, getLayoutSchema } as never, { listLayouts: vi.fn().mockResolvedValue(['Sales', ' Sales']) } as never, logger, {
         getOutputDir: () => 'types',
         getWorkspaceRoot: () => root,
         isWorkspaceTrusted: () => true

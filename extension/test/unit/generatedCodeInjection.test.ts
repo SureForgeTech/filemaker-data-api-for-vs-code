@@ -37,6 +37,7 @@ describe('generated code from hostile names', () => {
   it('writes names into comments and strings only, never as code', async () => {
     const root = await mkdtemp(join(tmpdir(), 'fm-inject-'));
     const schemaService = {
+      isOfflineModeEnabled: () => false,
       getLayoutSchema: vi.fn().mockResolvedValue({
         supported: true,
         fromCache: false,
@@ -79,6 +80,7 @@ describe('generated code from hostile names', () => {
   it('gives layouts that differ only by punctuation separate files', async () => {
     const root = await mkdtemp(join(tmpdir(), 'fm-names-'));
     const schemaService = {
+      isOfflineModeEnabled: () => false,
       getLayoutSchema: vi.fn().mockResolvedValue({ supported: true, fromCache: false, metadata: {}, fields: [] })
     };
     const service = new TypeGenService(schemaService as never, { listLayouts: vi.fn().mockResolvedValue(['A/B', 'A:B']) } as never, logger, {

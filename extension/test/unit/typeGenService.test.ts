@@ -36,7 +36,7 @@ describe('TypeGenService', () => {
         { name: 'Phones(2)', type: 'normal', result: 'text' }
       ];
       const schema = { supported: true, fromCache: false, fields, metadata: duplicatePhotoMetadata };
-      const service = new TypeGenService({ getLayoutSchema: vi.fn(async () => schema) } as never,
+      const service = new TypeGenService({ isOfflineModeEnabled: () => false, getLayoutSchema: vi.fn(async () => schema) } as never,
         { listLayouts: vi.fn().mockResolvedValue(['Contact Details']) } as never, { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }, { getWorkspaceRoot: () => root });
       const artifact = await service.generateTypesForLayout(createProfile(), 'Contact Details');
       const client = await service.generateTypeScriptClient(createProfile(), ['Contact Details'], join(root, 'client'));
@@ -64,6 +64,7 @@ describe('TypeGenService', () => {
     const root = await mkdtemp(join(tmpdir(), 'fm-typegen-'));
 
     const schemaService = {
+      isOfflineModeEnabled: () => false,
       getLayoutSchema: vi.fn().mockResolvedValue({
         supported: true,
         fromCache: false,
@@ -114,7 +115,7 @@ describe('TypeGenService', () => {
   it('generates snippets file for a layout', async () => {
     const root = await mkdtemp(join(tmpdir(), 'fm-snippets-'));
 
-    const service = new TypeGenService({ getLayoutSchema: async () => ({ supported: true, fields: [{ name: ' Age ', type: 'normal', result: 'number' }, { name: 'Photo', type: 'normal', result: 'container' }] }) } as never, {} as never, {
+    const service = new TypeGenService({ isOfflineModeEnabled: () => false, getLayoutSchema: async () => ({ supported: true, fields: [{ name: ' Age ', type: 'normal', result: 'number' }, { name: 'Photo', type: 'normal', result: 'container' }] }) } as never, {} as never, {
       debug: vi.fn(),
       info: vi.fn(),
       warn: vi.fn(),
@@ -137,7 +138,7 @@ describe('TypeGenService', () => {
   it('generated finds refuse empty criteria before fetch and the example supplies a field', async () => {
     const root = await mkdtemp(join(tmpdir(), 'fm-generated-find-'));
     try {
-      const service = new TypeGenService({ getLayoutSchema: async () => ({ supported: true, fields: [{ name: ' Name ', type: 'text' }], metadata: {} }) } as never,
+      const service = new TypeGenService({ isOfflineModeEnabled: () => false, getLayoutSchema: async () => ({ supported: true, fields: [{ name: ' Name ', type: 'text' }], metadata: {} }) } as never,
         {} as never, { debug() {}, info() {}, warn() {}, error() {} }, { getWorkspaceRoot: () => root });
       const artifacts = await service.generateTypeScriptClient(createProfile(), ['Contacts'], root);
       const source = await readFile(artifacts.clientPath, 'utf8');
@@ -159,6 +160,7 @@ describe('TypeGenService', () => {
     const root = await mkdtemp(join(tmpdir(), 'fm-clientgen-'));
 
     const schemaService = {
+      isOfflineModeEnabled: () => false,
       getLayoutSchema: vi.fn().mockResolvedValue({
         supported: true,
         fromCache: false,
@@ -261,7 +263,7 @@ void run;
     const root = await mkdtemp(join(tmpdir(), 'fm-client-reserved-'));
     try {
       const schema = { supported: true, fromCache: false, fields: [{ name: 'Name', type: 'normal', result: 'text' }], metadata: {} };
-      const service = new TypeGenService({ getLayoutSchema: vi.fn(async () => schema) } as never, {} as never,
+      const service = new TypeGenService({ isOfflineModeEnabled: () => false, getLayoutSchema: vi.fn(async () => schema) } as never, {} as never,
         { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() } as never, { getWorkspaceRoot: () => root });
       const layouts = ['FileMaker', 'FileMakerLayout', 'Sales'];
       const client = await service.generateTypeScriptClient(createProfile(), layouts, join(root, 'client'));
@@ -294,7 +296,7 @@ void run;
     try {
       const layouts = ['Sales', 'sales', 'SALES', 'Sales ', 'Orders'];
       const service = new TypeGenService(
-        { getLayoutSchema: vi.fn(async () => ({ supported: true, fields: [], metadata: {} })) } as never,
+        { isOfflineModeEnabled: () => false, getLayoutSchema: vi.fn(async () => ({ supported: true, fields: [], metadata: {} })) } as never,
         { listLayouts: vi.fn(async () => layouts) } as never,
         { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() } as never,
         { getWorkspaceRoot: () => root }
@@ -332,7 +334,7 @@ void run;
       const outputByOrder: Array<Map<string, { filePath: string; content: string }>> = [];
       for (const order of [layouts, [...layouts].reverse(), [layouts[3]!, layouts[1]!, layouts[7]!, layouts[0]!, layouts[5]!, layouts[2]!, layouts[6]!, layouts[4]!]]) {
         const service = new TypeGenService(
-          { getLayoutSchema: vi.fn(async () => ({ supported: true, fields: [{ name: 'Name', type: 'normal', result: 'text' }], metadata: {} })) } as never,
+          { isOfflineModeEnabled: () => false, getLayoutSchema: vi.fn(async () => ({ supported: true, fields: [{ name: 'Name', type: 'normal', result: 'text' }], metadata: {} })) } as never,
           { listLayouts: vi.fn(async () => order) } as never,
           { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() } as never,
           { getWorkspaceRoot: () => root }
@@ -367,7 +369,7 @@ void run;
   describe('single-layout generation uses the same collision-safe file names', () => {
     const logger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() } as never;
     const make = (root: string, listLayouts: () => Promise<string[]>) => new TypeGenService(
-      { getLayoutSchema: vi.fn(async (_profile: unknown, layout: string) => ({ supported: true, fields: [{ name: `Field of ${layout}`, type: 'normal', result: 'text' }], metadata: {} })) } as never,
+      { isOfflineModeEnabled: () => false, getLayoutSchema: vi.fn(async (_profile: unknown, layout: string) => ({ supported: true, fields: [{ name: `Field of ${layout}`, type: 'normal', result: 'text' }], metadata: {} })) } as never,
       { listLayouts: vi.fn(listLayouts) } as never,
       logger,
       { getWorkspaceRoot: () => root }
@@ -451,6 +453,7 @@ void run;
     const logger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
     const header = (layout: string, identity = '') => `/**\n * Generated by FileMaker Data API Tools.\n * AUTO-GENERATED FILE. DO NOT EDIT.\n${identity} * Generated at: 2020-01-01T00:00:00.000Z\n * Profile: Dev (profile-a)\n * Layout: ${layout}\n * Metadata hash (sha256): 0\n */\n\nexport interface Old {}\n`;
     const shortHash = (layout: string) => createHash('sha1').update(layout).digest('hex').slice(0, 8);
+    const sha256Of = (layout: string) => createHash('sha256').update(JSON.stringify(layout), 'utf8').digest('hex');
 
     async function setup(root: string) {
       const state = { offline: false, metadata: true, layouts: ['Sales', 'sales'] as string[] | Error };
@@ -519,6 +522,90 @@ void run;
         state.offline = true;
         await expect(service.generateTypesForLayout(createProfile(), 'Sales')).rejects.toThrow(/no cached metadata/);
         expect(fm.listLayouts).not.toHaveBeenCalled();
+      });
+    });
+
+    it('does not ask for the layout list or the server schema while offline, and still updates the same file', async () => {
+      await inTempDir(async (root) => {
+        const { state, fm, service, layoutsDir } = await setup(root);
+        const online = await service.generateTypesForLayout(createProfile(), 'Sales');
+        expect(basename(online.filePath)).toBe(`Sales-${shortHash('Sales')}.ts`);
+        await writeFile(online.filePath, header('Sales', ` * Layout SHA-256: ${sha256Of('Sales')}\n`), 'utf8');
+        state.offline = true;
+        fm.listLayouts.mockClear();
+        fm.getLayoutMetadata.mockClear();
+
+        const offline = await service.generateTypesForLayout(createProfile(), 'Sales');
+
+        expect(fm.listLayouts).not.toHaveBeenCalled();
+        expect(fm.getLayoutMetadata).not.toHaveBeenCalled();
+        expect(offline.filePath).toBe(online.filePath);
+        expect(await readFile(offline.filePath, 'utf8')).toContain('Field of Sales');
+        expect(await readdir(layoutsDir)).toHaveLength(1);
+      });
+    });
+
+    it('still asks for the layout list while online', async () => {
+      await inTempDir(async (root) => {
+        const { fm, service } = await setup(root);
+        await service.generateTypesForLayout(createProfile(), 'Sales');
+        expect(fm.listLayouts).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    it('updates the numbered file a batch gave a lookalike layout, with no list, in the same place', async () => {
+      await inTempDir(async (root) => {
+        const { state, fm, service, layoutsDir } = await setup(root);
+        const lookalike = `Sales-${shortHash('Sales')}`;
+        state.layouts = ['Sales', 'sales', lookalike, 'SALES'];
+        const batch = await service.generateTypesForAllLayouts(createProfile());
+        const batchPath = batch.find((artifact) => artifact.layout === lookalike)!.filePath;
+        expect(basename(batchPath)).toBe(`${lookalike}-1.ts`);
+        const before = await readdir(layoutsDir);
+        expect(before).toHaveLength(4);
+        await writeFile(batchPath, header(lookalike, ` * Layout SHA-256: ${sha256Of(lookalike)}\n`), 'utf8');
+
+        state.layouts = new Error('network down');
+        const online = await service.generateTypesForLayout(createProfile(), lookalike);
+        expect(online.filePath).toBe(batchPath);
+
+        await writeFile(batchPath, header(lookalike, ` * Layout SHA-256: ${sha256Of(lookalike)}\n`), 'utf8');
+        state.offline = true;
+        state.layouts = [];
+        fm.listLayouts.mockClear();
+        const offline = await service.generateTypesForLayout(createProfile(), lookalike);
+
+        expect(fm.listLayouts).not.toHaveBeenCalled();
+        expect(offline.filePath).toBe(batchPath);
+        expect(await readFile(batchPath, 'utf8')).toContain(`Field of ${lookalike}`);
+        expect(await readFile(batchPath, 'utf8')).not.toContain('interface Old');
+        expect((await readdir(layoutsDir)).sort()).toEqual(before.sort());
+      });
+    });
+
+    it('reuses the numbered file its layout owns past gaps, and leaves the other numbered files alone', async () => {
+      await inTempDir(async (root) => {
+        const { state, fm, service, layoutsDir } = await setup(root);
+        const layout = `Sales-${shortHash('Sales')}`;
+        state.layouts = [layout];
+        const primed = await service.generateTypesForLayout(createProfile(), layout);
+        const foreign = '// written by hand\nexport const mine = 1;\n';
+        const otherOwner = header('Sales', ` * Layout SHA-256: ${sha256Of('Sales')}\n`);
+        await writeFile(primed.filePath, otherOwner, 'utf8');
+        await writeFile(join(layoutsDir, `${layout}-1.ts`), foreign, 'utf8');
+        await writeFile(join(layoutsDir, `${layout}-01.ts`), foreign, 'utf8');
+        await writeFile(join(layoutsDir, `${layout}-3.ts`), header(layout, ` * Layout SHA-256: ${sha256Of(layout)}\n`), 'utf8');
+        state.offline = true;
+        fm.listLayouts.mockClear();
+
+        const result = await service.generateTypesForLayout(createProfile(), layout);
+
+        expect(fm.listLayouts).not.toHaveBeenCalled();
+        expect(basename(result.filePath)).toBe(`${layout}-3.ts`);
+        expect(await readFile(result.filePath, 'utf8')).toContain(`Field of ${layout}`);
+        expect(await readFile(primed.filePath, 'utf8')).toBe(otherOwner);
+        expect(await readFile(join(layoutsDir, `${layout}-1.ts`), 'utf8')).toBe(foreign);
+        expect(await readdir(layoutsDir)).toHaveLength(4);
       });
     });
 
@@ -756,7 +843,7 @@ function formatDiagnostic(diagnostic: ts.Diagnostic): string {
     const root = await mkdtemp(join(tmpdir(), 'fm-typegen-folder-'));
     try {
       for (const [configured, expected] of [['out/\uFE0F', 'filemaker-types'], ['out/☀️', 'out/☀️']]) {
-        const schema = { getLayoutSchema: async () => ({ supported: true, fields: [], metadata: {} }) };
+        const schema = { isOfflineModeEnabled: () => false, getLayoutSchema: async () => ({ supported: true, fields: [], metadata: {} }) };
         const service = new TypeGenService(schema as never, { listLayouts: async () => ['Contacts'] } as never,
           { debug() {}, info() {}, warn() {}, error() {} } as never,
           { getOutputDir: () => configured!, getWorkspaceRoot: () => root, isWorkspaceTrusted: () => true });
@@ -767,3 +854,43 @@ function formatDiagnostic(diagnostic: ts.Diagnostic): string {
       await rm(root, { recursive: true, force: true });
     }
   });
+
+
+describe('offline numeric catalog filename boundary', () => {
+  it('reuses an existing catalog suffix beyond the fallback allocation limit while offline', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'fm-numeric-boundary-'));
+    let offline = false;
+    const hash = createHash('sha1').update('Sales').digest('hex').slice(0, 8);
+    const selected = 'sales-' + hash;
+    const layouts = ['Sales', 'sales', selected,
+      ...Array.from({ length: 1000 }, (_, index) => 'SALES-' + hash + '-' + (index + 1))];
+    const listLayouts = vi.fn(async () => layouts);
+    const service = new TypeGenService({
+      isOfflineModeEnabled: () => offline,
+      getLayoutSchema: async (_profile: ConnectionProfile, layout: string) => ({
+        supported: !layout.startsWith('SALES-'),
+        fields: [{ name: offline ? 'OfflineValue' : 'OnlineValue', type: 'text' }],
+        metadata: { offline }
+      })
+    } as never, { listLayouts } as never,
+    { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() } as never,
+    { getWorkspaceRoot: () => root, getOutputDir: () => 'filemaker-types', isWorkspaceTrusted: () => true });
+    try {
+      const batch = await service.generateTypesForAllLayouts(createProfile());
+      // The catalog reserves 1,000 natural names, but only these three layouts return metadata.
+      expect(batch).toHaveLength(3);
+      const original = batch.find((artifact) => artifact.layout === selected)!;
+      expect(basename(original.filePath)).toBe(selected + '-1001.ts');
+      expect(listLayouts).toHaveBeenCalledTimes(1);
+      listLayouts.mockClear();
+      offline = true;
+      const refreshed = await service.generateTypesForLayout(createProfile(), selected);
+      expect(listLayouts).not.toHaveBeenCalled();
+      expect(refreshed.filePath).toBe(original.filePath);
+      expect(await readFile(original.filePath, 'utf8')).toContain('OfflineValue');
+      expect(await readdir(dirname(original.filePath))).toHaveLength(3);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+});

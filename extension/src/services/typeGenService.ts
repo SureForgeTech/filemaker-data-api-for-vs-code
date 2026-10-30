@@ -101,8 +101,10 @@ export class TypeGenService {
   /**
    * The server's layout list lets a single layout get the file name the batch would give it.
    * The list is optional: when it cannot be read the name is chosen from the files on disk instead.
+   * Offline mode never asks the server, so there the name is always chosen from the files on disk.
    */
   private async namingFromLayoutList(profile: ConnectionProfile, layout: string): Promise<FileNaming | undefined> {
+    if (this.schemaService.isOfflineModeEnabled()) return undefined;
     let listed: string[];
     try {
       listed = await this.fmClient.listLayouts(profile);
@@ -891,6 +893,9 @@ type TypeFileOwner = 'absent' | 'exact' | 'other' | 'foreign';
 /** Enough to cover the header comment; the identity lines are among its first lines. */
 const HEADER_BYTES = 4096;
 
+/** The most numbered names (`Sales-ab12cd34-1` .. `-1000`) tried for one layout. */
+const MAX_NUMBERED_STEMS = 1000;
+
 /**
  * Who a type file at `filePath` belongs to, read from at most its first 4 KiB without following a link:
  *  - `absent`: nothing there;
@@ -942,7 +947,8 @@ async function inspectTypeFile(filePath: string, layout: string): Promise<TypeFi
 /**
  * The file name for one layout's type file.
  *  1. A file already there that was generated for exactly this layout keeps being updated, at
- *     the list's name or at the plain or hashed name an earlier run may have used.
+ *     the list's name or at the plain or hashed name an earlier run may have used, with or
+ *     without a number added (whichever numbers exist in the folder, gaps included).
  *  2. Otherwise the list's name (or, with no list, the plain name) if nothing is there. A file
  *     that is not generated stays on that name, so the writer asks before touching it.
  *  3. Otherwise the layout's hashed name, with a number added if that is taken too.
@@ -962,23 +968,38 @@ async function chooseTypeFileStem(
 
   const folder = dirname(await fileFor(wanted));
   await assertSafeOutputFolder(folder, root);
-  const present = new Set((await readdir(folder).catch((error: NodeJS.ErrnoException) => {
+  const names = (await readdir(folder).catch((error: NodeJS.ErrnoException) => {
     if (error.code === 'ENOENT') return [];
     throw error;
-  })).map((name) => name.toLowerCase()));
+  })).map((name) => name.toLowerCase());
+  const present = new Set(names);
   const isPresent = (stem: string): boolean => present.has(`${stem}.ts`.toLowerCase());
 
-  const usual = [wanted, base, hashed];
-  const numbered = Array.from({ length: 1000 }, (_, index) => `${hashed}-${index + 1}`);
-  for (const stem of [...usual, ...numbered]) {
-    if (!isPresent(stem)) {
-      // Numbered names are handed out in order, so the first free one ends the search.
-      if (usual.includes(stem)) continue;
-      break;
+  // A numbered name an earlier run handed out may sit anywhere in the folder (numbers can have gaps,
+  // and the list that chose it may be unavailable now), so the numbers come from the files that exist.
+  const numberedFor = (prefix: string): string[] => {
+    const head = `${prefix}-`.toLowerCase();
+    const found = new Set<number>();
+    for (const name of names) {
+      if (!name.startsWith(head) || !name.endsWith('.ts')) continue;
+      const digits = name.slice(head.length, -'.ts'.length);
+      if (!/^[1-9][0-9]*$/.test(digits)) continue;
+      const number = Number(digits);
+      if (Number.isSafeInteger(number)) found.add(number);
     }
+    return [...found].sort((a, b) => a - b).map((number) => `${prefix}-${number}`);
+  };
+
+  const usual = [wanted, base, hashed];
+  const existing = new Set<string>();
+  for (const stem of [...usual, ...numberedFor(wanted), ...numberedFor(base), ...numberedFor(hashed)]) {
+    if (existing.has(stem.toLowerCase())) continue;
+    existing.add(stem.toLowerCase());
+    if (!isPresent(stem)) continue;
     if (await inspectTypeFile(await fileFor(stem), layout) === 'exact') return stem;
   }
 
+  const numbered = Array.from({ length: MAX_NUMBERED_STEMS }, (_, index) => `${hashed}-${index + 1}`);
   for (const stem of [wanted, hashed, ...numbered]) {
     const lower = stem.toLowerCase();
     if (stem !== wanted && reserved.has(lower)) continue;
