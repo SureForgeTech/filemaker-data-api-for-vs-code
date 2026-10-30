@@ -28,6 +28,13 @@ const profile = (serverUrl: string) => ({
   apiVersionPath: 'vLatest'
 });
 
+/**
+ * How many event-loop turns a message gets to answer on. The panel answers from promise
+ * continuations, so a handful of turns is plenty; the budget only has to be big enough for
+ * the slowest reply, and the answer is watched for rather than waited out.
+ */
+const ANSWER_TURNS = 200;
+
 function openPanel(deps: { profileStore: unknown; fmClient: unknown; schemaService: unknown }) {
   const handlers: Array<(message: unknown) => void> = [];
   const posted: Array<{ type?: string; message?: string; payload?: Record<string, unknown> }> = [];
@@ -59,13 +66,22 @@ function openPanel(deps: { profileStore: unknown; fmClient: unknown; schemaServi
   );
   return {
     posted,
+    /**
+     * Sends a message and waits for the panel's answer.
+     *
+     * The panel answers on its own schedule, and it never answers a message it refuses to
+     * parse. Each poll yields an event-loop turn rather than sleeping, so the wait keeps the
+     * same number of chances to see the answer without costing a fixed second on every
+     * message the panel ignores. A fixed sleep is what used to push this file past the test
+     * timeout on a busy runner.
+     */
     send: async (message: unknown) => {
       const before = posted.length;
       handlers.forEach((handler) => handler(message));
-      for (let i = 0; i < 200 && posted.length === before; i += 1) {
-        await new Promise((resolve) => setTimeout(resolve, 5));
+      for (let i = 0; i < ANSWER_TURNS && posted.length === before; i += 1) {
+        await new Promise((resolve) => setImmediate(resolve));
       }
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await new Promise((resolve) => setImmediate(resolve));
     },
     last: (type: string) => [...posted].reverse().find((m) => m.type === type)
   };
@@ -323,7 +339,9 @@ describe('Record Editor create mode (stubbed services)', () => {
     await panel.send(create);
     expect(panel.last('error')?.message).toMatch(/Offline mode/);
     expect(createRecord).not.toHaveBeenCalled();
-  });
+    // Five messages wait for an answer here, so the default five-second timeout is a margin
+    // for a loaded runner rather than a budget for the work.
+  }, 20_000);
 
   it('refuses in an untrusted workspace', async () => {
     workspace.isTrusted = false;
