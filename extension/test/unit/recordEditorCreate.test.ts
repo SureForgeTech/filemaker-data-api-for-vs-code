@@ -28,6 +28,23 @@ const profile = (serverUrl: string) => ({
   apiVersionPath: 'vLatest'
 });
 
+/**
+ * How many event-loop turns a message the panel must refuse gets to refuse it. The panel
+ * drops a message it cannot parse without answering it, and it decides that in the
+ * message's first turn, so a handful of turns is all the refusal needs. The wait is a
+ * count of turns rather than a span of time, because a turn is what the refusal costs:
+ * a span of time would be short on an idle machine and long on a loaded one, and only the
+ * turn count says the panel has had its chance.
+ */
+const REFUSAL_TURNS = 20;
+
+/**
+ * How long the wait for a refusal also lasts in wall-clock time. The turn count says the
+ * panel has had its chance to refuse the message; the span says the panel has had its
+ * chance to answer late, which is what the wait used to cover when it slept for a second.
+ */
+const REFUSAL_FLOOR_MS = 150;
+
 function openPanel(deps: { profileStore: unknown; fmClient: unknown; schemaService: unknown }) {
   const handlers: Array<(message: unknown) => void> = [];
   const posted: Array<{ type?: string; message?: string; payload?: Record<string, unknown> }> = [];
@@ -59,6 +76,13 @@ function openPanel(deps: { profileStore: unknown; fmClient: unknown; schemaServi
   );
   return {
     posted,
+    /**
+     * Sends a message and waits for the panel's answer.
+     *
+     * The panel answers on its own schedule, and the answer can follow real work — a request
+     * to the mock FileMaker server takes thousands of event-loop turns — so the wait is a
+     * span of time, and the answer is watched for rather than waited out.
+     */
     send: async (message: unknown) => {
       const before = posted.length;
       handlers.forEach((handler) => handler(message));
@@ -66,6 +90,24 @@ function openPanel(deps: { profileStore: unknown; fmClient: unknown; schemaServi
         await new Promise((resolve) => setTimeout(resolve, 5));
       }
       await new Promise((resolve) => setTimeout(resolve, 10));
+    },
+    /**
+     * Sends a message the panel must refuse, and waits for the refusal.
+     *
+     * The panel drops a message it cannot parse and never answers it, so there is no answer
+     * to wait for and the full answer budget would only be spent learning that. Waiting for
+     * the refusal itself costs a few turns, and the wait also lasts a moment in wall-clock
+     * time so that a late answer is still noticed.
+     */
+    sendUnanswered: async (message: unknown) => {
+      handlers.forEach((handler) => handler(message));
+      const deadline = Date.now() + REFUSAL_FLOOR_MS;
+      for (let i = 0; i < REFUSAL_TURNS; i += 1) {
+        await new Promise((resolve) => setImmediate(resolve));
+      }
+      while (Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 1));
+      }
     },
     last: (type: string) => [...posted].reverse().find((m) => m.type === type)
   };
@@ -304,8 +346,8 @@ describe('Record Editor create mode (stubbed services)', () => {
     expect(panel.last('error')?.message).toMatch(/At least one field/);
 
     const before = panel.posted.length;
-    await panel.send({ type: 'createRecord', payload: { profileId: 'p1', layout: 'People', fieldData: [1] } });
-    await panel.send({ type: 'createRecord', payload: { profileId: 'p1', fieldData: { a: 1 } } });
+    await panel.sendUnanswered({ type: 'createRecord', payload: { profileId: 'p1', layout: 'People', fieldData: [1] } });
+    await panel.sendUnanswered({ type: 'createRecord', payload: { profileId: 'p1', fieldData: { a: 1 } } });
     expect(panel.posted.length).toBe(before); // unparsable messages are ignored
     expect(createRecord).not.toHaveBeenCalled();
 
@@ -323,7 +365,9 @@ describe('Record Editor create mode (stubbed services)', () => {
     await panel.send(create);
     expect(panel.last('error')?.message).toMatch(/Offline mode/);
     expect(createRecord).not.toHaveBeenCalled();
-  });
+    // This test used to time out on a loaded runner, so it gets a budget of its own: the
+    // timeout is a margin for a slow machine, not a measure of the work.
+  }, 20_000);
 
   it('refuses in an untrusted workspace', async () => {
     workspace.isTrusted = false;
