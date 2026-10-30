@@ -14,6 +14,7 @@
 - The Query Builder clears restored criteria and sort rows when the layout they were written for is no longer among the profile's layouts, so a saved find is never shown or run against another layout.
 - The Query Builder shows a Cancel button while a query is running; pressing it aborts the request in flight and the panel reports the query as cancelled.
 - Error toasts can reconnect to the server in one click after a sign-in failure and open the matching troubleshooting page from the toast; more errors now carry that link, including no free sessions, too many sign-in attempts, HTTP 403/404, certificate problems and connection failures.
+- Five commands gain default keyboard shortcuts: Open Query Builder `Ctrl+Alt+Q`, Open Record Viewer `Ctrl+Alt+V`, Open Script Runner `Ctrl+Alt+E`, Show Request History `Ctrl+Alt+H` and Open FM Web Layout Mode `Ctrl+Alt+L` (each `Cmd+Alt` on macOS except Show Request History, which stays `Ctrl+Alt+H` to avoid the system's Hide Others shortcut); rebind or clear them in Keyboard Shortcuts as before.
 
 ## 1.8.0
 

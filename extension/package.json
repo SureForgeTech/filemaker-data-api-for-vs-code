@@ -579,6 +579,13 @@
         "category": "FileMaker"
       }
     ],
+    "keybindings": [
+      { "command": "filemakerDataApiTools.openQueryBuilder", "key": "ctrl+alt+q", "mac": "cmd+alt+q", "when": "filemaker.hasProfiles" },
+      { "command": "filemakerDataApiTools.openRecordViewer", "key": "ctrl+alt+v", "mac": "cmd+alt+v", "when": "filemaker.hasProfiles" },
+      { "command": "filemakerDataApiTools.openScriptRunner", "key": "ctrl+alt+e", "mac": "cmd+alt+e", "when": "filemaker.hasProfiles" },
+      { "command": "filemakerDataApiTools.showRequestHistory", "key": "ctrl+alt+h", "mac": "ctrl+alt+h", "when": "filemaker.powerUserMode" },
+      { "command": "filemakerDataApiTools.openLayoutMode", "key": "ctrl+alt+l", "mac": "cmd+alt+l", "when": "filemaker.fmWebProjectInitialized" }
+    ],
     "menus": {
       "view/title": [
         {

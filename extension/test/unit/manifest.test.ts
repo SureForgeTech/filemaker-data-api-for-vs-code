@@ -98,11 +98,39 @@ describe('extension manifest UX contract', () => {
   });
 
   it('never binds macOS system chords such as Log Out (Shift+Option+Cmd+Q)', () => {
-    const reserved = new Set(['cmd+alt+shift+q', 'cmd+shift+q', 'cmd+q', 'cmd+alt+esc', 'ctrl+cmd+q']);
+    const reserved = new Set(['cmd+alt+shift+q', 'cmd+shift+q', 'cmd+q', 'cmd+alt+esc', 'ctrl+cmd+q', 'cmd+alt+h']);
     for (const binding of keybindings ?? []) {
       const mac = (binding.mac ?? binding.key).toLowerCase().split('+').sort().join('+');
       for (const chord of reserved) {
         expect(mac, binding.command).not.toBe(chord.split('+').sort().join('+'));
+      }
+    }
+  });
+
+  it('binds the five default shortcuts with palette-matching when clauses', () => {
+    const expected: Array<[string, string, string, string]> = [
+      ['openQueryBuilder', 'ctrl+alt+q', 'cmd+alt+q', 'filemaker.hasProfiles'],
+      ['openRecordViewer', 'ctrl+alt+v', 'cmd+alt+v', 'filemaker.hasProfiles'],
+      ['openScriptRunner', 'ctrl+alt+e', 'cmd+alt+e', 'filemaker.hasProfiles'],
+      ['showRequestHistory', 'ctrl+alt+h', 'ctrl+alt+h', 'filemaker.powerUserMode'],
+      ['openLayoutMode', 'ctrl+alt+l', 'cmd+alt+l', 'filemaker.fmWebProjectInitialized']
+    ];
+    const bindings = new Map((keybindings ?? []).map((binding) => [binding.command, binding]));
+    expect(bindings.size, 'exactly five default keybindings').toBe(expected.length);
+    // A sixth entry that reuses one of the five command IDs (with a different key) would collapse in the
+    // Map and leave bindings.size at 5, so pin the raw array length too.
+    expect(keybindings ?? [], 'raw keybindings array length').toHaveLength(expected.length);
+    const seen = new Set<string>();
+    for (const [name, key, mac, when] of expected) {
+      const binding = bindings.get(id(name));
+      expect(binding, name).toBeDefined();
+      expect(binding?.key, name).toBe(key);
+      expect(binding?.mac, name).toBe(mac);
+      expect(binding?.when, name).toBe(when);
+      expect(binding?.when, name).toBe(palette.get(id(name)));
+      for (const combo of binding?.key === binding?.mac ? [binding?.key ?? ''] : [binding?.key ?? '', binding?.mac ?? '']) {
+        expect(seen.has(combo), `duplicate binding ${combo}`).toBe(false);
+        seen.add(combo);
       }
     }
   });
