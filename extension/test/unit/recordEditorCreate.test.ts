@@ -38,6 +38,13 @@ const profile = (serverUrl: string) => ({
  */
 const REFUSAL_TURNS = 20;
 
+/**
+ * How long the wait for a refusal also lasts in wall-clock time. The turn count says the
+ * panel has had its chance to refuse the message; the span says the panel has had its
+ * chance to answer late, which is what the wait used to cover when it slept for a second.
+ */
+const REFUSAL_FLOOR_MS = 150;
+
 function openPanel(deps: { profileStore: unknown; fmClient: unknown; schemaService: unknown }) {
   const handlers: Array<(message: unknown) => void> = [];
   const posted: Array<{ type?: string; message?: string; payload?: Record<string, unknown> }> = [];
@@ -89,12 +96,17 @@ function openPanel(deps: { profileStore: unknown; fmClient: unknown; schemaServi
      *
      * The panel drops a message it cannot parse and never answers it, so there is no answer
      * to wait for and the full answer budget would only be spent learning that. Waiting for
-     * the refusal itself costs a few turns.
+     * the refusal itself costs a few turns, and the wait also lasts a moment in wall-clock
+     * time so that a late answer is still noticed.
      */
     sendUnanswered: async (message: unknown) => {
       handlers.forEach((handler) => handler(message));
+      const deadline = Date.now() + REFUSAL_FLOOR_MS;
       for (let i = 0; i < REFUSAL_TURNS; i += 1) {
         await new Promise((resolve) => setImmediate(resolve));
+      }
+      while (Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 1));
       }
     },
     last: (type: string) => [...posted].reverse().find((m) => m.type === type)
