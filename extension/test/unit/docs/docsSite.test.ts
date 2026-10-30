@@ -159,6 +159,10 @@ it('stages the website alongside TypeDoc without changing the workflow security 
 });
 
 
+// This test parses the built guide page - roughly 214 KB with 588 table cells - with JSDOM and
+// reads the computed style of every one of them, so it takes a noticeable part of a second. The
+// default five-second timeout measures the runner, not the work, and a test earlier in this file
+// already carries a budget for the same reason.
 it('keeps table cells and code readable inside horizontal scrolling regions', () => {
   const dom = new JSDOM!(html('guide/index.html'), { runScripts: 'outside-only', url: 'https://docs.invalid/' });
   const window = dom.window as typeof dom.window & {
@@ -182,7 +186,7 @@ it('keeps table cells and code readable inside horizontal scrolling regions', ()
     expect(style.overflowWrap).toBe('normal');
     expect(style.wordBreak).toBe('normal');
   }
-});
+}, 30_000);
 
 it('maps absolute repository links to generated pages from the guide, changelog and home', () => {
   const source = fixture(`# Guide\n\n[upgrade](${repo}/blob/main/extension/UPGRADE.md?from=guide#upgrade) [compatibility](${repo}/blob/main/extension/docs/COMPATIBILITY.md) [other](${repo}/blob/main/SUPPORT.md)`);
