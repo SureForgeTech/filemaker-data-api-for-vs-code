@@ -125,14 +125,15 @@ export async function handleMessage(ctx: WizardContext, raw: unknown): Promise<v
       // its own — the message shape is checked the way the neighbours check it (handleMessage
       // only accepts an object, and no field of this message is read) — so the path that goes
       // back is the one VS Code's own file dialog returned, never one the page asked for.
-      // Cancelling the dialog answers with an empty path.
       const picked = await vscode.window.showOpenDialog({
         canSelectFiles: true,
         canSelectMany: false,
         filters: { Certificates: ['pem', 'crt', 'cer'] },
         title: 'Select the CA certificate file'
       });
-      await ctx.panel.webview.postMessage({ type: 'caBundlePicked', path: picked?.[0]?.fsPath ?? '' });
+      if (picked?.[0]) {
+        await ctx.panel.webview.postMessage({ type: 'caBundlePicked', path: picked[0].fsPath });
+      }
       break;
     }
     case 'testConnection': {

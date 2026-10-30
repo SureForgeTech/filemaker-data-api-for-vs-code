@@ -349,13 +349,13 @@ describe('Connection wizard certificate trust', () => {
       });
     });
 
-    it('a cancelled file dialog answers with an empty path', async () => {
+    it('a cancelled file dialog sends no answer, preserving the selected path', async () => {
       const h = await setup();
       vi.mocked(vscode.window.showOpenDialog).mockResolvedValue(undefined as never);
 
       await h.fire({ type: 'pickCaBundle' });
 
-      expect(h.posted.find((m) => m.type === 'caBundlePicked')).toMatchObject({ type: 'caBundlePicked', path: '' });
+      expect(h.posted.filter((m) => m.type === 'caBundlePicked')).toEqual([]);
     });
 
     describe.skipIf(!JSDOM)('the page', () => {
@@ -386,7 +386,7 @@ describe('Connection wizard certificate trust', () => {
         expect(p.document.getElementById('caBundlePath')?.value).toBe('/picked/company-ca.pem');
       });
 
-      it('a cancelled pick clears the path that was there', async () => {
+      it('a cancelled pick leaves the path that was there', async () => {
         await setup();
         const p = page();
 
@@ -396,9 +396,9 @@ describe('Connection wizard certificate trust', () => {
         }
         expect(p.document.getElementById('caBundlePath')?.value).toBe('/old/ca.pem');
 
-        p.send({ type: 'caBundlePicked', path: '' });
+        // The host sends no caBundlePicked message on cancellation.
 
-        expect(p.document.getElementById('caBundlePath')?.value).toBe('');
+        expect(p.document.getElementById('caBundlePath')?.value).toBe('/old/ca.pem');
       });
     });
   });
