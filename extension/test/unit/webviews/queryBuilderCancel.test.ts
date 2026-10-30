@@ -138,6 +138,48 @@ describe('The Query Builder host aborts a run in flight', () => {
     expect(posted.some((message) => message.type === 'runCancelled')).toBe(false);
     expect(context.activeRun).toBeUndefined();
   });
+
+  it('reports an early cancel once and skips the Data API after profile lookup settles', async () => {
+    let resolveProfile!: (value: typeof profile) => void;
+    const getProfile = vi.fn(() => new Promise<typeof profile>((resolve) => { resolveProfile = resolve; }));
+    const findRecords = vi.fn();
+    const { context, posted } = stubContext({ findRecords });
+    context.profileStore.getProfile = getProfile as never;
+
+    const run = handleRunQuery(context, runPayload);
+    expect(context.activeRun?.runId).toBe(7);
+    context.activeRun!.controller.abort();
+    resolveProfile(profile);
+    await run;
+
+    expect(findRecords).not.toHaveBeenCalled();
+    expect(posted.filter((message) => message.type === 'runCancelled')).toEqual([
+      { type: 'runCancelled', runId: 7 }
+    ]);
+    expect(context.activeRun).toBeUndefined();
+  });
+
+  it('reports an early cancel once when profile lookup rejects, without an error or history post', async () => {
+    let rejectProfile!: (error: Error) => void;
+    const getProfile = vi.fn(() => new Promise<typeof profile>((_resolve, reject) => { rejectProfile = reject; }));
+    const findRecords = vi.fn();
+    const { context, posted } = stubContext({ findRecords });
+    context.profileStore.getProfile = getProfile as never;
+
+    const run = handleRunQuery(context, runPayload);
+    expect(context.activeRun?.runId).toBe(7);
+    context.activeRun!.controller.abort();
+    rejectProfile(new Error('Profile lookup failed'));
+    await run;
+
+    expect(findRecords).not.toHaveBeenCalled();
+    expect(posted.filter((message) => message.type === 'runCancelled')).toEqual([
+      { type: 'runCancelled', runId: 7 }
+    ]);
+    expect(posted.some((message) => message.type === 'error')).toBe(false);
+    expect(context.sendHistory).not.toHaveBeenCalled();
+    expect(context.activeRun).toBeUndefined();
+  });
 });
 
 describe('The Query Builder panel routes a cancel', () => {
@@ -145,6 +187,7 @@ describe('The Query Builder panel routes a cancel', () => {
     let handler: Handler | undefined;
     let onDispose: (() => void) | undefined;
     const posted: Array<Record<string, unknown>> = [];
+    let resolveProfile!: (value: typeof profile) => void;
 
     vi.mocked(vscode.window.createWebviewPanel).mockReturnValue({
       webview: {
@@ -180,7 +223,9 @@ describe('The Query Builder panel routes a cancel', () => {
     };
     const profileStore = {
       listProfiles: vi.fn(async () => [profile]),
-      getProfile: vi.fn(async (id: string) => (id === profile.id ? profile : undefined)),
+      getProfile: vi.fn((id: string) => id === 'pending'
+        ? new Promise<typeof profile>((resolve) => { resolveProfile = resolve; })
+        : Promise.resolve(id === profile.id ? profile : undefined)),
       getActiveProfileId: vi.fn(() => profile.id)
     };
     const logger = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
@@ -201,7 +246,7 @@ describe('The Query Builder panel routes a cancel', () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     };
 
-    return { send, posted, fmClient, close: () => onDispose?.() };
+    return { send, posted, fmClient, close: () => onDispose?.(), resolveProfile: () => resolveProfile(profile) };
   }
 
   let panel: ReturnType<typeof openPanel>;
@@ -246,6 +291,34 @@ describe('The Query Builder panel routes a cancel', () => {
 
     expect(panel.posted).toEqual([]);
     expect(panel.fmClient.findRecords).not.toHaveBeenCalled();
+  });
+
+  it('cancels a pending lookup once and ends the page running state', async () => {
+    await panel.send({ type: 'runQuery', payload: { ...runPayload, profileId: 'pending' } });
+    await panel.send({ type: 'cancelRun', runId: 7 });
+    panel.resolveProfile();
+    await vi.waitFor(() => expect(panel.posted.filter((message) => message.type === 'runCancelled')).toHaveLength(1));
+
+    expect(panel.fmClient.findRecords).not.toHaveBeenCalled();
+    expect(panel.posted.some((message) => message.type === 'error')).toBe(false);
+  });
+
+  it('aborts a pending lookup on disposal and does not call or post after it settles', async () => {
+    const activeRun = (QueryBuilderPanel as unknown as { currentPanel: { query: QueryBuilderContext } }).currentPanel.query;
+    activeRun.lastResult = {
+      profileId: 'p1', layout: ' Contacts ', query: runPayload,
+      result: { data: [], dataInfo: { foundCount: 0 } }
+    };
+    await panel.send({ type: 'runQuery', payload: { ...runPayload, profileId: 'pending' } });
+    expect(activeRun.activeRun).toBeDefined();
+    panel.close();
+    expect(activeRun.activeRun).toBeUndefined();
+    expect(activeRun.lastResult).toBeUndefined();
+    panel.resolveProfile();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(panel.fmClient.findRecords).not.toHaveBeenCalled();
+    expect(panel.posted).toEqual([]);
   });
 });
 

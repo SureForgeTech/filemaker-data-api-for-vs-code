@@ -16,6 +16,7 @@ export interface QueryBuilderContext {
   pendingDefaults?: QueryBuilderOpenOptions;
   /** The run the host is waiting for, so the page can cancel it. */
   activeRun?: { runId: number; controller: AbortController };
+  disposed?: boolean;
   postError(message: string, runId?: number): Promise<void>;
   formatError(error: unknown): string;
   sendHistory(): Promise<void>;

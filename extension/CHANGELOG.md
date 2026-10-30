@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- The Query Builder can cancel a search while it is still loading its connection profile, and closing the panel stops that search.
 - Canceling Browse for a CA certificate keeps the previously selected file path.
 - Saved connection secrets are decrypted with a fixed 16-byte tag check, so a shortened or tampered tag is refused instead of being misread. Secrets saved earlier keep working. No known exploit.
 - The extension's panels now ignore messages that do not come from VS Code itself, so a stray or badly formed message is dropped before it can act. No known exploit.
