@@ -49,6 +49,11 @@ export class QueryBuilderPanel {
     this.panel.webview.html = getHtmlForWebview(this.panel.webview, context.extensionUri);
 
     this.panel.onDidDispose(() => {
+      this.query.disposed = true;
+      this.query.lastResult = undefined;
+      const activeRun = this.query.activeRun;
+      this.query.activeRun = undefined;
+      activeRun?.controller.abort();
       QueryBuilderPanel.currentPanel = undefined;
     });
 
@@ -328,6 +333,7 @@ export class QueryBuilderPanel {
   }
 
   private async sendHistory(): Promise<void> {
+    if (this.query.disposed) return;
     await this.panel.webview.postMessage({
       type: 'history',
       payload: this.historyStore.listEntries()
