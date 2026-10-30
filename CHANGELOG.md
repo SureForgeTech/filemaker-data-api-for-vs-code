@@ -47,6 +47,7 @@ PR title prefix matches the highest-tier label added:
 - Saved connection secrets are decrypted with a fixed 16-byte tag check, so a shortened or tampered tag is refused instead of being misread. Secrets saved earlier keep working. No known exploit.
 - The extension's panels now ignore messages that do not come from VS Code itself, so a stray or badly formed message is dropped before it can act. No known exploit.
 - Files written for generated pages, type generation and AI context now stay inside their folder: a path that tries to escape is refused instead of written. No known exploit.
+- The dependency trees used to build and release the extension no longer carry a known high-severity advisory: `@azure/msal-node` is updated past CVE-2026-109461 in the workspace lockfile and in the separate lockfile the Marketplace and Open VS X publish jobs install from, and `body-parser` is updated past GHSA-27r3-jxmh-p828. All of them are used by the build and publish tooling rather than by the shipped extension, and none of them is in the published VSIX. No known exploit.
 
 ## 1.8.0 (2026-10-25)
 
