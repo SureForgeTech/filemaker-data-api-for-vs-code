@@ -153,6 +153,21 @@ describe('runtime field values', () => {
     expect(onFieldChange).toHaveBeenLastCalledWith('Notes(1)', 'edited repetition');
   });
 
+  it('shows and edits the lowest available repetition when the first is absent', () => {
+    const layout = createBlankLayout('Repetition');
+    layout.objects = [field({ id: '0', fmFieldName: 'Notes' })];
+    act(() => root.render(React.createElement(LayoutContainer, { layout, mode: 'runtime', runtimeData: {
+      fieldValues: { 'Notes(10)': 'ten', 'Notes(2)': 'second' }, editing: true, onFieldChange
+    } })));
+    expect(host.querySelector('input')?.value).toBe('second');
+    const input = host.querySelector('input')!;
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, 'edited');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    expect(onFieldChange).toHaveBeenLastCalledWith('Notes(2)', 'edited');
+  });
+
   it('does not invent related rows or values in runtime portals', () => {
     const layout = createBlankLayout('Portal'); layout.objects = [{ ...field(), type: 'portal', relatedContext: 'Related',
       rowCount: 2, columns: [{ id: 'col', fmFieldName: 'Name', label: 'Name', width: 120 }], scroll: true, selectableRows: false }];

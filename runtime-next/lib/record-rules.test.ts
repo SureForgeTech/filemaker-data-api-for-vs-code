@@ -14,6 +14,7 @@ describe('shared Editor rules', () => {
     // A repeated field keeps its value under `Notes(1)`, so the required check finds it there.
     expect(validateRecordDraft({ 'Notes(1)': 'x' }, [{ name: 'Notes', required: true }]).valid).toBe(true);
     expect(validateRecordDraft({ 'Notes(1)': 'x' }, [{ name: 'Notes', notEmpty: true }]).valid).toBe(true);
+    expect(validateRecordDraft({ 'Notes(2)': 'x' }, [{ name: 'Notes', required: true }]).valid).toBe(true);
     // A required field with no value anywhere still fails.
     expect(validateRecordDraft({}, [{ name: 'Notes', required: true }]).valid).toBe(false);
     expect(validateRecordDraft({ Other: 'x' }, [{ name: 'Notes', required: true }]).valid).toBe(false);
