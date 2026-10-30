@@ -229,9 +229,17 @@ export class QueryBuilderPanel {
     };
     const text = type ? messages[type] : undefined;
     if (text) {
-      if (type === 'runQuery') this.query.lastResult = undefined;
       const payload = value ? toRecord(value.payload) : undefined;
       const runId = type === 'runQuery' && payload ? getOptionalNumberField(payload, 'runId') : undefined;
+      if (type === 'runQuery') {
+        const activeRun = this.query.activeRun;
+        const lastResultRunId = this.query.lastResult?.query.runId;
+        const isCurrentRun = runId !== undefined && (!activeRun || activeRun.runId === runId);
+        const isNotOlderThanResult = lastResultRunId === undefined || (runId !== undefined && runId >= lastResultRunId);
+        if (isCurrentRun && isNotOlderThanResult) {
+          this.query.lastResult = undefined;
+        }
+      }
       await this.postError(text, runId);
     }
   }

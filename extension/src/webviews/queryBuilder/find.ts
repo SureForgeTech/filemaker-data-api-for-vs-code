@@ -7,7 +7,6 @@ import type { RunQueryPayload } from './types';
 import type { QueryBuilderContext } from './context';
 
 export async function handleRunQuery(context: QueryBuilderContext, payload: RunQueryPayload): Promise<void> {
-  context.lastResult = undefined;
   const controller = new AbortController();
   const run = { runId: payload.runId ?? 0, controller };
   context.activeRun = run;
@@ -23,6 +22,7 @@ export async function handleRunQuery(context: QueryBuilderContext, payload: RunQ
     }
     if (!isCurrent()) return;
     if (!profile) {
+      if (isCurrent()) context.lastResult = undefined;
       await context.postError('The selected connection profile no longer exists.', payload.runId);
       return;
     }
@@ -66,7 +66,10 @@ export async function handleRunQuery(context: QueryBuilderContext, payload: RunQ
       return;
     }
 
-    if (isCurrent()) await context.postError(context.formatError(error), payload.runId);
+    if (isCurrent()) {
+      context.lastResult = undefined;
+      await context.postError(context.formatError(error), payload.runId);
+    }
     return;
   } finally {
     // Only this run's own entry is cleared; a newer run must not be clobbered.

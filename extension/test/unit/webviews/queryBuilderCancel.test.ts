@@ -7,6 +7,7 @@ import { HistoryStore } from '../../../src/services/historyStore';
 import { QueryBuilderPanel } from '../../../src/webviews/queryBuilder';
 import type { QueryBuilderContext } from '../../../src/webviews/queryBuilder/context';
 import { handleRunQuery } from '../../../src/webviews/queryBuilder/find';
+import { exportResultsToEditor } from '../../../src/webviews/queryBuilder/results';
 import { getHtmlForWebview } from '../../../src/webviews/queryBuilder/html';
 import { parseIncomingMessage } from '../../../src/webviews/queryBuilder/messages';
 import { InMemoryMemento } from '../mocks';
@@ -83,6 +84,49 @@ function stubContext(client: Record<string, unknown>) {
 }
 
 describe('The Query Builder host aborts a run in flight', () => {
+  it('keeps A exportable when pending run B is cancelled', async () => {
+    let resolveB!: (value: { data: unknown[]; dataInfo: { foundCount: number } }) => void;
+    const findRecords = vi.fn()
+      .mockResolvedValueOnce({ data: [{ recordId: 'A' }], dataInfo: { foundCount: 1 } })
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveB = resolve; }));
+    const { context, posted } = stubContext({ findRecords });
+    await handleRunQuery(context, { ...runPayload, runId: 6 });
+    const runB = handleRunQuery(context, { ...runPayload, runId: 7 });
+    await vi.waitFor(() => expect(findRecords).toHaveBeenCalledTimes(2));
+    context.activeRun!.controller.abort();
+    resolveB({ data: [{ recordId: 'B' }], dataInfo: { foundCount: 1 } });
+    await runB;
+
+    await exportResultsToEditor(context);
+
+    expect(context.lastResult?.result.data).toEqual([{ recordId: 'A' }]);
+    expect(vscode.workspace.openTextDocument).toHaveBeenCalledWith(expect.objectContaining({
+      content: expect.stringContaining('"recordId": "A"')
+    }));
+    expect(posted.some((message) => message.type === 'error')).toBe(false);
+  });
+
+  it('clears A when the current run fails validation', async () => {
+    const { context, posted } = stubContext({ findRecords: vi.fn() });
+    context.lastResult = { profileId: 'p1', layout: ' Contacts ', query: runPayload, result: { data: [{ recordId: 'A' }], dataInfo: { foundCount: 1 } } };
+
+    await handleRunQuery(context, { ...runPayload, findJson: '{bad', runId: 8 });
+
+    expect(context.lastResult).toBeUndefined();
+    expect(posted).toContainEqual(expect.objectContaining({ type: 'error', runId: 8 }));
+  });
+
+  it('clears A when the current run no longer has a profile', async () => {
+    const { context, posted } = stubContext({ findRecords: vi.fn() });
+    context.lastResult = { profileId: 'p1', layout: ' Contacts ', query: runPayload, result: { data: [{ recordId: 'A' }], dataInfo: { foundCount: 1 } } };
+    context.profileStore.getProfile = vi.fn(async () => undefined) as never;
+
+    await handleRunQuery(context, runPayload);
+
+    expect(context.lastResult).toBeUndefined();
+    expect(posted).toContainEqual(expect.objectContaining({ type: 'error', runId: 7 }));
+  });
+
   it('reports the run as cancelled instead of as a failure', async () => {
     const findRecords = abortableFind();
     const { context, posted } = stubContext({ findRecords });
@@ -307,6 +351,83 @@ describe('The Query Builder panel routes a cancel', () => {
 
     expect(panel.posted).toEqual([]);
     expect(panel.fmClient.findRecords).not.toHaveBeenCalled();
+  });
+
+  it('preserves a newer result when a stale rejected run arrives after it', async () => {
+    const query = panel.getQueryContext();
+    query.lastResult = {
+      profileId: 'p1',
+      layout: ' Contacts ',
+      query: { ...runPayload, runId: 9 },
+      result: { data: [{ recordId: 'newer' }], dataInfo: { foundCount: 1 } }
+    };
+
+    await panel.send({ type: 'runQuery', payload: { profileId: 'p1', runId: 8 } });
+
+    expect(query.lastResult?.result.data).toEqual([{ recordId: 'newer' }]);
+    expect(panel.posted).toContainEqual(expect.objectContaining({ type: 'error', runId: 8 }));
+  });
+
+  it('preserves a numbered result when a rejected run has no run ID', async () => {
+    const query = panel.getQueryContext();
+    query.lastResult = {
+      profileId: 'p1',
+      layout: ' Contacts ',
+      query: { ...runPayload, runId: 9 },
+      result: { data: [{ recordId: 'newer' }], dataInfo: { foundCount: 1 } }
+    };
+
+    await panel.send({ type: 'runQuery', payload: { profileId: 'p1' } });
+
+    expect(query.lastResult?.result.data).toEqual([{ recordId: 'newer' }]);
+    expect(panel.posted).toContainEqual({ type: 'error', message: expect.any(String) });
+  });
+
+  it('treats a rejected run with no run ID as stale while a run is active', async () => {
+    const query = panel.getQueryContext();
+    query.lastResult = {
+      profileId: 'p1',
+      layout: ' Contacts ',
+      query: { ...runPayload, runId: 8 },
+      result: { data: [{ recordId: 'current' }], dataInfo: { foundCount: 1 } }
+    };
+    query.activeRun = { runId: 9, controller: new AbortController() };
+
+    await panel.send({ type: 'runQuery', payload: { profileId: 'p1' } });
+
+    expect(query.lastResult?.result.data).toEqual([{ recordId: 'current' }]);
+    expect(panel.posted).toContainEqual({ type: 'error', message: expect.any(String) });
+  });
+
+  it('preserves a newer result when a rejected run matches the active run but is older', async () => {
+    const query = panel.getQueryContext();
+    query.lastResult = {
+      profileId: 'p1',
+      layout: ' Contacts ',
+      query: { ...runPayload, runId: 9 },
+      result: { data: [{ recordId: 'newer' }], dataInfo: { foundCount: 1 } }
+    };
+    query.activeRun = { runId: 8, controller: new AbortController() };
+
+    await panel.send({ type: 'runQuery', payload: { profileId: 'p1', runId: 8 } });
+
+    expect(query.lastResult?.result.data).toEqual([{ recordId: 'newer' }]);
+    expect(panel.posted).toContainEqual(expect.objectContaining({ type: 'error', runId: 8 }));
+  });
+
+  it('clears the previous result when the current rejected run arrives', async () => {
+    const query = panel.getQueryContext();
+    query.lastResult = {
+      profileId: 'p1',
+      layout: ' Contacts ',
+      query: { ...runPayload, runId: 9 },
+      result: { data: [{ recordId: 'older' }], dataInfo: { foundCount: 1 } }
+    };
+
+    await panel.send({ type: 'runQuery', payload: { profileId: 'p1', runId: 10 } });
+
+    expect(query.lastResult).toBeUndefined();
+    expect(panel.posted).toContainEqual(expect.objectContaining({ type: 'error', runId: 10 }));
   });
 
   it('cancels a pending lookup once and returns the page to the idle state', async () => {
