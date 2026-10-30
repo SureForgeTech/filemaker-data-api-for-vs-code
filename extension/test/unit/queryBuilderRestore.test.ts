@@ -169,6 +169,29 @@ describe.skipIf(!JSDOM)('Query Builder restore', () => {
     expect(restored.document.getElementById('findJson')!.value).toBe('[{"Name":"*"}]');
   });
 
+  it('persists page size and offset through the serializer reload path', async () => {
+    const view = open();
+    const states: unknown[] = [];
+    const first = loadPage(view.html, view.source, 'https://panel.invalid/', {
+      onSetState: (value) => states.push(value)
+    });
+    first.send({ type: 'init', payload: { profiles: [devProfile, prodProfile], activeProfileId: 'p1' } });
+    first.send({ type: 'layoutsLoaded', payload: { profileId: 'p1', layouts: ['Contacts'] } });
+    typeText(first.window, 'limitInput', '007');
+    typeText(first.window, 'offsetInput', '0009');
+    const snapshot = states.at(-1) as Record<string, unknown>;
+    expect(snapshot).toMatchObject({ limit: '007', offset: '0009' });
+
+    const panel = revivedPanel();
+    const serializer = registerSerializer();
+    await serializer.deserializeWebviewPanel(panel as never, snapshot);
+    const restored = loadPage(panel.webview.html, view.source, 'https://panel.invalid/', { state: snapshot });
+    restored.send({ type: 'init', payload: { profiles: [devProfile, prodProfile], activeProfileId: 'p1' } });
+    restored.send({ type: 'layoutsLoaded', payload: { profileId: 'p1', layouts: ['Contacts'] } });
+    expect(element(restored.window, 'limitInput').value).toBe('007');
+    expect(element(restored.window, 'offsetInput').value).toBe('0009');
+  });
+
   it('wires a revived panel like a created one, and keeps one panel open', async () => {
     const panel = revivedPanel();
     const serializer = registerSerializer();
