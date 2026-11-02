@@ -18,7 +18,27 @@ PR title prefix matches the highest-tier label added:
 
 ## Unreleased
 
-- [INTERNAL] Platform-check failures now fail the required merge check, and strict UI release tests fail when their prerequisites are unavailable.
+### [BREAKING]
+
+- None.
+
+### [FEATURE]
+
+- None.
+
+### [FIX]
+
+- None.
+
+### [INTERNAL]
+
+- None.
+
+### [SECURITY]
+
+- None.
+
+## 1.8.0 (2026-11-02)
 
 ### [BREAKING]
 
@@ -30,6 +50,7 @@ PR title prefix matches the highest-tier label added:
 - The Query Builder shows a Cancel button while a query is running; pressing it aborts the request in flight and the panel reports the query as cancelled.
 - Error toasts can reconnect to the server in one click after a sign-in failure and open the matching troubleshooting page from the toast; more errors now carry that link, including no free sessions, too many sign-in attempts, HTTP 403/404, certificate problems and connection failures.
 - Five commands gain default keyboard shortcuts: Open Query Builder `Ctrl+Alt+Q`, Open Record Viewer `Ctrl+Alt+V`, Open Script Runner `Ctrl+Alt+E`, Show Request History `Ctrl+Alt+H` and Open FM Web Layout Mode `Ctrl+Alt+L` (each `Cmd+Alt` on macOS except Show Request History, which stays `Ctrl+Alt+H` to avoid the system's Hide Others shortcut); rebind or clear them in Keyboard Shortcuts as before.
+- The Connection wizard's certificate section has a Browse button that opens the system file picker for a custom CA bundle (PEM, CRT or CER), instead of typing the path by hand.
 
 ### [FIX]
 
@@ -46,38 +67,6 @@ PR title prefix matches the highest-tier label added:
 - Log lines that include an error now show the error's name, message and code instead of an empty `{}`, with secrets still hidden.
 - A layout named `FileMaker` no longer produces a generated TypeScript client with two `FileMakerRecord` types. Layout names that differ only by letter case, such as `Sales` and `sales`, now get separate generated type files, with short hashes added where needed, so the files no longer swap places when the server lists layouts in a different order. This applies to Generate Types for Layout as well as Generate Types for All Layouts: a single layout is named from the server's layout list when it can be read, and from the files already in the folder when it cannot, so a cached layout still generates. After a layout has been chosen, offline generation uses cached metadata without requesting the server's layout list or attempting sign-in. The Command Palette layout picker and Generate Types for All Layouts still request a server layout list. A generated file that belongs to a different layout is never replaced, and a layout keeps updating the file it already owns, including a numbered one (such as `Sales-1a2b3c4d-1.ts`) given out by an earlier run, even when numbers in between are missing. Newly generated files carry a `Layout SHA-256` line that identifies the layout without printing its name; older files are only recognised when their `Layout:` line shows the name unambiguously, and any other generated file is left untouched. Delete any old `Sales.ts`-style file left by an earlier build.
 - A restored Query Builder tab now uses the current extension folder and script settings instead of the ones saved before the window reload.
-
-### [INTERNAL]
-
-- Tag builds now also publish the VSIX to Open VS X (open-vsx.org), in its own `publish-ovsx` job that runs after the Marketplace publish and fails closed when the `OVSX_PAT` secret is missing, so no GitHub release is cut unless both stores accepted the build. Cursor and Windsurf users get a one-click install once the namespace and token are set up (#265). The job needs a second approval of the `marketplace` deployment in the same run.
-- The Marketplace listing README now has a Security & Trust section right after the product tour: credentials stay in the OS keychain, nothing is collected or sent to the authors, an untrusted folder stays read only, and the security policy is one link away.
-- A privacy policy at the repository root (PRIVACY.md) now says what the extension stores locally, what never leaves your machine, the proxy-mode exception, which third parties are reached, the GDPR/CCPA stance, and where to send privacy questions; the documentation table, the Marketplace listing and the User Guide all link to it.
-- The Marketplace README now opens the product tour with a Query Builder hero screenshot of the Contacts layout: field pickers, a populated find request and the found rows.
-- The Marketplace README now shows a GIF of the connection flow: add a connection profile, connect, and open the Query Builder.
-- The unit tests no longer pass an IP address as a TLS server name, which Node 22 warns about and Node 26 rejects.
-- The real VS Code proxy-patch TLS test now skips, with the reason logged, when a plain TCP connection to this machine's own LAN address cannot be opened. Once TCP connects, every certificate, pin and sign-in failure still fails the test.
-
-### [SECURITY]
-
-- Open Generated Types Folder refuses output paths that pass through a symlink outside the workspace.
-- Schema snapshots and the offline metadata cache refuse to read, write or delete through a symlink under `.vscode/filemaker`, so a cloned repository cannot point them at files outside the workspace.
-- Saved connection secrets are decrypted with a fixed 16-byte tag check, so a shortened or tampered tag is refused instead of being misread. Secrets saved earlier keep working. No known exploit.
-- The extension's panels now ignore messages that do not come from VS Code itself, so a stray or badly formed message is dropped before it can act. No known exploit.
-- Files written for generated pages, type generation and AI context now stay inside their folder: a path that tries to escape is refused instead of written. No known exploit.
-- The dependency trees used to build and release the extension no longer carry a known high-severity advisory: `@azure/msal-node` is updated past CVE-2026-109461 in the workspace lockfile and in the separate lockfile the Marketplace and Open VS X publish jobs install from, and `body-parser` is updated past GHSA-27r3-jxmh-p828. All of them are used by the build and publish tooling rather than by the shipped extension, and none of them is in the published VSIX. No known exploit.
-
-## 1.8.0 (2026-10-25)
-
-### [BREAKING]
-
-- None.
-
-### [FEATURE]
-
-- The Connection wizard's certificate section has a Browse button that opens the system file picker for a custom CA bundle (PEM, CRT or CER), instead of typing the path by hand.
-
-### [FIX]
-
 - The Record Editor shows fields in the same order as your layout, with the right kind of box for each field. The Viewer, find form and FM Web use the same field rules, and Copy no longer covers record values. A container shows its image and, when that image cannot be shown, its address. A repeated field now appears in FM Web. A required repeated field no longer stops a save, and a repeated column in a portal shows its value.
 - Website tables scroll on small screens, documentation links stay on the website, and repeated documentation links are removed.
 - Generated FM Web apps can run their own tests and refresh untouched older shared files. Missing field details, stopped previews and save errors have clearer messages; date hints appear while editing and saved messages clear when browsing.
@@ -90,6 +79,14 @@ PR title prefix matches the highest-tier label added:
 
 ### [INTERNAL]
 
+- Platform-check failures now fail the required merge check, and strict UI release tests fail when their prerequisites are unavailable.
+- Tag builds now also publish the VSIX to Open VS X (open-vsx.org), in its own `publish-ovsx` job that runs after the Marketplace publish and fails closed when the `OVSX_PAT` secret is missing, so no GitHub release is cut unless both stores accepted the build. Cursor and Windsurf users get a one-click install once the namespace and token are set up (#265). The job needs a second approval of the `marketplace` deployment in the same run.
+- The Marketplace listing README now has a Security & Trust section right after the product tour: credentials stay in the OS keychain, nothing is collected or sent to the authors, an untrusted folder stays read only, and the security policy is one link away.
+- A privacy policy at the repository root (PRIVACY.md) now says what the extension stores locally, what never leaves your machine, the proxy-mode exception, which third parties are reached, the GDPR/CCPA stance, and where to send privacy questions; the documentation table, the Marketplace listing and the User Guide all link to it.
+- The Marketplace README now opens the product tour with a Query Builder hero screenshot of the Contacts layout: field pickers, a populated find request and the found rows.
+- The Marketplace README now shows a GIF of the connection flow: add a connection profile, connect, and open the Query Builder.
+- The unit tests no longer pass an IP address as a TLS server name, which Node 22 warns about and Node 26 rejects.
+- The real VS Code proxy-patch TLS test now skips, with the reason logged, when a plain TCP connection to this machine's own LAN address cannot be opened. Once TCP connects, every certificate, pin and sign-in failure still fails the test.
 - The user guide, upgrade notes and a changelog by version are now on the project's website.
 - The monthly secret rotation reminder now reads the rotation calendar in docs/SECRETS.md and files a reminder issue about 30 days before a tracked credential is due; a manual dry run prints what it would file. A row that cannot be read, or a name that appears twice in the calendar, is reported and fails the run instead of silently hiding a rotation.
 - The shared package, the Layout Mode app and the FM Web preview template now take part in the repository's lint and coverage gates, so a change in any of them is checked like the extension's own code. The repository's own lint tooling stays in the repository: a generated FM Web app runs its own tests and does not lint itself. An app you generated earlier is recognised as a version this repository shipped, so the new test settings reach it instead of a warning about a file you did not touch. The README and docs/CI.md say how the workspaces are checked.
@@ -98,6 +95,12 @@ PR title prefix matches the highest-tier label added:
 
 ### [SECURITY]
 
+- Open Generated Types Folder refuses output paths that pass through a symlink outside the workspace.
+- Schema snapshots and the offline metadata cache refuse to read, write or delete through a symlink under `.vscode/filemaker`, so a cloned repository cannot point them at files outside the workspace.
+- Saved connection secrets are decrypted with a fixed 16-byte tag check, so a shortened or tampered tag is refused instead of being misread. Secrets saved earlier keep working. No known exploit.
+- The extension's panels now ignore messages that do not come from VS Code itself, so a stray or badly formed message is dropped before it can act. No known exploit.
+- Files written for generated pages, type generation and AI context now stay inside their folder: a path that tries to escape is refused instead of written. No known exploit.
+- The dependency trees used to build and release the extension no longer carry a known high-severity advisory: `@azure/msal-node` is updated past CVE-2026-109461 in the workspace lockfile and in the separate lockfile the Marketplace and Open VS X publish jobs install from, and `body-parser` is updated past GHSA-27r3-jxmh-p828. All of them are used by the build and publish tooling rather than by the shipped extension, and none of them is in the published VSIX. No known exploit.
 - Security: the web page generator now uses Next.js 16.4.2, which fixes three published problems in Next.js (an image-handling flaw and a flaw in the `use cache` feature that could each run code, and a denial-of-service flaw). The extension itself did not use the affected parts, but apps you generated earlier keep their old version: run `npm install next@16.4.2` in `.fmweb/generated/runtime-next` to update them.
 - Security: `zod` is updated to 4.6.7, which fixes a published security advisory in zod 4.6.5 (the version 1.7.0 shipped): validating a very large array without a length limit could use all available memory. No behavior change.
 

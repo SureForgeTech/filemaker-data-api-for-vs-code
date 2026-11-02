@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 1.8.0
+
+_Release notes prepared 2026-11-02._
+
+Version 1.8.0 adds restored Query Builder sessions, cancellable searches and keyboard shortcuts. It improves certificate setup, sign-in recovery, workspace-trust handling and field presentation, and hardens generated files and saved credentials. Read [UPGRADE.md](https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/blob/main/extension/UPGRADE.md), “Upgrading from 1.7.0 to 1.8.0”.
+
 - [FIX] Record Editor Save no longer stays at “Saving…” when VS Code restarts the extension after workspace trust is withdrawn; the panel explains how to reopen and warns the user to check the record before retrying.
 - [INTERNAL] The unit tests no longer pass an IP address as a TLS server name, which Node 22 warns about and Node 26 rejects.
 - [INTERNAL] The real VS Code proxy-patch TLS test now skips, with the reason logged, when a plain TCP connection to this machine's own LAN address cannot be opened. Once TCP connects, every certificate, pin and sign-in failure still fails the test.
@@ -31,12 +37,6 @@
 - The Query Builder shows a Cancel button while a query is running; pressing it aborts the request in flight and the panel reports the query as cancelled.
 - Error toasts can reconnect to the server in one click after a sign-in failure and open the matching troubleshooting page from the toast; more errors now carry that link, including no free sessions, too many sign-in attempts, HTTP 403/404, certificate problems and connection failures.
 - Five commands gain default keyboard shortcuts: Open Query Builder `Ctrl+Alt+Q`, Open Record Viewer `Ctrl+Alt+V`, Open Script Runner `Ctrl+Alt+E`, Show Request History `Ctrl+Alt+H` and Open FM Web Layout Mode `Ctrl+Alt+L` (each `Cmd+Alt` on macOS except Show Request History, which stays `Ctrl+Alt+H` to avoid the system's Hide Others shortcut); rebind or clear them in Keyboard Shortcuts as before.
-
-## 1.8.0
-
-_Released 2026-10-25._
-
-This release adds a **Browse** button for a custom CA certificate in the connection wizard, sign-in errors that explain both possible causes and link to the fix, and fields shown in your layout's order with one consistent look across every screen. Read [UPGRADE.md](https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/blob/main/extension/UPGRADE.md), “Upgrading from 1.7.0 to 1.8.0”.
 
 - The Marketplace listing description and the README lead now open with one sentence: connect to any FileMaker Data API server, run queries, browse schema, edit records and export results without leaving VS Code.
 - Security: the web page generator now uses Next.js 16.4.2, which fixes three published problems in Next.js (an image-handling flaw and a flaw in the `use cache` feature that could each run code, and a denial-of-service flaw). The extension itself did not use the affected parts, but apps you generated earlier keep their old version: run `npm install next@16.4.2` in `.fmweb/generated/runtime-next` to update them.
