@@ -24,8 +24,14 @@ concurrency:
 jobs:
   build-test:
     needs: cross-platform
+    if: always()
     runs-on: ${{ fromJSON(vars.LINUX_RUNNER_LABELS) }}
     steps:
+      - name: Require successful platform checks
+        env:
+          PLATFORM_RESULT: ${{ needs.cross-platform.result }}
+        run: test "$PLATFORM_RESULT" = success
+
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

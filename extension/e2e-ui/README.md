@@ -2,9 +2,9 @@
 
 These tests drive the **real VS Code desktop app** (downloaded by `@vscode/test-electron`) with the **built VSIX** installed,
 against the **mock FileMaker Data API** (`../test/mock-server`), the way a user would: command palette, webview wizards and
-panels, modal dialogs, status bar, Explorer, settings. They are not part of `npm test` or CI (they need a display and a
+panels, modal dialogs, status bar, Explorer, settings. They are not part of `npm test` or pull-request CI (they need a display and a
 download of about 300 MB). CI runs the strict full suite weekly and before tagged releases; pull requests use the faster
-unit/integration gates. Without a prerequisite the local runner prints why and exits 0.
+unit/integration gates. Without a prerequisite the local runner prints why and exits 0; strict mode exits 1 instead.
 
 ## Run
 

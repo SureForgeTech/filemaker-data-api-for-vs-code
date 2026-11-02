@@ -322,7 +322,7 @@ export async function run(ctx) {
       await waitForTrust(s, false);
       const patches0 = (await mock.log()).filter((l) => l.method === 'PATCH').length;
       // The trust editor is an overlay in current VS Code; close it before revealing the panel.
-      await s.page.keyboard.press('Meta+W');
+      await s.page.keyboard.press(process.platform === 'darwin' ? 'Meta+W' : 'Control+W');
       await s.page.waitForTimeout(400);
       await s.page
         .locator('.tabs-container .tab', { hasText: 'FileMaker Record Editor' })

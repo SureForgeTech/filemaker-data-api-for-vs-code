@@ -18,6 +18,8 @@ PR title prefix matches the highest-tier label added:
 
 ## Unreleased
 
+- [INTERNAL] Platform-check failures now fail the required merge check, and strict UI release tests fail when their prerequisites are unavailable.
+
 ### [BREAKING]
 
 - None.

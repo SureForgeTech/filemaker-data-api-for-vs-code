@@ -11,7 +11,7 @@
 //   E2E_STRICT=1          every failing step fails the run, ignoring known-findings.json
 // Exit code: 0 when every FAIL is listed in e2e-ui/known-findings.json (a known finding); 1 when a step
 // fails that is not listed (a regression or a new finding), when a journey crashes, or with E2E_STRICT=1.
-// Skips cleanly (exit 0 and a message) when prerequisites are missing.
+// Missing prerequisites skip locally, but fail when E2E_STRICT=1.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -24,10 +24,11 @@ import { getVSCode, loadDeps, Session } from './lib/session.mjs';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const extDir = path.resolve(here, '..');
 const repoRoot = path.resolve(extDir, '..');
+const strict = process.env.E2E_STRICT === '1';
 
 function skip(reason) {
-  console.log(`E2E UI tests skipped: ${reason}`);
-  process.exit(0);
+  console.log(`E2E UI tests ${strict ? 'cannot run in strict mode' : 'skipped'}: ${reason}`);
+  process.exit(strict ? 1 : 0);
 }
 
 const deps = loadDeps();
@@ -70,6 +71,7 @@ const journeyFiles = fs
   .filter((f) => /^j\d+.*\.mjs$/.test(f))
   .sort();
 const selected = journeyFiles.filter((f) => !only.length || only.some((o) => f.startsWith(o)));
+if (!selected.length) skip('no journeys matched E2E_ONLY');
 
 let vscode;
 try {
@@ -190,7 +192,6 @@ if (process.env.E2E_UPDATE_KNOWN === '1') {
 const known = new Set(
   fs.existsSync(knownFile) ? JSON.parse(fs.readFileSync(knownFile, 'utf8')).findings : []
 );
-const strict = process.env.E2E_STRICT === '1';
 const newFailures = failedRows.filter((r) => strict || !known.has(knownKey(r)));
 const unasserted = report.rows.filter((r) => r.unasserted);
 const fixed = [...known].filter(
