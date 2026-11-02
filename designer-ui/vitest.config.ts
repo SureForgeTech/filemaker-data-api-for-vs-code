@@ -16,14 +16,14 @@ export default defineConfig({
       reportsDirectory: './coverage',
       include: ['src/**/*.{ts,tsx}'],
       exclude: ['src/**/*.d.ts', 'src/**/*.test.ts', 'src/**/*.test.tsx'],
-      // Floor at the current level (2026-10-24): statements 67.88%, branches 59.06%,
-      // functions 70.56%, lines 66.99%. Every source file stays included.
+      // Floor at the measured level (2026-11-01): statements 67.94%, branches 59.19%,
+      // functions 70.56%, lines 67.02%. Every source file stays included.
       // Raise the floors as coverage grows; never lower them to make a PR pass.
       thresholds: {
-        lines: 66,
-        statements: 67,
-        functions: 70,
-        branches: 59
+        lines: 67,
+        statements: 67.9,
+        functions: 70.5,
+        branches: 59.1
       }
     }
   }

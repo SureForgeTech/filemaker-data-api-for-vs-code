@@ -1,9 +1,4 @@
 {
   "note": "Steps that fail today because of a known product finding (see the PR report). A step listed here may fail without failing the run; a step NOT listed fails the run. Regenerate with E2E_UPDATE_KNOWN=1 npm run test:e2e-ui after triaging every new failure.",
-  "findings": [
-    "J09 offline/enterprise/trust | untrusted workspace: write/batch/typegen commands",
-    "J11 layout mode | Generate FM Web Next.js App from the Marketplace build",
-    "J11 layout mode | Start FM Web Preview Server from the Marketplace build",
-    "J13a login+wire | 1.17 slow server (response later than requestTimeoutMs=2.5 s)"
-  ]
+  "findings": []
 }

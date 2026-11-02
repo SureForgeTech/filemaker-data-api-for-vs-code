@@ -12,6 +12,7 @@ export function getHtmlForWebview(webview: vscode.Webview, extensionUri: vscode.
   const styleUri = uiUri('styles.css');
   const findFormUri = uiUri('findForm.js');
   const cellTextUri = uiUri('cellText.js');
+  const resultModelUri = uiUri('resultModel.js');
   const scriptUri = uiUri('index.js');
 
   const nonce = createNonce();
@@ -154,6 +155,7 @@ export function getHtmlForWebview(webview: vscode.Webview, extensionUri: vscode.
   ${versionFooterHtml()}
   <script nonce="${nonce}" src="${findFormUri}"></script>
   <script nonce="${nonce}" src="${cellTextUri}"></script>
+  <script nonce="${nonce}" src="${resultModelUri}"></script>
   <script nonce="${nonce}" src="${standardsScriptUri}"></script>
   <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>

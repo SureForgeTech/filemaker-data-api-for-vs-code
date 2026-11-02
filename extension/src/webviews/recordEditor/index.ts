@@ -171,6 +171,13 @@ export class RecordEditorPanel {
       return;
     }
 
+    // Tell the page immediately that a live extension host received Save. A trust change can
+    // restart that host while leaving the old page visible; without this acknowledgement the page
+    // cannot distinguish a slow confirmation from a panel whose message handler is gone.
+    if (incoming.type === 'saveRecord') {
+      await this.panel.webview.postMessage({ type: 'saveReceived' });
+    }
+
     // Defence in depth: the commands refuse in an untrusted workspace, and so does every
     // message that reads or changes data, in case a panel outlives a change of trust.
     if (!vscode.workspace.isTrusted && incoming.type !== 'ready') {

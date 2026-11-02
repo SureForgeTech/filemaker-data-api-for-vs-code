@@ -44,7 +44,7 @@ export async function run(ctx) {
   await s.step(
     J,
     'after Initialize, the other FM Web commands are offered',
-    'Sync, Open Layout Mode, Generate and Start Preview appear in the palette without reloading the window',
+    'Sync and Open Layout Mode appear without reloading; Generate and Start Preview stay hidden in the Marketplace build',
     async () => {
       const ms = await s.waitCmdListed('FileMaker: Open FM Web Layout Mode', 10000);
       if (ms < 0) {
@@ -54,7 +54,15 @@ export async function run(ctx) {
           `not offered within 10 s of initialising the project; ${after >= 0 ? 'they appear only after a window reload' : 'not offered even after a reload'} (context key filemaker.fmWebProjectInitialized is refreshed only by Refresh Connections)`
         );
       }
-      return `listed after ${ms} ms`;
+      const sync = await s.cmdListed('FileMaker: Sync FM Web Project Metadata');
+      const generate = await s.cmdListed('FileMaker: Generate FM Web Next.js App');
+      const preview = await s.cmdListed('FileMaker: Start FM Web Preview Server');
+      assert(sync, 'Sync FM Web Project Metadata is not offered after Initialize');
+      assert(
+        !generate && !preview,
+        `Marketplace preview commands should stay hidden (Generate=${generate}, Start Preview=${preview})`
+      );
+      return `Layout Mode listed after ${ms} ms; Sync listed; Generate and Start Preview hidden`;
     }
   );
   await s.step(
@@ -102,46 +110,32 @@ export async function run(ctx) {
   await s.step(
     J,
     'Generate FM Web Next.js App from the Marketplace build',
-    'a plain message says what is missing; nothing half-written',
+    'the command is hidden because the preview runtime is not shipped; nothing is generated',
     async () => {
       await s.closeAllEditors();
-      await s.dismissToasts();
-      await s.cmd('FileMaker: Generate FM Web Next.js App');
-      await s.page.waitForTimeout(5000);
+      const listed = await s.cmdListed('FileMaker: Generate FM Web Next.js App');
       const files = walk(path.join(s.ws, '.fmweb', 'generated')).map((f) => path.relative(s.ws, f));
-      const toasts = (await s.toasts()).join(' || ');
-      assert(
-        /not available in this installation/i.test(toasts) || files.length > 0,
-        `neither generated nor explained: ${toasts}`
-      );
-      return `${files.length} generated files; toast: ${toasts.slice(0, 260)}`;
+      assert(!listed, 'Generate FM Web Next.js App is offered without the preview runtime');
+      assert(files.length === 0, `unexpected generated files: ${files.join(', ')}`);
+      return 'command hidden; 0 generated files';
     }
   );
   await s.step(
     J,
     'Start FM Web Preview Server from the Marketplace build',
-    'if the runtime ships it asks for the npm confirmation (decline); if not, it says so and runs nothing',
+    'the command is hidden because the preview runtime is not shipped; no install or server starts',
     async () => {
-      await s.dismissToasts();
-      await s.cmd('FileMaker: Start FM Web Preview Server');
-      await s.page.waitForTimeout(4000);
-      if (await s.modalVisible()) {
-        const t = await s.modalText();
-        assert(/npm install/.test(t) && /npm run dev/.test(t), t);
-        await s.modal('Cancel');
-        return `modal (declined): ${t.slice(0, 220)}`;
-      }
-      const toasts = (await s.toasts()).join(' || ');
+      const listed = await s.cmdListed('FileMaker: Start FM Web Preview Server');
       const terminals = await s.page.locator('.terminal-tab, .terminal-tabs-entry').count();
       const nm = fs.existsSync(
         path.join(s.ws, '.fmweb', 'generated', 'runtime-next', 'node_modules')
       );
+      assert(!listed, 'Start FM Web Preview Server is offered without the preview runtime');
       assert(
         !nm && terminals === 0,
-        `a terminal or node_modules appeared without a confirmation (terminals ${terminals}, node_modules ${nm})`
+        `a terminal or node_modules appeared (terminals ${terminals}, node_modules ${nm})`
       );
-      assert(/not available|runtime/i.test(toasts), `no explanation: ${toasts}`);
-      return `no modal; toast: ${toasts.slice(0, 260)}; terminals ${terminals}; node_modules ${nm}`;
+      return `command hidden; terminals ${terminals}; node_modules ${nm}`;
     }
   );
   s.notTestable(
@@ -152,7 +146,7 @@ export async function run(ctx) {
   s.notTestable(
     J,
     'preview server actually started',
-    'the confirmation was declined on purpose (npm install/dev would run package.json scripts from the workspace)'
+    'the Marketplace VSIX intentionally does not include the preview runtime; this journey verifies that its commands stay hidden'
   );
   await s.closeAllEditors();
 }

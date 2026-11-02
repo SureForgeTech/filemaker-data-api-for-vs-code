@@ -57,14 +57,15 @@ export async function run(ctx) {
   );
   await s.step(
     J,
-    'find all records (default [{}])',
+    'list records without empty find criteria',
     'first page of 100 rows, found count 220, Next enabled',
     async () => {
       await wv
         .locator('#layoutSelect')
         .selectOption('Customers')
         .catch(() => {});
-      await runJson(wv, '[{}]');
+      // Empty find criteria are rejected intentionally; use an explicit match-all criterion.
+      await runJson(wv, '[{"CustomerID":"*"}]');
       const sum = await summary(wv);
       assert(/220/.test(sum), `summary: ${sum}`);
       const rows = await wv.locator('.results-table tbody tr:not(.spacer)').count();
@@ -259,6 +260,8 @@ export async function run(ctx) {
       fs.rmSync(out, { force: true });
       await wv.locator('#exportMenu summary').click();
       await wv.locator('#exportCsvButton').click();
+      // CSV asks for an encoding format before it opens the save-path input.
+      await s.pick('Standard CSV');
       await answerFileDialog(s, out);
       await s.waitToast(/xported|aved/i, { timeout: 15000 }).catch(() => {});
       assert(fs.existsSync(out), 'CSV file was not written');

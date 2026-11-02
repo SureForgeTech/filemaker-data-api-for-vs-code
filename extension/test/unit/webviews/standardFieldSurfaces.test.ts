@@ -144,7 +144,7 @@ describe.skipIf(!JSDOM)('standard field presentation in browser webviews', () =>
   });
 
   it('Query Builder layout controls use layout order for field choices and result columns', () => {
-    const page = loadPage(html('queryBuilder'), read('extension/src/webviews/queryBuilder/ui/findForm.js') + '\n' + read('extension/src/webviews/queryBuilder/ui/index.js'));
+    const page = loadPage(html('queryBuilder'), read('extension/src/webviews/queryBuilder/ui/findForm.js') + '\n' + read('extension/src/webviews/queryBuilder/ui/resultModel.js') + '\n' + read('extension/src/webviews/queryBuilder/ui/index.js'));
     page.send({ type: 'init', payload: { profiles, activeProfileId: 'p', savedQueries: [] } });
     page.send({ type: 'layoutsLoaded', payload: { profileId: 'p', layouts: ['Layout'] } });
     const metadata = [{ name: 'Z', type: 'text', displayType: 'dropdown', options: ['Active'] }, { name: 'A', type: 'text', multiline: true }];
@@ -162,7 +162,7 @@ describe.skipIf(!JSDOM)('standard field presentation in browser webviews', () =>
   });
 
   it('Find criteria stay plain text for choice fields, and calculated fields stay searchable', () => {
-    const page = loadPage(html('queryBuilder'), read('extension/src/webviews/queryBuilder/ui/findForm.js') + '\n' + read('extension/src/webviews/queryBuilder/ui/index.js'));
+    const page = loadPage(html('queryBuilder'), read('extension/src/webviews/queryBuilder/ui/findForm.js') + '\n' + read('extension/src/webviews/queryBuilder/ui/resultModel.js') + '\n' + read('extension/src/webviews/queryBuilder/ui/index.js'));
     page.send({ type: 'init', payload: { profiles, activeProfileId: 'p', savedQueries: [] } });
     page.send({ type: 'layoutsLoaded', payload: { profileId: 'p', layouts: ['Layout'] } });
     page.send({ type: 'fieldNamesLoaded', payload: { profileId: 'p', layout: 'Layout', fieldNames: ['Choice', 'Calc'], fieldMetadata: [
@@ -310,7 +310,7 @@ describe.skipIf(!JSDOM)('standard field presentation in browser webviews', () =>
 
   it('Query Builder resizes values when the exact selected field changes, without changing find syntax', () => {
     const pageHtml = html('queryBuilder');
-    const page = loadPage(pageHtml, read('extension/src/webviews/queryBuilder/ui/findForm.js') + '\n' + read('extension/src/webviews/queryBuilder/ui/index.js'));
+    const page = loadPage(pageHtml, read('extension/src/webviews/queryBuilder/ui/findForm.js') + '\n' + read('extension/src/webviews/queryBuilder/ui/resultModel.js') + '\n' + read('extension/src/webviews/queryBuilder/ui/index.js'));
     page.send({ type: 'init', payload: { profiles, activeProfileId: 'p', savedQueries: [] } });
     page.send({ type: 'layoutsLoaded', payload: { profileId: 'p', layouts: [' Layout '] } });
     page.send({ type: 'fieldNamesLoaded', payload: { profileId: 'p', layout: ' Layout ', fieldNames: fields.map((field) => field.name), fieldMetadata: fields } });
@@ -363,7 +363,7 @@ describe.skipIf(!JSDOM)('standard field presentation in browser webviews', () =>
 
   it('Query Builder keeps FileMaker find operators and wildcards exactly as typed', () => {
     for (const [field, value] of [['Text', '=exact'], ['Drop', '>5'], ['Checks', '*empty'], ['Text', '*"a b"'], ['Text', 'a...b']] as const) {
-      const page = loadPage(html('queryBuilder'), read('extension/src/webviews/queryBuilder/ui/findForm.js') + '\n' + read('extension/src/webviews/queryBuilder/ui/index.js'));
+      const page = loadPage(html('queryBuilder'), read('extension/src/webviews/queryBuilder/ui/findForm.js') + '\n' + read('extension/src/webviews/queryBuilder/ui/resultModel.js') + '\n' + read('extension/src/webviews/queryBuilder/ui/index.js'));
       page.send({ type: 'init', payload: { profiles, activeProfileId: 'p', savedQueries: [] } });
       page.send({ type: 'layoutsLoaded', payload: { profileId: 'p', layouts: ['Layout'] } });
       page.send({ type: 'fieldNamesLoaded', payload: { profileId: 'p', layout: 'Layout', fieldNames: ['Text', 'Drop', 'Checks'], fieldMetadata: [

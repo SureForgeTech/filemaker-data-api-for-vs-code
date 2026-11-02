@@ -58,6 +58,12 @@ const recordEditorContent = recordEditorPanel
 const recordEditorSkeleton = createLoadingSkeleton(['short', 'long', 'medium', 'long']);
 const debouncedMarkDirtyState = debounce(markDirtyState, 200);
 let recordEditorReady = false;
+let saveAcknowledgementTimer;
+
+function clearSaveAcknowledgement() {
+  clearTimeout(saveAcknowledgementTimer);
+  saveAcknowledgementTimer = undefined;
+}
 
 if (recordEditorPanel) {
   if (recordEditorHeading) {
@@ -76,7 +82,11 @@ window.addEventListener('message', (event) => {
     return;
   }
 
-  if (['recordLoaded', 'recordSaved', 'recordCreated', 'saveCancelled', 'saveConflict', 'error'].includes(message.type)) setBusy(false);
+  if (['recordLoaded', 'recordSaved', 'recordCreated', 'saveCancelled', 'saveConflict', 'error'].includes(message.type)) {
+    clearSaveAcknowledgement();
+    setBusy(false);
+  }
+  if (message.type === 'saveReceived') clearSaveAcknowledgement();
   switch (message.type) {
     case 'init':
       applyInit(message.payload);
@@ -165,6 +175,12 @@ saveButton.addEventListener('click', () => {
   }
 
   debouncedMarkDirtyState.cancel();
+  clearSaveAcknowledgement();
+  saveAcknowledgementTimer = setTimeout(() => {
+    saveAcknowledgementTimer = undefined;
+    setBusy(false);
+    setStatus('The extension did not answer Save. VS Code may have restarted it because this workspace is now untrusted or the window reloaded. Close this panel and open the Record Editor again; check the record before repeating Save.', true);
+  }, 2000);
   setBusy(true);
   vscode.postMessage({ type: 'saveRecord', payload });
   setStatus('Saving...');

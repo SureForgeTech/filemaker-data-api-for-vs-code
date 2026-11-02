@@ -18,6 +18,8 @@ PR title prefix matches the highest-tier label added:
 
 ## Unreleased
 
+- [INTERNAL] Platform-check failures now fail the required merge check, and strict UI release tests fail when their prerequisites are unavailable.
+
 ### [BREAKING]
 
 - None.
@@ -31,6 +33,7 @@ PR title prefix matches the highest-tier label added:
 
 ### [FIX]
 
+- Record Editor Save no longer stays at “Saving…” when VS Code restarts the extension after workspace trust is withdrawn; the panel explains how to reopen and warns the user to check the record before retrying.
 - The Query Builder keeps the previous results available to export when a later search is canceled.
 - FM Web displays, validates and saves a repeated field under its lowest available repetition key when `Name(1)` is absent.
 - The Query Builder can cancel a search while it is still loading its connection profile, and closing the panel stops that search.

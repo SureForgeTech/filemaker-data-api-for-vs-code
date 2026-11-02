@@ -104,7 +104,9 @@ export const MANAGED_TEMPLATE_FILES: Record<string, string[]> = {
     // The rewritten copy an app generated before the test config gained its coverage block has.
     '64750770206792d2d1373c5de4c2984417c296f345425ba4ab065f4229081f02',
     // The rewritten copy this release makes.
-    'bc61824030aa0581801925376a7bfaaf4ead07a33876a7c88eb18764750cd53d'
+    'bc61824030aa0581801925376a7bfaaf4ead07a33876a7c88eb18764750cd53d',
+    // The rewritten copy this release makes after updating runtime coverage floors.
+    '7465a2f493e46401bdd3e4828ffbf71530cd0c32be8befde1c29ea5a80f47070'
   ],
   'app/styles.css': ['ed5fdbfd2e42b6e952332bc74a1ddbeefe9d831493d72b567e8832bf98c4c6f8'],
   'app/layouts/[id]/page.tsx': [
@@ -145,7 +147,7 @@ export const SHIPPED_SHARED_HASHES: Record<string, string[]> = {
   'src/field-standards.ts': ['dbd9dcbac9791a895962a977c37a3f3602729f0903c8ccbda05f40fc873421cf', '94b0eadb1666dce9e7f98ae43effde612dbab49cbdccfa80cf819de80dbb7547', '3ff4a3d7ae593c0edc13ccd41007f7a56d9bba620bbebaf26f960068c487ad82', 'afd81a07b641a620894238a0383c1fca55f265b5e0484ebd6d1ab644aa343a5e', 'e5ac70259470aea19e72065ed9150f8802e998a5f01e75231941c6b75aed7bfd'],
   'src/record-edit.ts': ['6f3b044bb3fbbbc00f80ce85761d2c8f02daa874ad62e310c7ba6e5c7b12132c', '8ec99479832ae7f19bd3d34027a014e02db6ebeb2b05d20f29685ab6a04639d3', 'b44afc69a6766e1bbc06ed12f46ad8402075454505eb04a0fb077b71d3e87e51', '7d1308d3c1e015448c4f420ca9549cad84d3b8247b65f16d7f78f7b8376f9c44', 'a19ca01072fa6c0309fcf077c7801f024b307cd4ee918c7cc796a005d44171fb'],
   'src/index.ts': ['a78e69d0c2565173c08ca580ebd1f640e9c6fcecee7cecf58a36ce2a82ad96c2', '06c864f496f814f388ecf810d7ccff61b81ebcb434b45b46ed19a0ccf0fdb201'],
-  'package.json': ['304d3c7084ac8c0d59f83461fbdf4cb97feb64f9a19062ed8345e520b637247c']
+  'package.json': ['304d3c7084ac8c0d59f83461fbdf4cb97feb64f9a19062ed8345e520b637247c', 'bb0fcb4d253b13d7116c659da2be09774b674c10a8b82823d08e5acf88c64c82']
 };
 
 export function normalizedHash(content: Buffer): string {

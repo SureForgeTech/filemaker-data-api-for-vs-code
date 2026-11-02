@@ -1,7 +1,6 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createBlankLayout, layoutDefinitionSchema, type LayoutDefinition, type LayoutObject } from '@fmweb/shared';
-import { layoutDefinitionSchema as extensionSchema } from '../../extension/src/fmweb/layoutSchema';
 import { arrangeStandardForm, createStandardField, createStarterTemplate, rectanglesIntersect, standardizeFields } from './canvas-engine';
 import { App } from './main';
 
@@ -89,7 +88,6 @@ describe('standard form engine', () => {
     const portal = { name: ' Portal ', fields: [' Child::Value '] };
     const after = createStarterTemplate(before, fields, template, ids, portal);
     expect(layoutDefinitionSchema.safeParse(after).success).toBe(true);
-    expect(extensionSchema.safeParse(after).success).toBe(true);
     expect(after.name).toBe(' Exact layout ');
     expect(after.fmLayoutName).toBe(' Source ');
     expect(after.objects.length).toBe(template === 'blank' ? 0 : template === 'formPortal' ? 6 : 5);

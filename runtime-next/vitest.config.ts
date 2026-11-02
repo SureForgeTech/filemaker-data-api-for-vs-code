@@ -13,15 +13,15 @@ export default defineConfig({
       reportsDirectory: './coverage',
       include: ['app/**/*.{ts,tsx}', 'lib/**/*.{ts,tsx}'],
       exclude: ['lib/**/*.test.ts', 'next-env.d.ts'],
-      // Floor at the current level (2026-10-24): statements 69.75%, branches 63.8%,
-      // functions 78.37%, lines 69.51%. Every source file stays included, including
+      // Floor at the measured level (2026-11-01): statements 72.77%, branches 64.34%,
+      // functions 81.98%, lines 72.76%. Every source file stays included, including
       // the Next.js shell under app/ that the unit tests do not execute.
       // Raise the floors as coverage grows; never lower them to make a PR pass.
       thresholds: {
-        lines: 69,
-        statements: 69,
-        functions: 78,
-        branches: 63
+        lines: 72.7,
+        statements: 72.7,
+        functions: 81.9,
+        branches: 64.3
       }
     }
   }

@@ -30,7 +30,7 @@ function open(kind: 'queryBuilder' | 'scriptRunner' | 'recordEditor' | 'recordVi
   if (kind === 'recordViewer') RecordViewerPanel.createOrShow(context, store, client as never, logger);
   if (kind === 'connectionWizard') ConnectionWizardPanel.createOrShow(context, store, {} as never, client as never, logger);
   let source = readFileSync(path.resolve(__dirname, `../../../src/webviews/${kind}/ui/index.js`), 'utf8');
-  if (kind === 'queryBuilder') source = readFileSync(path.resolve(__dirname, '../../../src/webviews/queryBuilder/ui/cellText.js'), 'utf8') + '\n' + readFileSync(path.resolve(__dirname, '../../../src/webviews/queryBuilder/ui/findForm.js'), 'utf8') + '\n' + source;
+  if (kind === 'queryBuilder') source = readFileSync(path.resolve(__dirname, '../../../src/webviews/queryBuilder/ui/cellText.js'), 'utf8') + '\n' + readFileSync(path.resolve(__dirname, '../../../src/webviews/queryBuilder/ui/findForm.js'), 'utf8') + '\n' + readFileSync(path.resolve(__dirname, '../../../src/webviews/queryBuilder/ui/resultModel.js'), 'utf8') + '\n' + source;
   return { html: panel.webview.html, source, receive, panel };
 }
 const init = { profiles: [profile], activeProfileId: 'p1' };

@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { parse } from 'yaml';
 
 const read = (file) => readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
@@ -46,6 +50,64 @@ test('both CI test jobs run workspace tests after shared is built', () => {
     assert.ok(build >= 0);
     assert.ok(steps.findIndex((step) => step.run === 'npm test -w designer-ui -w runtime-next') > build);
   }
+});
+
+test('the required build-test context gates Windows and Ubuntu checks', () => {
+  assert.equal(ci.jobs['build-test'].needs, 'cross-platform');
+  assert.equal(ci.jobs['build-test'].if, 'always()');
+  assert.deepEqual(ci.jobs['cross-platform'].strategy.matrix.os, ['windows-latest', 'ubuntu-latest']);
+  const guard = ci.jobs['build-test'].steps[0];
+  assert.equal(guard.env.PLATFORM_RESULT, '${{ needs.cross-platform.result }}');
+  for (const result of ['success', 'failure', 'cancelled', 'skipped']) {
+    const child = spawnSync('bash', ['-c', guard.run], {
+      env: { PATH: process.env.PATH ?? '', PLATFORM_RESULT: result }
+    });
+    assert.equal(child.status, result === 'success' ? 0 : 1, result);
+  }
+});
+
+test('strict E2E fails instead of skipping when its VSIX prerequisite is absent', (t) => {
+  const temp = mkdtempSync(join(tmpdir(), 'fm-e2e-prerequisite-'));
+  t.after(() => rmSync(temp, { recursive: true, force: true }));
+  for (const strict of ['0', '1']) {
+    const child = spawnSync(
+      process.execPath,
+      [fileURLToPath(new URL('../../extension/e2e-ui/run.mjs', import.meta.url))],
+      {
+        encoding: 'utf8',
+        timeout: 10000,
+        env: {
+          PATH: process.env.PATH ?? '',
+          DISPLAY: ':99',
+          E2E_VSIX: join(temp, 'missing.vsix'),
+          E2E_STRICT: strict
+        }
+      }
+    );
+    assert.equal(child.error, undefined);
+    assert.match(child.stdout, /no VSIX/);
+    assert.equal(child.status, strict === '1' ? 1 : 0, child.stderr);
+  }
+});
+
+test('strict real VS Code E2E runs weekly and is required before release packaging', () => {
+  assert.deepEqual(ci.on.schedule, [{ cron: '0 8 * * 1' }]);
+  const job = ci.jobs['e2e-ui'];
+  assert.equal(job.if, "github.event_name == 'schedule' || startsWith(github.ref, 'refs/tags/v')");
+  assert.equal(job['runs-on'], 'ubuntu-latest');
+  assert.equal(job['timeout-minutes'], 120);
+  assert.deepEqual(job.permissions, { contents: 'read' });
+  const checkout = job.steps.find((step) => step.uses?.startsWith('actions/checkout@'));
+  assert.equal(checkout.with['persist-credentials'], false);
+  const run = job.steps.find((step) => step.name === 'Run strict real VS Code UI journeys');
+  assert.ok(run);
+  assert.equal(run.env.E2E_STRICT, '1');
+  assert.equal(run.run, 'xvfb-run -a npm run test:e2e-ui -w extension');
+  assert.ok(job.steps.some((step) => step.name === 'Package the Marketplace VSIX'));
+  const upload = job.steps.find((step) => step.name === 'Upload E2E report and logs');
+  assert.equal(upload.if, 'always()');
+  assert.equal(upload.with.path, 'artifacts/e2e-ui/');
+  assert.deepEqual(ci.jobs.package.needs, ['build-test', 'e2e-ui']);
 });
 
 test('the root lint and coverage gates reach every workspace', () => {

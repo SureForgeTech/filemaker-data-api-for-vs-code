@@ -41,6 +41,7 @@ function open() {
   const source = [
     readFileSync(path.resolve(__dirname, '../../../src/webviews/queryBuilder/ui/cellText.js'), 'utf8'),
     readFileSync(path.resolve(__dirname, '../../../src/webviews/queryBuilder/ui/findForm.js'), 'utf8'),
+    readFileSync(path.resolve(__dirname, '../../../src/webviews/queryBuilder/ui/resultModel.js'), 'utf8'),
     readFileSync(path.resolve(__dirname, '../../../src/webviews/queryBuilder/ui/index.js'), 'utf8')
   ].join('\n');
   return { html: panel.webview.html, source };

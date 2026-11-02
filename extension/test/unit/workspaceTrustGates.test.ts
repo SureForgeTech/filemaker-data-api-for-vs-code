@@ -161,8 +161,12 @@ describe('webview panels in an untrusted workspace', () => {
     const draft = { profileId: 'p1', layout: 'L', recordId: '1', originalFieldData: { a: 1 }, draftFieldData: { a: 2 } };
     await fake.send({ type: 'saveRecord', payload: draft });
     await fake.send({ type: 'loadRecord', payload: draft });
+    // The immediate receipt lets the page distinguish this live refusal from a disconnected panel.
+    expect(fake.postMessage.mock.calls[0]?.[0]).toMatchObject({ type: 'saveReceived' });
     expect(profileStore.getProfile).not.toHaveBeenCalled();
-    const errors = fake.postMessage.mock.calls.map((c) => JSON.stringify(c[0]));
+    const errors = fake.postMessage.mock.calls
+      .map((c) => JSON.stringify(c[0]))
+      .filter((message) => message.includes('"type":"error"'));
     expect(errors.length).toBeGreaterThanOrEqual(2);
     expect(errors.every((e) => e.includes('untrusted workspaces'))).toBe(true);
   });

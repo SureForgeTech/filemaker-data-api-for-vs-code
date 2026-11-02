@@ -505,7 +505,9 @@ export class Session {
     ).map((l) => l.replace(/\s+/g, ' ').toLowerCase());
     await this.page.keyboard.press('Escape');
     await sleep(200);
-    return labels.some((l) => l.includes(title.toLowerCase()));
+    return labels.some(
+      (l) => l.includes(title.toLowerCase()) && !/no results|no matching|no commands/i.test(l)
+    );
   }
   async waitCmdListed(title, timeoutMs = 10000) {
     const t0 = Date.now();
