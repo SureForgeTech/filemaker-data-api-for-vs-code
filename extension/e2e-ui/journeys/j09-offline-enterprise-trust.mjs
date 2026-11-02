@@ -30,6 +30,15 @@ async function tryCommand(s, title, pickers = ['Mock Quality', 'Products']) {
   if (await s.pickerOpen()) await s.escape(2);
   return { toasts: await s.toasts(), modal, tabs: await s.editorTabs() };
 }
+async function waitForTrust(s, expected) {
+  let actual;
+  for (let i = 0; i < 40; i += 1) {
+    actual = (await s.helper('ping')).trusted;
+    if (actual === expected) return;
+    await s.page.waitForTimeout(250);
+  }
+  assert(actual === expected, `workspace trust did not become ${expected}; actual=${actual}`);
+}
 
 export async function run(ctx) {
   const { s, mock } = ctx;
@@ -287,26 +296,54 @@ export async function run(ctx) {
       await s.cmd('Workspaces: Manage Workspace Trust');
       await s.page.waitForTimeout(1500);
       const btn = s.page
-        .locator('.workspace-trust-editor .monaco-button', {
-          hasText: /Don't Trust|Restricted|Untrust/
+        .locator('.workspace-trust-editor .workspace-trust-buttons .monaco-button', {
+          hasText: /Don't Trust/i
         })
         .first();
-      await btn.click().catch(() => {});
-      await s.page.waitForTimeout(800);
+      // A missed trust click must fail here, not silently turn every later Restricted Mode check
+      // into a test of a still-trusted workspace. If trust came from a parent-folder entry VS Code
+      // deliberately has no Don't Trust button; remove that entry to withdraw the inherited trust.
+      if (await btn.count()) {
+        await btn.click({ timeout: 10000 });
+      } else {
+        const removeTrustedFolder = s.page
+          .locator('.workspace-trust-editor .workspace-trust-editor-remove-folder')
+          .first();
+        assert(
+          (await removeTrustedFolder.count()) > 0,
+          'neither a Don\'t Trust button nor a trusted-folder entry was available'
+        );
+        await removeTrustedFolder.click({ timeout: 10000 });
+      }
       if (await s.modalVisible()) {
         const b = await s.modalButtons();
         await s.modal(b.find((x) => /don'?t trust|no/i.test(x)) ?? b[0]);
       }
-      await s.page.waitForTimeout(2500);
-      const trustedNow = (await s.helper('ping').catch(() => ({}))).trusted;
+      await waitForTrust(s, false);
       const patches0 = (await mock.log()).filter((l) => l.method === 'PATCH').length;
-      await s.closeAllEditors().catch(() => {});
-      // the Record Editor tab may have been closed by the trust change; reopen what is possible
-      const tabs = await s.editorTabs();
-      await s.shot('after-untrust');
+      // The trust editor is an overlay in current VS Code; close it before revealing the panel.
+      await s.page.keyboard.press('Meta+W');
+      await s.page.waitForTimeout(400);
+      await s.page
+        .locator('.tabs-container .tab', { hasText: 'FileMaker Record Editor' })
+        .first()
+        .click();
+      const editor = await s.webview('#recordIdInput');
+      await editor.locator('#saveButton').click();
+      let saveStatus = '';
+      for (let i = 0; i < 40 && !/untrusted/i.test(saveStatus); i += 1) {
+        await s.page.waitForTimeout(250);
+        saveStatus = await editor.locator('#status').innerText();
+      }
+      assert(/untrusted/i.test(saveStatus), `Save was not refused: ${saveStatus}`);
       const r = await tryCommand(s, 'FileMaker: Delete Record');
       const patches1 = (await mock.log()).filter((l) => l.method === 'PATCH').length;
-      return `trusted after withdrawing: ${trustedNow}; tabs: ${tabs.join(', ')}; Delete Record in Restricted Mode -> ${JSON.stringify(r)}; PATCHes ${patches1 - patches0}`;
+      assert(
+        r.toasts.some((t) => /untrusted workspaces/i.test(t)),
+        `Delete Record did not explain Restricted Mode: ${JSON.stringify(r)}`
+      );
+      assert(patches1 === patches0, `Save sent ${patches1 - patches0} PATCH request(s)`);
+      return `trusted after withdrawing: false; Save -> ${saveStatus}; Delete Record -> ${JSON.stringify(r)}; PATCHes ${patches1 - patches0}`;
     }
   );
   await s.step(
@@ -315,14 +352,39 @@ export async function run(ctx) {
     'each says it needs a trusted workspace',
     async () => {
       const out = {};
+      const refused = (command) => {
+        const visible = [...out[command].toasts, out[command].modal].join(' | ');
+        assert(
+          /trust|untrusted|restricted/i.test(visible),
+          `${command} did not explain that it needs a trusted workspace: ${JSON.stringify(out[command])}`
+        );
+      };
       for (const c of [
         'FileMaker: Create Record',
         'FileMaker: Batch Update from CSV/JSON',
         'FileMaker: Generate Types for All Layouts',
-        'FileMaker: Initialize FM Web Project',
-        'FileMaker: Write AI Context'
-      ])
+        'FileMaker: Initialize FM Web Project'
+      ]) {
         out[c] = await tryCommand(s, c, ['Mock Quality']);
+        refused(c);
+      }
+
+      // AI context may intentionally go to extension global storage without trust. Configure an
+      // in-workspace target to exercise the trust boundary, and confirm the multi-layout picker.
+      await s.setSetting('filemaker.ai.contextPath', '.filemaker/ai-context.md');
+      const aiCommand = 'FileMaker: Write AI Context';
+      await s.dismissToasts();
+      await s.cmd(aiCommand);
+      await answerPickers(s, ['Mock Quality', 'Products'], { max: 2 });
+      if (await s.pickerOpen()) await s.page.keyboard.press('Enter');
+      await s.waitToast(/trust|untrusted|restricted/i, { timeout: 15000 });
+      out[aiCommand] = { toasts: await s.toasts(), modal: '', tabs: await s.editorTabs() };
+      refused(aiCommand);
+      assert(
+        !fs.existsSync(path.join(s.ws, '.filemaker', 'ai-context.md')),
+        'AI context was written in an untrusted workspace'
+      );
+      await s.setSetting('filemaker.ai.contextPath', undefined);
       return JSON.stringify(out).slice(0, 900);
     }
   );

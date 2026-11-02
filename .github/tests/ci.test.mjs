@@ -48,6 +48,31 @@ test('both CI test jobs run workspace tests after shared is built', () => {
   }
 });
 
+test('the required build-test context gates Windows and Ubuntu checks', () => {
+  assert.equal(ci.jobs['build-test'].needs, 'cross-platform');
+  assert.deepEqual(ci.jobs['cross-platform'].strategy.matrix.os, ['windows-latest', 'ubuntu-latest']);
+});
+
+test('strict real VS Code E2E runs weekly and is required before release packaging', () => {
+  assert.deepEqual(ci.on.schedule, [{ cron: '0 8 * * 1' }]);
+  const job = ci.jobs['e2e-ui'];
+  assert.equal(job.if, "github.event_name == 'schedule' || startsWith(github.ref, 'refs/tags/v')");
+  assert.equal(job['runs-on'], 'ubuntu-latest');
+  assert.equal(job['timeout-minutes'], 120);
+  assert.deepEqual(job.permissions, { contents: 'read' });
+  const checkout = job.steps.find((step) => step.uses?.startsWith('actions/checkout@'));
+  assert.equal(checkout.with['persist-credentials'], false);
+  const run = job.steps.find((step) => step.name === 'Run strict real VS Code UI journeys');
+  assert.ok(run);
+  assert.equal(run.env.E2E_STRICT, '1');
+  assert.equal(run.run, 'xvfb-run -a npm run test:e2e-ui -w extension');
+  assert.ok(job.steps.some((step) => step.name === 'Package the Marketplace VSIX'));
+  const upload = job.steps.find((step) => step.name === 'Upload E2E report and logs');
+  assert.equal(upload.if, 'always()');
+  assert.equal(upload.with.path, 'artifacts/e2e-ui/');
+  assert.deepEqual(ci.jobs.package.needs, ['build-test', 'e2e-ui']);
+});
+
 test('the root lint and coverage gates reach every workspace', () => {
   const root = JSON.parse(read('../package.json'));
   assert.equal(root.scripts.lint, 'npm run lint --workspaces --if-present');

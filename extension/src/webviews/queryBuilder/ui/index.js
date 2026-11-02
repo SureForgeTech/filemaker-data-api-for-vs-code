@@ -1,12 +1,12 @@
 const vscode = acquireVsCodeApi();
 const FindForm = window.FindForm;
+const QueryResultModel = window.QueryResultModel;
 
 const DEFAULT_LIMIT = 100;
 const VIRTUALIZE_THRESHOLD = 50;
 const MAX_COLUMNS = 60;
 const MAX_CLIPBOARD_TEXT_LENGTH = 5_000_000;
 const STATE_VERSION = 1;
-const US_DATE_PATTERN = /^\d{1,2}\/\d{1,2}\/\d{4}(?: \d{1,2}:\d{2}(?::\d{2})?)?$/;
 
 const state = {
   profiles: [],
@@ -1442,51 +1442,11 @@ function collectColumns(records, maxColumns = MAX_COLUMNS) {
 }
 
 function getCellRaw(record, column) {
-  if (column === 'recordId') {
-    return record.recordId;
-  }
-  const fieldData = record.fieldData && typeof record.fieldData === 'object' ? record.fieldData : {};
-  return fieldData[column];
+  return QueryResultModel.getCellRaw(record, column);
 }
 
 function sortRecords(records) {
-  if (!state.resultSort) {
-    return records;
-  }
-
-  const { column, direction } = state.resultSort;
-  const factor = direction === 'descending' ? -1 : 1;
-  const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
-
-  return records
-    .map((record, index) => ({ record, index }))
-    .sort((a, b) => {
-      const left = getCellRaw(a.record, column);
-      const right = getCellRaw(b.record, column);
-      const leftEmpty = left === undefined || left === null || left === '';
-      const rightEmpty = right === undefined || right === null || right === '';
-      if (leftEmpty !== rightEmpty) {
-        return leftEmpty ? 1 : -1;
-      }
-      const compared = compareCells(left, right, collator);
-      return compared === 0 ? a.index - b.index : compared * factor;
-    })
-    .map((item) => item.record);
-}
-
-function compareCells(left, right, collator) {
-  if (typeof left === 'number' && typeof right === 'number') {
-    return left - right;
-  }
-  // FileMaker returns dates and timestamps as MM/DD/YYYY [HH:MM[:SS]] strings.
-  if (typeof left === 'string' && typeof right === 'string' && US_DATE_PATTERN.test(left) && US_DATE_PATTERN.test(right)) {
-    const leftTime = Date.parse(left);
-    const rightTime = Date.parse(right);
-    if (Number.isFinite(leftTime) && Number.isFinite(rightTime)) {
-      return leftTime - rightTime;
-    }
-  }
-  return collator.compare(toCellValue(left), toCellValue(right));
+  return QueryResultModel.sortRecords(records, state.resultSort);
 }
 
 function toggleResultSort(column) {
@@ -1505,19 +1465,7 @@ function toggleResultSort(column) {
 }
 
 function toCellValue(value) {
-  if (value === null || value === undefined) {
-    return '';
-  }
-
-  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-    return String(value);
-  }
-
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return String(value);
-  }
+  return QueryResultModel.toCellValue(value);
 }
 
 function buildHeaderRow(columns) {

@@ -3,7 +3,8 @@
 These tests drive the **real VS Code desktop app** (downloaded by `@vscode/test-electron`) with the **built VSIX** installed,
 against the **mock FileMaker Data API** (`../test/mock-server`), the way a user would: command palette, webview wizards and
 panels, modal dialogs, status bar, Explorer, settings. They are not part of `npm test` or CI (they need a display and a
-download of about 300 MB). Without a prerequisite they print why and exit 0.
+download of about 300 MB). CI runs the strict full suite weekly and before tagged releases; pull requests use the faster
+unit/integration gates. Without a prerequisite the local runner prints why and exits 0.
 
 ## Run
 
@@ -27,8 +28,9 @@ in your shell (`GH_TOKEN`, `AWS_*`, `ANTHROPIC_*`) are not passed on.
 the field in VS Code's update API (a separate request from the download), refusing a mismatch; `E2E_VSCODE_SHA256` pins
 a digest. Elsewhere, or for a pinned version, only the download server's own header is checked (`@vscode/test-electron`).
 
-**CI.** Not wired into CI on purpose: it needs a GUI session (`xvfb-run` on Linux), takes 25 to 55 minutes and downloads
-about 300 MB. Run it by hand or in a scheduled job on a runner with a display.
+**CI.** A scheduled workflow runs the full strict suite on Ubuntu under `xvfb-run`, and tagged releases wait for it before
+packaging/publishing. Reports, screenshots and VS Code logs are uploaded even on failure. The job has a 120-minute timeout
+to allow for the VS Code download and the 25–55 minute run. Pull requests do not run this slow suite.
 
 ## What gates, and the known-findings list
 

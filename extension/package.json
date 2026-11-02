@@ -2089,7 +2089,7 @@
     "test:e2e-ui": "node e2e-ui/run.mjs",
     "mock:check": "esbuild test/mock-server/client-check.mjs --bundle --platform=node --format=cjs --alias:vscode=./test/mock-server/vscode-stub.mjs --outfile=.mock-check/client-check.cjs --log-level=warning && node .mock-check/client-check.cjs",
     "vscode:prepublish": "npm run build",
-    "typecheck": "tsc -p tsconfig.vitest.json --noEmit",
+    "typecheck": "tsc -p tsconfig.vitest.json --noEmit && tsc -p tsconfig.query-builder-ui.json --noEmit",
     "package:vsix": "node ./scripts/package-vsix.mjs",
     "package:check": "npm run notices:check && npm run package:vsix",
     "bundle:ai-mcp-shim": "node ./scripts/bundle.mjs aiMcpShim"

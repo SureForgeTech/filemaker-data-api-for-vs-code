@@ -322,7 +322,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ==============================================================================
-follow-redirects 1.16.1
+follow-redirects 1.16.2
 License: MIT
 Source: ssh://git@github.com/follow-redirects/follow-redirects.git
 ==============================================================================

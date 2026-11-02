@@ -7,7 +7,9 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import { FMClient } from '../../src/services/fmClient';
 import type { FMClientError } from '../../src/services/errors';
 import { SecretStore } from '../../src/services/secretStore';
+import { isRetryableConnectError } from '../../src/commands';
 import type { ConnectionProfile } from '../../src/types/fm';
+import { retryWithBackoff } from '../../src/utils/backoff';
 import { InMemorySecretStorage } from './mocks';
 
 const logger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() } as never;
@@ -70,6 +72,28 @@ describe('responses that are not the Data API, redirects, and business errors on
     }
     onData(request, response);
   };
+
+  it('enforces the configured per-request timeout on every Connect retry', async () => {
+    const { url, requests } = await serve((_request, response) => {
+      const answer = setTimeout(() => response.end(ok({ token: 'too-late' })), 1000);
+      response.once('close', () => clearTimeout(answer));
+    });
+    const secrets = new SecretStore(new InMemorySecretStorage() as never);
+    await secrets.setPassword('p1', 'pw');
+    const profile: ConnectionProfile = { id: 'p1', name: 'T', authMode: 'direct', serverUrl: url, database: 'Sales', username: 'u' };
+    const fm = new FMClient(secrets, logger, 100);
+
+    const error = await fail(retryWithBackoff(
+      () => fm.createSession(profile, { userInitiated: true }),
+      { maxRetries: 2, initialMs: 0, maxMs: 0, multiplier: 1, jitter: 0 },
+      { shouldRetry: isRetryableConnectError, sleep: async () => {} }
+    ));
+
+    expect(requests).toHaveLength(3);
+    expect(error).toMatchObject({ kind: 'timeout', isRetryable: true });
+    expect(error.message).toContain('request timed out after 0.1 s');
+    expect(error.message).toContain('filemaker.requestTimeoutMs');
+  });
 
   describe.each([
     ['an HTML page with status 200', 200, 'text/html', '<html><body>Please sign in</body></html>', /looks like a web page/],

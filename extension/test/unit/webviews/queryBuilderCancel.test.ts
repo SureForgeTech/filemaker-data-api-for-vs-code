@@ -512,6 +512,7 @@ describe.skipIf(!JSDOM)('The Query Builder page offers a cancel', () => {
     const source = [
       readFileSync(path.resolve(__dirname, '../../../src/webviews/queryBuilder/ui/cellText.js'), 'utf8'),
       readFileSync(path.resolve(__dirname, '../../../src/webviews/queryBuilder/ui/findForm.js'), 'utf8'),
+      readFileSync(path.resolve(__dirname, '../../../src/webviews/queryBuilder/ui/resultModel.js'), 'utf8'),
       readFileSync(path.resolve(__dirname, '../../../src/webviews/queryBuilder/ui/index.js'), 'utf8')
     ].join('\n');
 

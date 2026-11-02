@@ -62,7 +62,8 @@ export async function observe(s, mock, action, { maxMs = 30000, settleMs = 3500 
       stableSince = Date.now();
     }
     if (seen.length && Date.now() - stableSince > settleMs) break;
-    if (!seen.length && Date.now() - t0 > 12000) break;
+    // Connect retries several independent per-request timeouts with backoff. Do not clear a
+    // scenario's fault while that command is still running just because no toast has appeared yet.
     await sleep(400);
   }
   const requests = (await mock.log()).slice(before);

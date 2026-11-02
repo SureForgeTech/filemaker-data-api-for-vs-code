@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- [FIX] Record Editor Save no longer stays at “Saving…” when VS Code restarts the extension after workspace trust is withdrawn; the panel explains how to reopen and warns the user to check the record before retrying.
 - [INTERNAL] The unit tests no longer pass an IP address as a TLS server name, which Node 22 warns about and Node 26 rejects.
 - [INTERNAL] The real VS Code proxy-patch TLS test now skips, with the reason logged, when a plain TCP connection to this machine's own LAN address cannot be opened. Once TCP connects, every certificate, pin and sign-in failure still fails the test.
 - [SECURITY] Schema snapshots and the offline metadata cache refuse to read, write or delete through a symlink under `.vscode/filemaker`, so a cloned repository cannot point them at files outside the workspace.

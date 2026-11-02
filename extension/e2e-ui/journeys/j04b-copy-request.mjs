@@ -216,7 +216,9 @@ export async function run(ctx) {
       for (const name of names) {
         await w.locator('#layoutSelect').selectOption({ label: name });
         await w.locator('#jsonTab').click();
-        await w.locator('#findJson').fill('[{}]');
+        await w.locator('#findJson').fill('[{"Name":"probe-*"}]');
+        await w.locator('#runButton').click();
+        await w.locator('#resultSummary:not(:empty)').first().waitFor({ timeout: 20000 });
         await w.locator('#copyRequestMenu summary').click();
         const box = w.locator('#includeAuthCheckbox');
         if (!(await box.isChecked())) await box.check();
@@ -261,7 +263,9 @@ export async function run(ctx) {
           open: async () => {
             const w = await openQueryBuilder(s, 'Customers');
             await w.locator('#jsonTab').click();
-            await w.locator('#findJson').fill('[{}]');
+            await w.locator('#findJson').fill(find);
+            await w.locator('#runButton').click();
+            await w.locator('#resultSummary:not(:empty)').first().waitFor({ timeout: 20000 });
             return w;
           }
         },
