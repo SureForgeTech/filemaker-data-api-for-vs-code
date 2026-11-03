@@ -6,13 +6,15 @@ What the project's automated checks are, the limits they enforce, and how depend
 
 | Workflow | When | What it does |
 | --- | --- | --- |
-| `ci.yml` | pull requests, pushes to `main`, tags `v*` | `build-test` and `cross-platform` always. For `v*` tags also `package`, `publish` (environment `marketplace`), `publish-ovsx` (Open VS X, needs the `OVSX_PAT` secret) and `release`. |
+| `ci.yml` | pull requests, pushes to `main`, tags `v*` | `build-test`, `cross-platform` and `e2e-ui-smoke` (the short first-run smoke) always, and `e2e-ui` (the full real-desktop suite) weekly and for `v*` tags. For `v*` tags also `package`, `publish` (environment `marketplace`), `publish-ovsx` (Open VS X, needs the `OVSX_PAT` secret) and `release`. |
 | `api-docs.yml` | push to `main` | Builds the documentation website and the TypeDoc API reference and deploys both to GitHub Pages: <https://sureforgetech.github.io/filemaker-data-api-for-vs-code/api/>. |
 | `dependency-auto-merge.yml` | Dependabot pull requests | Enables auto-merge for safe dev-dependency updates (see below). |
 | `entra-identity-id.yml` | manual | One-off helper for the Entra publishing setup ([job aid](./JOB_AID_ENTRA_PUBLISHING.md)). Delete it when the setup is done. |
 | `secret-rotation-reminder.yml` | monthly, or manual | Reads the rotation calendar in [SECRETS.md](./SECRETS.md) and files a reminder issue about 30 days before a tracked credential is due. A manual run has a `dry-run` input that prints what it would file. |
 
 Every job's runner comes from the repository variable `LINUX_RUNNER_LABELS` (a JSON array of labels), except `cross-platform`, which names its operating systems in its matrix. The variable is currently `["ubuntu-latest"]`, a GitHub-hosted runner, which is free because this repository is public. Do not write a hosted label directly into a workflow; keep using the variable so the runner can change without editing workflows. `cross-platform` is the one deliberate exception: it needs a Windows runner, GitHub-hosted runners are free for a public repository, and the self-hosted-only rule applies to private repositories. Do not copy it into a private repository.
+
+The two real-desktop jobs `e2e-ui-smoke` and `e2e-ui` are the other exception: they name `ubuntu-latest` directly, because they drive a real VS Code under `xvfb-run` and need the GitHub-hosted Linux image with `xvfb-run` and the X libraries installed. GitHub-hosted runners are free for a public repository. If this repository ever becomes private, move both jobs to a self-hosted Linux runner that has those packages before the self-hosted-only rule applies.
 
 CI concurrency groups use the workflow name and pull request number, or the run ID for other events. Only pull request runs cancel earlier runs in their group; pushes to `main` and tags do not cancel earlier runs.
 
@@ -65,6 +67,16 @@ npm run package:check
 ```
 
 On Windows, run them in PowerShell or cmd.exe with Node 22 and Git on the PATH (Git for Windows also provides the `openssl` that the mock server's TLS tests use; without it those tests skip). To run one platform-specific file: `npx vitest run test/unit/windowsFilesystem.test.ts` inside `extension/`. To watch the CI run from a terminal: `gh run watch` and, for a failure, `gh run view --log-failed`.
+
+## Real-desktop E2E jobs
+
+Two jobs drive a real VS Code (downloaded by `@vscode/test-electron`) through Playwright's Electron support, with the built VSIX installed, against the mock Data API in `extension/test/mock-server/`. The mock is the only server they talk to, so no FileMaker Server is needed. Both run on Linux only, because the desktop needs a display and `xvfb-run` provides one, and both run in strict mode (`E2E_STRICT=1`): a missing prerequisite, such as no VS Code download or no VSIX, fails the job instead of passing it silently.
+
+`e2e-ui-smoke` runs on every pull request, push to `main` and tag. It packages the VSIX and runs one journey, `extension/e2e-ui/journeys/j01b-first-run-happy-path.mjs`, selected with `E2E_ONLY=j01b`: add a profile, test the connection, save it, connect, and run the first query, all against the mock. It is short enough for every pull request, so the first-run path has a repeatable check. It is **not** a required status check: branch protection still requires only `build-test`, so a failure is visible on the pull request without blocking unrelated work.
+
+`e2e-ui` runs the full suite (every journey in `extension/e2e-ui/journeys/`) on a weekly schedule and before tagged releases. The tag `package` job depends on it, so a release is never published without a full real-desktop run.
+
+Both jobs upload the run report, screenshots and VS Code logs from `artifacts/e2e-ui/` as a workflow artifact, whether they pass or fail.
 
 ## Budgets
 

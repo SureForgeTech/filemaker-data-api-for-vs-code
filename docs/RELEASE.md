@@ -75,7 +75,7 @@ Do this against the release branch (the content that will be tagged), not after 
 
 - [ ] `build-test` is green on the release pull request.
 - [ ] On a clean machine or profile, from the release branch, `npm ci && npm run build && npm run package:check` (the package check fails on a clean checkout until the build has run) and install `artifacts/filemaker-data-api-tools-X.Y.Z.vsix`.
-- [ ] Run the [smoke test](../extension/docs/QA/SMOKE_TEST.md) against a real FileMaker Server (check 5, Test Connection, needs one: the current mock does not implement `productInfo` or `/databases`, so Test Connection stops at step 1 against it; use a complete mock once one is merged). Other checks can use `npm run mock:server -w extension`. Note which you used.
+- [ ] Run the [smoke test](../extension/docs/QA/SMOKE_TEST.md). The mock server (`npm run mock:server -w extension`) passes check 5, because it answers the `productInfo` and `databases` calls Test Connection makes; a real FileMaker Server is still needed for check 14 (certificates) and to confirm real-server behavior. Note which you used.
 - [ ] Run the checks that matter for this release's changes. For a release with a security change, try the failure path too (for example open a repository with a hostile settings file).
 
 ### 4. Merge and publish

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- [INTERNAL] The mock Data API answers the `productInfo` and `databases` calls that **Test Connection** makes, so Test Connection passes all three steps against the mock. The documentation that said the mock lacked them is corrected, a new first-run journey (test the connection, save the profile, connect, run the first query) runs against the mock on every pull request, and a test keeps the documentation in step with what the mock does.
+
 ## 1.8.0
 
 _Release notes prepared 2026-11-02._

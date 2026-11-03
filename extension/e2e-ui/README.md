@@ -2,9 +2,9 @@
 
 These tests drive the **real VS Code desktop app** (downloaded by `@vscode/test-electron`) with the **built VSIX** installed,
 against the **mock FileMaker Data API** (`../test/mock-server`), the way a user would: command palette, webview wizards and
-panels, modal dialogs, status bar, Explorer, settings. They are not part of `npm test` or pull-request CI (they need a display and a
-download of about 300 MB). CI runs the strict full suite weekly and before tagged releases; pull requests use the faster
-unit/integration gates. Without a prerequisite the local runner prints why and exits 0; strict mode exits 1 instead.
+panels, modal dialogs, status bar, Explorer, settings. They are not part of `npm test`. They need a display and a download of about 300 MB, so pull requests run only the
+short first-run smoke journey (`e2e-ui-smoke`); the strict full suite runs weekly and before tagged releases. Without a
+prerequisite the local runner prints why and exits 0; strict mode exits 1 instead.
 
 ## Run
 
@@ -28,9 +28,13 @@ in your shell (`GH_TOKEN`, `AWS_*`, `ANTHROPIC_*`) are not passed on.
 the field in VS Code's update API (a separate request from the download), refusing a mismatch; `E2E_VSCODE_SHA256` pins
 a digest. Elsewhere, or for a pinned version, only the download server's own header is checked (`@vscode/test-electron`).
 
-**CI.** A scheduled workflow runs the full strict suite on Ubuntu under `xvfb-run`, and tagged releases wait for it before
-packaging/publishing. Reports, screenshots and VS Code logs are uploaded even on failure. The job has a 120-minute timeout
-to allow for the VS Code download and the 25–55 minute run. Pull requests do not run this slow suite.
+**CI.** Two jobs run these tests on Ubuntu under `xvfb-run`. `e2e-ui-smoke` runs on every pull request, push to `main`
+and tag: it packages the VSIX and runs one journey, `j01b-first-run-happy-path.mjs` (add a profile, test the
+connection, save it, connect, run the first query), selected with `E2E_ONLY=j01b`. `e2e-ui` runs the full strict suite
+on a weekly schedule and before tagged releases, and tagged releases wait for it before packaging/publishing. Reports,
+screenshots and VS Code logs are uploaded even on failure. The full job has a 120-minute timeout to allow for the VS Code
+download and the 25–55 minute run. The smoke job is not a required status check; branch protection still requires only
+`build-test`, so its failures are visible on the pull request without blocking unrelated work.
 
 ## What gates, and the known-findings list
 

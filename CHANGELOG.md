@@ -32,7 +32,7 @@ PR title prefix matches the highest-tier label added:
 
 ### [INTERNAL]
 
-- None.
+- The mock Data API answers the `productInfo` and `databases` calls that Test Connection makes, so the documentation saying otherwise is corrected. A new first-run journey (test the connection, save the profile, connect, run the first query) runs against the mock on every pull request on Linux, and a test keeps the documentation in step with the mock.
 
 ### [SECURITY]
 
