@@ -582,3 +582,75 @@ it.each(['dataInfo', 'response'] as const)('does not copy first-record %s portal
   const result = await client.findRecords(profile, ' Exact ', { query: [{ ' Name ': '*' }] });
   expect(result.data.map((record) => record.portalDataInfo)).toEqual([undefined, second, undefined]);
 });
+
+describe('createRecord with related (portal) rows', () => {
+  it('posts fieldData and portalData together with a direct connection', async () => {
+    const secrets = new SecretStore(new InMemorySecretStorage() as never);
+    const profile = createProfile();
+    await secrets.setSessionToken(profile.id, 'tok');
+    const http = new FakeAxios();
+    http.request.mockResolvedValue(createAxiosResponse({ data: { response: { recordId: '501', modId: '1' }, messages: [{ code: '0', message: 'OK' }] } }));
+    const client = new FMClient(secrets, { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }, 1500, http as never);
+
+    const result = await client.createRecord(profile, ' Contacts ', { Name: 'Ada' }, undefined, {
+      portalData: { Orders: [{ 'Orders::Total': 10 }, { Total: 2 }] }
+    });
+
+    expect(http.request).toHaveBeenCalledWith(expect.objectContaining({
+      method: 'POST',
+      url: expect.stringContaining(`/layouts/${encodeURIComponent(' Contacts ')}/records`),
+      data: {
+        fieldData: { Name: 'Ada' },
+        portalData: { Orders: [{ 'Orders::Total': 10 }, { Total: 2 }] }
+      }
+    }));
+    expect(result).toMatchObject({ recordId: '501', modId: '1' });
+  });
+
+  it('keeps the plain create request when the portal rows carry no values', async () => {
+    const secrets = new SecretStore(new InMemorySecretStorage() as never);
+    const profile = createProfile();
+    await secrets.setSessionToken(profile.id, 'tok');
+    const http = new FakeAxios();
+    http.request.mockResolvedValue(createAxiosResponse({ data: { response: { recordId: '1' }, messages: [{ code: '0', message: 'OK' }] } }));
+    const client = new FMClient(secrets, { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }, 1500, http as never);
+
+    await client.createRecord(profile, 'Contacts', { Name: 'Ada' }, undefined, { portalData: { Orders: [{}] } });
+
+    const [config] = http.request.mock.calls[0]!;
+    expect(config.data).toEqual({ fieldData: { Name: 'Ada' } });
+  });
+
+  it('refuses portal rows through a proxy profile before calling either endpoint', async () => {
+    const secrets = new SecretStore(new InMemorySecretStorage() as never);
+    const profile = { ...createProfile(), authMode: 'proxy' as const, proxyEndpoint: 'https://proxy.example/api' };
+    const http = new FakeAxios();
+    const proxy = { createRecord: vi.fn(), editRecord: vi.fn() };
+    const client = new FMClient(secrets, { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }, 1500, http as never, proxy as never);
+
+    await expect(
+      client.createRecord(profile, 'Contacts', { Name: 'Ada' }, undefined, { portalData: { Orders: [{ Total: 1 }] } })
+    ).rejects.toMatchObject({ message: expect.stringContaining('not supported through a proxy connection'), isRetryable: false });
+    expect(proxy.createRecord).not.toHaveBeenCalled();
+    expect(http.request).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [[{ recordId: '9' }], 'recordId'],
+    [[{ modId: '1' }], 'recordId'],
+    [[{ Total: { nested: 1 } }], 'non-text value'],
+    ['not rows', 'must be an array'],
+    [new Array(101).fill({ Total: 1 }), 'at most']
+  ])('refuses invalid portal rows before any request: %j', async (rows, messagePart) => {
+    const secrets = new SecretStore(new InMemorySecretStorage() as never);
+    const profile = createProfile();
+    await secrets.setSessionToken(profile.id, 'tok');
+    const http = new FakeAxios();
+    const client = new FMClient(secrets, { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }, 1500, http as never);
+
+    await expect(
+      client.createRecord(profile, 'Contacts', { Name: 'Ada' }, undefined, { portalData: { Orders: rows as unknown as Array<Record<string, unknown>> } })
+    ).rejects.toMatchObject({ status: 400, isRetryable: false, message: expect.stringContaining(messagePart) });
+    expect(http.request).not.toHaveBeenCalled();
+  });
+});

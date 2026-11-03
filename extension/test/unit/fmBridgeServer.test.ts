@@ -123,6 +123,46 @@ describe('FmBridgeServer', () => {
     }
   });
 
+  it('passes related (portal) rows on /createRecord through to the client as create options', async () => {
+    const client = createFmClientStub();
+    const server = new FmBridgeServer(createProfileStoreStub(), client, createFmWebProjectServiceStub(), logger);
+    const response = await invokeBridgeRequest(server, '/fm/createRecord', {
+      payload: {
+        layout: 'Contacts',
+        fieldData: { Name: 'Ada' },
+        portalData: { Orders: [{ 'Orders::Total': 10 }, { Note: 'plain key' }] }
+      }
+    });
+    expect(response.status).toBe(200);
+    expect(client.createRecord).toHaveBeenCalledWith(profile, 'Contacts', { Name: 'Ada' }, expect.anything(), {
+      portalData: { Orders: [{ 'Orders::Total': 10 }, { Note: 'plain key' }] }
+    });
+  });
+
+  it('keeps the plain four-argument /createRecord call when the portal rows carry no values', async () => {
+    const client = createFmClientStub();
+    const server = new FmBridgeServer(createProfileStoreStub(), client, createFmWebProjectServiceStub(), logger);
+    const response = await invokeBridgeRequest(server, '/fm/createRecord', {
+      payload: { layout: 'Contacts', fieldData: { Name: 'Ada' }, portalData: { Orders: [{}] } }
+    });
+    expect(response.status).toBe(200);
+    expect(vi.mocked(client.createRecord).mock.calls[0]).toHaveLength(4);
+  });
+
+  it.each([
+    [{ Orders: [{ recordId: '9' }] }, 'recordId'],
+    [{ Orders: [{ Total: { nested: 1 } }] }, 'non-text value'],
+    [{ Orders: 'not rows' }, 'must be an array']
+  ])('refuses invalid portal rows on /createRecord before calling the client: %j', async (portalData, messagePart) => {
+    const client = createFmClientStub();
+    const server = new FmBridgeServer(createProfileStoreStub(), client, createFmWebProjectServiceStub(), logger);
+    const response = await invokeBridgeRequest(server, '/fm/createRecord', {
+      payload: { layout: 'Contacts', fieldData: { Name: 'Ada' }, portalData }
+    });
+    expect(response).toMatchObject({ status: 400, json: { error: expect.stringContaining(messagePart) } });
+    expect(client.createRecord).not.toHaveBeenCalled();
+  });
+
   it.each([[], [{}]].map((query) => ({ query })))('lists records for Find All $query without sending a find', async ({ query }) => {
     const listRecords = vi.fn(async () => ({ data: [{ recordId: '4', fieldData: {} }] }));
     const client = createFmClientStub({ listRecords });
