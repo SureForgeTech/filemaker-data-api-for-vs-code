@@ -94,6 +94,15 @@ export interface EditRecordOptions {
   modId?: string;
 }
 
+/** Optional extras for a create. */
+export interface CreateRecordOptions {
+  /**
+   * Related (portal) rows to create with the parent record, keyed by portal name.
+   * Each row is a new related record; rows naming a recordId/modId are refused.
+   */
+  portalData?: Record<string, Array<Record<string, unknown>>>;
+}
+
 /** @internal */
 export const DEFAULT_LAYOUT_TTL_MS = 60_000;
 

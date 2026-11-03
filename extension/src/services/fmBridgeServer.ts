@@ -3,6 +3,7 @@ import { createHash, randomBytes, timingSafeEqual } from 'crypto';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'http';
 
 import { assertNoNulText } from '../utils/nulText';
+import { sanitizeCreatePortalData } from '../utils/createPortalRows';
 import type { FindRecordsRequest } from '../types/fm';
 import type { FMClient } from './fmClient';
 import { FMClientError } from './errors';
@@ -299,9 +300,16 @@ export class FmBridgeServer {
         const layout = requireString(payload.layout, 'layout');
         const fieldData = asObject(payload.fieldData ?? {}, 'fieldData');
         assertNoNulText(fieldData);
-        const result = await this.fmClient.createRecord(profile, layout, fieldData, {
-          signal: controller.signal
-        });
+        const portalData = sanitizeCreatePortalData(payload.portalData);
+        for (const rows of Object.values(portalData ?? {})) {
+          for (const row of rows) {
+            assertNoNulText(row);
+          }
+        }
+        // Keep the four-argument call for a plain create; only related rows add the options argument.
+        const result = portalData
+          ? await this.fmClient.createRecord(profile, layout, fieldData, { signal: controller.signal }, { portalData })
+          : await this.fmClient.createRecord(profile, layout, fieldData, { signal: controller.signal });
         return result as unknown as Record<string, unknown>;
       }
 

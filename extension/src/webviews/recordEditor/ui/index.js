@@ -27,7 +27,10 @@ const state = {
   originalFieldData: Object.create(null),
   draftFieldData: Object.create(null),
   fields: [],
-  presentationFields: []
+  presentationFields: [],
+  portals: [],
+  portalRows: Object.create(null),
+  authMode: undefined
 };
 
 const profileSelect = document.getElementById('profileSelect');
@@ -49,6 +52,9 @@ const reloadAfterConflictButton = document.getElementById('reloadAfterConflictBu
 const fieldEditor = document.getElementById('fieldEditor');
 const patchPreview = document.getElementById('patchPreview');
 const rawRecord = document.getElementById('rawRecord');
+const portalHeading = document.getElementById('portalHeading');
+const portalNote = document.getElementById('portalNote');
+const portalEditor = document.getElementById('portalEditor');
 const fieldInputs = new Map();
 const recordEditorPanel = fieldEditor.closest('.panel');
 const recordEditorHeading = recordEditorPanel ? recordEditorPanel.querySelector('h2') : null;
@@ -216,14 +222,18 @@ createButton.addEventListener('click', () => {
       fieldData[name] = value;
     }
   }
-  if (Object.keys(fieldData).length === 0) {
-    setStatus('Enter a value in at least one field to create a record.', true);
+  const portalData = collectPortalData();
+  if (Object.keys(fieldData).length === 0 && !portalData) {
+    setStatus('Enter a value in at least one field, or add one related row, to create a record.', true);
     return;
   }
 
   debouncedMarkDirtyState.cancel();
   setBusy(true);
-  vscode.postMessage({ type: 'createRecord', payload: { profileId, layout, fieldData } });
+  vscode.postMessage({
+    type: 'createRecord',
+    payload: { profileId, layout, fieldData, ...(portalData ? { portalData } : {}) }
+  });
   setStatus('Creating record...');
 });
 
@@ -286,6 +296,7 @@ function applyMode() {
   }
   // The patch preview and raw JSON belong to editing an existing record.
   patchPreview.parentElement.querySelectorAll('h3, pre').forEach((element) => element.classList.toggle('hidden', creating));
+  renderPortalEditor();
   if (creating) {
     // Nothing to load: show the (empty) form straight away.
     revealRecordEditor();
@@ -316,6 +327,9 @@ function applyLayoutFields(payload) {
   state.fields = payload.fields || [];
   fieldInputs.clear();
   state.presentationFields = payload.presentationFields || payload.fields || [];
+  state.portals = Array.isArray(payload.portals) ? payload.portals.filter((spec) => spec && typeof spec.portal === 'string') : [];
+  state.authMode = typeof payload.authMode === 'string' ? payload.authMode : undefined;
+  state.portalRows = Object.create(null);
   state.originalFieldData = Object.create(null);
   state.draftFieldData = Object.create(null);
   for (const field of payload.fields) {
@@ -325,6 +339,7 @@ function applyLayoutFields(payload) {
   }
   fieldInputs.clear();
   renderFieldEditor();
+  renderPortalEditor();
   setStatus(
     payload.metadataSupported
       ? `Enter values for the new record, then click Create Record (${payload.fields.length} fields).`
@@ -355,7 +370,9 @@ function applyCreated(payload) {
   for (const name of Object.keys(state.draftFieldData)) {
     state.draftFieldData[name] = '';
   }
+  state.portalRows = Object.create(null);
   renderFieldEditor();
+  renderPortalEditor();
   setStatus(`Record created on ${payload.layout}: record ID ${payload.recordId}${payload.modId ? ` (modId ${payload.modId})` : ''}.`);
 }
 
@@ -781,6 +798,157 @@ function parseEditableValue(value, name) {
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
+}
+
+function portalFields(portal) {
+  const spec = state.portals.find((item) => item && item.portal === portal);
+  return spec && Array.isArray(spec.fields) ? spec.fields : [];
+}
+
+function emptyPortalRow(portal) {
+  const row = Object.create(null);
+  for (const field of portalFields(portal)) {
+    row[field] = '';
+  }
+  return row;
+}
+
+function addPortalRow(portal) {
+  if (!state.portalRows[portal]) {
+    state.portalRows[portal] = [];
+  }
+  state.portalRows[portal].push(emptyPortalRow(portal));
+  renderPortalEditor();
+}
+
+function removePortalRow(portal, index) {
+  const rows = state.portalRows[portal];
+  if (!rows) {
+    return;
+  }
+  rows.splice(index, 1);
+  if (rows.length === 0) {
+    delete state.portalRows[portal];
+  }
+  renderPortalEditor();
+}
+
+function renderPortalEditor() {
+  const show = state.mode === 'create' && state.portals.length > 0;
+  portalHeading.classList.toggle('hidden', !show);
+  portalEditor.replaceChildren();
+  if (!show) {
+    portalNote.classList.add('hidden');
+    return;
+  }
+
+  if (state.authMode === 'proxy') {
+    portalNote.textContent =
+      'Creating related (portal) rows is not supported through a proxy connection. Create the record first, then add the related rows on the FileMaker layout.';
+    portalNote.classList.remove('hidden');
+    return;
+  }
+
+  portalNote.textContent =
+    'Related rows are created together with the record. A related row that has no value is skipped.';
+  portalNote.classList.remove('hidden');
+  for (const spec of state.portals) {
+    if (!spec || typeof spec.portal !== 'string') {
+      continue;
+    }
+    portalEditor.appendChild(renderPortalSection(spec.portal));
+  }
+}
+
+function renderPortalSection(portal) {
+  const section = document.createElement('div');
+  section.className = 'portal-section';
+
+  const head = document.createElement('div');
+  head.className = 'portal-head';
+  const name = document.createElement('strong');
+  name.textContent = portal;
+  head.appendChild(name);
+  const addButton = document.createElement('button');
+  addButton.type = 'button';
+  addButton.className = 'secondary';
+  addButton.textContent = 'Add row';
+  addButton.setAttribute('aria-label', `Add ${portal} row`);
+  addButton.addEventListener('click', () => addPortalRow(portal));
+  head.appendChild(addButton);
+  section.appendChild(head);
+
+  const rows = state.portalRows[portal] || [];
+  rows.forEach((row, index) => {
+    section.appendChild(renderPortalRow(portal, row, index));
+  });
+  return section;
+}
+
+function renderPortalRow(portal, row, index) {
+  const fields = portalFields(portal);
+  const div = document.createElement('div');
+  div.className = 'portal-row';
+
+  const label = document.createElement('span');
+  label.className = 'portal-row-label';
+  label.textContent = `${portal} ${index + 1}`;
+  div.appendChild(label);
+
+  for (const field of fields) {
+    const wrapper = document.createElement('label');
+    wrapper.className = 'portal-field';
+    const caption = document.createElement('span');
+    caption.textContent = field;
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = row[field] ?? '';
+    input.setAttribute('aria-label', `${portal} ${field}`);
+    input.addEventListener('input', () => {
+      const rows = state.portalRows[portal];
+      if (rows && rows[index]) {
+        rows[index][field] = input.value;
+      }
+    });
+    wrapper.appendChild(caption);
+    wrapper.appendChild(input);
+    div.appendChild(wrapper);
+  }
+
+  const removeButton = document.createElement('button');
+  removeButton.type = 'button';
+  removeButton.className = 'secondary';
+  removeButton.textContent = 'Remove';
+  removeButton.setAttribute('aria-label', `Remove ${portal} row ${index + 1}`);
+  removeButton.addEventListener('click', () => removePortalRow(portal, index));
+  div.appendChild(removeButton);
+  return div;
+}
+
+/**
+ * Related rows to send with the create, keyed by portal name with `Portal::Field` keys
+ * inside each row (the Data API shape). Rows and values that are empty are skipped.
+ */
+function collectPortalData() {
+  const portalData = Object.create(null);
+  for (const [portal, rows] of Object.entries(state.portalRows)) {
+    const kept = [];
+    for (const row of rows) {
+      const fields = Object.create(null);
+      for (const [field, value] of Object.entries(row)) {
+        if (value !== '' && value !== undefined && value !== null) {
+          fields[`${portal}::${field}`] = value;
+        }
+      }
+      if (Object.keys(fields).length > 0) {
+        kept.push(fields);
+      }
+    }
+    if (kept.length > 0) {
+      portalData[portal] = kept;
+    }
+  }
+  return Object.keys(portalData).length > 0 ? portalData : undefined;
 }
 
 function setStatus(message, isError = false) {

@@ -24,7 +24,7 @@ PR title prefix matches the highest-tier label added:
 
 ### [FEATURE]
 
-- None.
+- Create Record can add new portal rows alongside the parent record on direct connections; proxy connections explain that portal-row creation is unavailable. Mock-tested; real-server compatibility remains unverified.
 
 ### [FIX]
 
