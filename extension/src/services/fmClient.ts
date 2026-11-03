@@ -18,7 +18,7 @@ import { SessionTokenTracker } from './session/sessionTokenTracker';
 import { httpsTransportFor, noteRequestTimeout, pinBypassedByHost } from './tlsAgent';
 import type {
   LayoutCacheEntry, RequestOptions, HistoryContext, RequestTrace, ClientRequestControl,
-  FMClientContainerUploadOptions, AuthPause, SessionHealth, FMClientSessionOptions, EditRecordOptions
+  FMClientContainerUploadOptions, AuthPause, SessionHealth, FMClientSessionOptions, EditRecordOptions, CreateRecordOptions
 } from './fmClient/types';
 import { listLayouts, listScripts, getLayoutMetadata } from './fmClient/metadata';
 import { getRecord, listRecords, findRecords } from './fmClient/records';
@@ -30,7 +30,7 @@ import { requestWithAuth, requestNoAuth, buildEndpoint, requestWithAuthRaw } fro
 import { getErrorStatus, getErrorMessage } from './fmClient/response';
 import { credentialStamp, waitForSession } from './fmClient/session';
 import type { ClientContext } from './fmClient/context';
-export type { ClientRequestControl, FMClientContainerUploadOptions, SessionHealth, FMClientSessionOptions, EditRecordOptions } from './fmClient/types';
+export type { ClientRequestControl, FMClientContainerUploadOptions, SessionHealth, FMClientSessionOptions, EditRecordOptions, CreateRecordOptions } from './fmClient/types';
 export { MAX_SCRIPT_URL_LENGTH } from './fmClient/types';
 
 /** Longest wait between automatic sign-in attempts after FileMaker reports no free sessions (956). */
@@ -352,9 +352,10 @@ export class FMClient {
     profile: ConnectionProfile,
     layout: string,
     fieldData: Record<string, unknown>,
-    control?: ClientRequestControl
+    control?: ClientRequestControl,
+    options?: CreateRecordOptions
   ): Promise<EditRecordResult> {
-    return createRecord(this.context, profile, layout, fieldData, control);
+    return createRecord(this.context, profile, layout, fieldData, control, options);
   }
 
   public async deleteRecord(

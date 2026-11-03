@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Create Record can add new portal rows alongside a parent record on direct connections. Existing related rows are not edited; proxy connections show that portal-row creation is unavailable. This is mock-tested; real-server compatibility remains unverified.
+
 ## 1.8.0
 
 _Release notes prepared 2026-11-02._

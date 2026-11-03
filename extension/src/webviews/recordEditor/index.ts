@@ -9,6 +9,8 @@ import type { ProfileStore } from '../../services/profileStore';
 import { RecordEditService } from '../../services/recordEditService';
 import type { SchemaService } from '../../services/schemaService';
 import type { ConnectionProfile, EditRecordResult, FileMakerFieldMetadata, FileMakerRecord } from '../../types/fm';
+import { isProxyProfile } from '../../types/fm';
+import { extractPortalSpecs, sanitizeCreatePortalData, stripPortalPrefix, type CreatePortalData, type PortalRowSpec, MAX_PORTAL_ROWS_TOTAL } from '../../utils/createPortalRows';
 import { buildWebviewCsp, createNonce, profileImageSources } from '../common/csp';
 import { guardDispatch, requestType } from '../common/dispatch';
 import { getStringField, toRecord } from '../common/messageValidation';
@@ -49,6 +51,8 @@ interface CreateRecordPayload {
   profileId: string;
   layout: string;
   fieldData: Record<string, unknown>;
+  /** Related rows to create with the record, keyed by portal name (`Portal::Field` keys inside rows). */
+  portalData?: Record<string, Array<Record<string, unknown>>>;
 }
 
 const MAX_CREATE_FIELDS = 500;
@@ -75,6 +79,7 @@ export class RecordEditorPanel {
   private loadedRecord: { profileId: string; layout: string; record: FileMakerRecord } | undefined;
   private saving = false;
   private fieldsByLayout = new Map<string, FileMakerFieldMetadata[]>();
+  private portalsByLayout = new Map<string, { verified: boolean; specs: PortalRowSpec[] }>();
 
   private constructor(
     private readonly panel: vscode.WebviewPanel,
@@ -392,7 +397,7 @@ export class RecordEditorPanel {
 
     const safePatch = await this.confirmNulText(initialPreview.patch);
     if (!safePatch) return;
-    const draftFieldData = { ...payload.draftFieldData, ...safePatch };
+    const draftFieldData = { ...payload.draftFieldData, ...safePatch.fields };
 
     const preview = this.recordEditService.previewPatch(payload.originalFieldData, draftFieldData);
     if (preview.changedFields.length === 0) {
@@ -532,6 +537,8 @@ export class RecordEditorPanel {
     try {
       const schema = await this.schemaService.getFields(profile, payload.layout);
       this.fieldsByLayout.set(this.layoutKey(payload.profileId, payload.layout), schema.fields);
+      const specs = extractPortalSpecs(schema.metadata ?? { fields: schema.fields });
+      this.portalsByLayout.set(this.layoutKey(payload.profileId, payload.layout), { verified: schema.supported, specs });
       await this.panel.webview.postMessage({
         type: 'layoutFields',
         payload: {
@@ -539,6 +546,8 @@ export class RecordEditorPanel {
           layout: payload.layout,
           presentationFields: designerLayoutMetadata(payload.layout, schema.metadata ?? { fields: schema.fields }).fields,
           fields: schema.fields.map((field) => ({ name: field.name, type: field.type, global: field.global, result: field.result })),
+          portals: specs,
+          authMode: profile.authMode,
           metadataSupported: schema.supported,
           message: schema.message
         }
@@ -567,20 +576,38 @@ export class RecordEditorPanel {
     let known = this.fieldsByLayout.get(this.layoutKey(payload.profileId, payload.layout));
     if (!known) {
       try {
-        known = (await this.schemaService.getFields(profile, payload.layout)).fields;
+        const schema = await this.schemaService.getFields(profile, payload.layout);
+        known = schema.fields;
+        this.fieldsByLayout.set(this.layoutKey(payload.profileId, payload.layout), schema.fields);
+        this.portalsByLayout.set(this.layoutKey(payload.profileId, payload.layout), {
+          verified: schema.supported,
+          specs: extractPortalSpecs(schema.metadata ?? { fields: schema.fields })
+        });
       } catch (error) {
         await this.postError(`Could not load the layout's fields: ${formatError(error).replace(/\.$/, '')}. Try again.`);
         return;
       }
     }
+
+    let portalData: CreatePortalData | undefined;
+    try {
+      portalData = sanitizeCreatePortalData(payload.portalData);
+    } catch (error) {
+      await this.postError(formatError(error));
+      return;
+    }
+
+    if (portalData && isProxyProfile(profile)) {
+      await this.postError(
+        'Creating related (portal) rows is not supported through a proxy connection. Create the parent record first, then add the related rows on the FileMaker layout, or use a direct Data API connection.'
+      );
+      return;
+    }
+
     let nonEmptyFields = Object.fromEntries(
       Object.entries(editableFieldData(payload.fieldData, known)).filter(([, v]) => v !== '' && v !== undefined && v !== null)
     );
     const names = Object.keys(nonEmptyFields);
-    if (names.length === 0) {
-      await this.postError('At least one field must have a value to create a record.');
-      return;
-    }
 
     // Names must be fields of the layout when its fields are known: the page cannot add
     // others, and `recordId`/`modId` are never fields to send.
@@ -592,9 +619,46 @@ export class RecordEditorPanel {
       }
     }
 
-    const safeFields = await this.confirmNulText(nonEmptyFields);
-    if (!safeFields) return;
-    nonEmptyFields = safeFields;
+    // Related rows are validated against the layout's portal metadata when it is verified;
+    // both `Portal::Field` and plain field names are accepted from the page.
+    const portalsKnown = this.portalsByLayout.get(this.layoutKey(payload.profileId, payload.layout));
+    if (portalData && portalsKnown?.verified) {
+      const unknownPortals = Object.keys(portalData).filter(
+        (portal) => !portalsKnown.specs.some((spec) => spec.portal === portal)
+      );
+      if (unknownPortals.length > 0) {
+        await this.postError(`These are not portals on layout "${payload.layout}": ${unknownPortals.join(', ')}.`);
+        return;
+      }
+      const unknownRowFields: string[] = [];
+      for (const [portal, rows] of Object.entries(portalData)) {
+        const spec = portalsKnown.specs.find((item) => item.portal === portal);
+        for (const row of rows) {
+          for (const fieldName of Object.keys(row)) {
+            const display = stripPortalPrefix(portal, fieldName);
+            if (!spec?.fields.includes(display) && !unknownRowFields.includes(display)) {
+              unknownRowFields.push(display);
+            }
+          }
+        }
+      }
+      if (unknownRowFields.length > 0) {
+        await this.postError(
+          `These are not fields of portals on layout "${payload.layout}": ${unknownRowFields.join(', ')}.`
+        );
+        return;
+      }
+    }
+
+    if (names.length === 0 && !portalData) {
+      await this.postError('At least one field must have a value, or one related row, to create a record.');
+      return;
+    }
+
+    const confirmed = await this.confirmNulText(nonEmptyFields, portalData);
+    if (!confirmed) return;
+    nonEmptyFields = confirmed.fields;
+    portalData = confirmed.portalData;
 
     const validation = this.recordEditService.validateDraft(nonEmptyFields, known);
     if (!validation.valid) {
@@ -603,9 +667,19 @@ export class RecordEditorPanel {
     }
 
     const shown = names.slice(0, 10).join(', ') + (names.length > 10 ? `, and ${names.length - 10} more` : '');
+    const rowCount = portalData
+      ? Object.values(portalData).reduce((sum, rows) => sum + rows.length, 0)
+      : 0;
+    const detail =
+      `Fields: ${shown}` +
+      (portalData
+        ? `\nRelated rows: ${Object.entries(portalData)
+            .map(([portal, rows]) => `${rows.length} in ${portal}`)
+            .join(', ')}.`
+        : '');
     const confirmation = await vscode.window.showWarningMessage(
-      `Create a new record in layout "${payload.layout}" on "${profile.name}" with ${names.length} field(s)?`,
-      { modal: true, detail: `Fields: ${shown}` },
+      `Create a new record in layout "${payload.layout}" on "${profile.name}" with ${names.length} field(s)${rowCount ? ` and ${rowCount} related row(s)` : ''}?`,
+      { modal: true, detail },
       'Create'
     );
 
@@ -616,7 +690,9 @@ export class RecordEditorPanel {
 
     this.saving = true;
     try {
-      const result = await this.fmClient.createRecord(profile, payload.layout, nonEmptyFields);
+      const result = portalData
+        ? await this.fmClient.createRecord(profile, payload.layout, nonEmptyFields, undefined, { portalData })
+        : await this.fmClient.createRecord(profile, payload.layout, nonEmptyFields);
 
       void vscode.window.showInformationMessage(`Record created (ID: ${result.recordId}).`);
       warnAboutScriptErrors('Record created', result);
@@ -632,15 +708,35 @@ export class RecordEditorPanel {
     }
   }
 
-  private async confirmNulText(fields: Record<string, unknown>): Promise<Record<string, unknown> | undefined> {
+  private async confirmNulText(
+    fields: Record<string, unknown>,
+    portalData?: CreatePortalData
+  ): Promise<{ fields: Record<string, unknown>; portalData?: CreatePortalData } | undefined> {
     const names = nulTextFields(fields);
-    if (names.length === 0) return fields;
+    const rowHits: string[] = [];
+    for (const [portal, rows] of Object.entries(portalData ?? {})) {
+      rows.forEach((row, index) => {
+        if (nulTextFields(row).length > 0) {
+          rowHits.push(`${portal} row ${index + 1}`);
+        }
+      });
+    }
+    if (names.length === 0 && rowHits.length === 0) return { fields, portalData };
     const cleaned = removeNulText(fields) as Record<string, unknown>;
+    const cleanedPortalData = portalData
+      ? Object.fromEntries(
+          Object.entries(portalData).map(([portal, rows]) => [
+            portal,
+            rows.map((row) => removeNulText(row) as Record<string, unknown>)
+          ])
+        )
+      : undefined;
     const empty = (value: unknown): boolean => value === '' || (Array.isArray(value) && value.every(empty));
     const emptied = names.filter((name) => empty(cleaned[name]));
     const emptyWarning = emptied.length ? ` Removing the character will leave these fields empty: ${emptied.join(', ')}. They will be sent as empty values if you continue.` : '';
+    const rowWarning = rowHits.length ? ` Related rows with the character: ${rowHits.join(', ')}.` : '';
     const choice = await vscode.window.showWarningMessage(
-      `NUL character (U+0000) in field(s): ${names.join(', ')}. ${NUL_TEXT_WARNING}${emptyWarning}`,
+      `NUL character (U+0000) in field(s): ${names.join(', ')}${rowHits.length ? ` and in related row(s): ${rowHits.join(', ')}` : ''}. ${NUL_TEXT_WARNING}${emptyWarning}${rowWarning}`,
       { modal: true },
       'Remove the character and continue'
     );
@@ -648,7 +744,7 @@ export class RecordEditorPanel {
       await this.panel.webview.postMessage({ type: 'saveCancelled' });
       return undefined;
     }
-    return cleaned;
+    return { fields: cleaned, portalData: cleanedPortalData };
   }
 
   private async exportCurrentRecord(): Promise<void> {
@@ -783,6 +879,9 @@ export class RecordEditorPanel {
       <div id="fieldEditor"></div>
       <p id="duplicateFieldNote" class="status hidden" role="note"></p>
       <p id="fieldsFootnote" class="status" role="note">Fields your account cannot see are not listed here.</p>
+      <h3 id="portalHeading" class="hidden">Related Rows</h3>
+      <p id="portalNote" class="status hidden" role="note"></p>
+      <div id="portalEditor"></div>
       <h3>Patch Preview</h3>
       <pre id="patchPreview" class="raw"></pre>
       <h3>Raw Record JSON</h3>
@@ -849,9 +948,18 @@ function parseIncomingMessage(raw: unknown): IncomingMessage | undefined {
     ) {
       return undefined;
     }
+    const portalData = readCreatePortalData(body.portalData);
+    if (portalData === null) {
+      return undefined;
+    }
     return {
       type,
-      payload: { profileId: bodyProfileId, layout: bodyLayout, fieldData: fieldData as Record<string, unknown> }
+      payload: {
+        profileId: bodyProfileId,
+        layout: bodyLayout,
+        fieldData: fieldData as Record<string, unknown>,
+        ...(portalData ? { portalData } : {})
+      }
     };
   }
 
@@ -881,8 +989,37 @@ function parseIncomingMessage(raw: unknown): IncomingMessage | undefined {
   return undefined;
 }
 
-function parseDraftPayload(raw: unknown, loadOnly = false): DraftPayload | undefined {
-  const payload = toRecord(raw);
+/**
+ * Shape-check the related rows of a create request. Returns undefined when absent,
+ * null when malformed (the message is dropped, as with other unparseable payloads);
+ * the precise validation and its error messages happen in the create path itself.
+ */
+function readCreatePortalData(value: unknown): Record<string, Array<Record<string, unknown>>> | undefined | null {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+  let total = 0;
+  for (const rows of Object.values(value)) {
+    if (!Array.isArray(rows)) {
+      return null;
+    }
+    for (const row of rows) {
+      if (!row || typeof row !== 'object' || Array.isArray(row)) {
+        return null;
+      }
+      total += 1;
+      if (total > MAX_PORTAL_ROWS_TOTAL) {
+        return null;
+      }
+    }
+  }
+  return value as Record<string, Array<Record<string, unknown>>>;
+}
+
+function parseDraftPayload(raw: unknown, loadOnly = false): DraftPayload | undefined {  const payload = toRecord(raw);
   if (!payload) {
     return undefined;
   }

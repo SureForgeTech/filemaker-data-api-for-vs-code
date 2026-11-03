@@ -3,9 +3,10 @@ import { isProxyProfile } from '../../types/fm';
 import { FMClientError } from '../errors';
 import { assertNoNulText } from '../../utils/nulText';
 import { assertUsableUrlName } from '../../utils/urlSegment';
-import type { ClientRequestControl, EditRecordOptions } from './types';
+import type { ClientRequestControl, CreateRecordOptions, EditRecordOptions } from './types';
 import type { ClientContext } from './context';
 import { scriptErrorsOf } from './response';
+import { sanitizeCreatePortalData } from '../../utils/createPortalRows';
 
 export async function editRecord(
   client: ClientContext,
@@ -80,7 +81,8 @@ export async function createRecord(
   profile: ConnectionProfile,
   layout: string,
   fieldData: Record<string, unknown>,
-  control?: ClientRequestControl
+  control?: ClientRequestControl,
+  options?: CreateRecordOptions
 ): Promise<EditRecordResult> {
   return client.withHistory(
     {
@@ -92,7 +94,18 @@ export async function createRecord(
     async (trace) => {
       assertUsableUrlName(layout, 'layout');
       assertNoNulText(fieldData);
+      const portalData = sanitizeCreatePortalData(options?.portalData);
+      for (const rows of Object.values(portalData ?? {})) {
+        for (const row of rows) {
+          assertNoNulText(row);
+        }
+      }
       if (isProxyProfile(profile)) {
+        if (portalData) {
+          throw new FMClientError(
+            'Creating related (portal) rows is not supported through a proxy connection. Create the parent record first, then add the related rows on the FileMaker layout, or use a direct Data API connection.'
+          );
+        }
         return client.proxyClient.createRecord(profile, layout, fieldData, control?.signal);
       }
 
@@ -102,7 +115,9 @@ export async function createRecord(
           method: 'POST',
           path: `/layouts/${encodeURIComponent(layout)}/records`,
           data: {
-            fieldData
+            fieldData,
+            // Only when related rows carry values, so the request matches the plain create otherwise.
+            ...(portalData ? { portalData } : {})
           },
           signal: control?.signal
         },

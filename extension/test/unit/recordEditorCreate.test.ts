@@ -341,6 +341,136 @@ describe('Record Editor create mode (stubbed services)', () => {
     expect(panel.last('saveCancelled')).toBeDefined();
   });
 
+  describe('related (portal) rows', () => {
+    const portalMetadata = {
+      fieldMetaData: [{ name: 'Name' }, { name: 'Age' }],
+      portalMetaData: { Orders: [{ name: 'Orders::Total' }, { name: 'Orders::Note' }] }
+    };
+
+    const openWithPortals = (authMode: 'direct' | 'proxy' = 'direct') => {
+      const p = authMode === 'proxy' ? { ...profile('https://fm.example.com'), authMode: 'proxy' as const } : profile('https://fm.example.com');
+      panel = openPanel({
+        profileStore: { getProfile: vi.fn(async () => p), listProfiles: vi.fn(async () => []), getActiveProfileId: vi.fn() },
+        fmClient: { createRecord },
+        schemaService: { getFields: vi.fn(async () => ({ supported: true, metadata: portalMetadata, fields, fromCache: false })) }
+      });
+      return p;
+    };
+
+    it('creates a record with related rows and passes them as create options', async () => {
+      openWithPortals();
+      await panel.send({ type: 'loadLayoutFields', payload: { profileId: 'p1', layout: 'People' } });
+      expect(panel.last('layoutFields')?.payload).toMatchObject({ portals: [{ portal: 'Orders', fields: ['Total', 'Note'] }], authMode: 'direct' });
+
+      vi.mocked(vscode.window.showWarningMessage).mockResolvedValueOnce('Create' as never);
+      await panel.send({
+        type: 'createRecord',
+        payload: {
+          profileId: 'p1',
+          layout: 'People',
+          fieldData: { Name: 'Ada' },
+          portalData: { Orders: [{ 'Orders::Total': 10, 'Orders::Note': '' }] }
+        }
+      });
+
+      expect(createRecord).toHaveBeenCalledWith(expect.anything(), 'People', { Name: 'Ada' }, undefined, {
+        portalData: { Orders: [{ 'Orders::Total': 10 }] }
+      });
+      expect(vscode.window.showWarningMessage).toHaveBeenCalledWith(
+        expect.stringContaining('and 1 related row(s)'),
+        expect.anything(),
+        'Create'
+      );
+      expect(panel.last('recordCreated')?.payload).toMatchObject({ recordId: '501' });
+    });
+
+    it('creates a record from related rows alone', async () => {
+      openWithPortals();
+      await panel.send({ type: 'loadLayoutFields', payload: { profileId: 'p1', layout: 'People' } });
+      vi.mocked(vscode.window.showWarningMessage).mockResolvedValueOnce('Create' as never);
+      await panel.send({
+        type: 'createRecord',
+        payload: { profileId: 'p1', layout: 'People', fieldData: { Name: '' }, portalData: { Orders: [{ Note: 'plain key is accepted too' }] } }
+      });
+      expect(createRecord).toHaveBeenCalledWith(expect.anything(), 'People', {}, undefined, {
+        portalData: { Orders: [{ Note: 'plain key is accepted too' }] }
+      });
+    });
+
+    it('refuses related rows for portals and fields the verified layout metadata does not have', async () => {
+      openWithPortals();
+      await panel.send({ type: 'loadLayoutFields', payload: { profileId: 'p1', layout: 'People' } });
+
+      await panel.send({
+        type: 'createRecord',
+        payload: { profileId: 'p1', layout: 'People', fieldData: { Name: 'Ada' }, portalData: { Nope: [{ 'Nope::X': 1 }] } }
+      });
+      expect(panel.last('error')?.message).toBe('These are not portals on layout "People": Nope.');
+      expect(createRecord).not.toHaveBeenCalled();
+
+      await panel.send({
+        type: 'createRecord',
+        payload: { profileId: 'p1', layout: 'People', fieldData: { Name: 'Ada' }, portalData: { Orders: [{ 'Orders::Nope': 1 }] } }
+      });
+      expect(panel.last('error')?.message).toBe('These are not fields of portals on layout "People": Nope.');
+      expect(createRecord).not.toHaveBeenCalled();
+      expect(vscode.window.showWarningMessage).not.toHaveBeenCalled();
+    });
+
+    it('refuses related rows through a proxy profile before asking to confirm', async () => {
+      openWithPortals('proxy');
+      await panel.send({ type: 'loadLayoutFields', payload: { profileId: 'p1', layout: 'People' } });
+      expect(panel.last('layoutFields')?.payload).toMatchObject({ authMode: 'proxy' });
+
+      await panel.send({
+        type: 'createRecord',
+        payload: { profileId: 'p1', layout: 'People', fieldData: { Name: 'Ada' }, portalData: { Orders: [{ 'Orders::Total': 10 }] } }
+      });
+      expect(panel.last('error')?.message).toContain('not supported through a proxy connection');
+      expect(createRecord).not.toHaveBeenCalled();
+      expect(vscode.window.showWarningMessage).not.toHaveBeenCalled();
+    });
+
+    it('drops related rows that carry no value and keeps the plain create call', async () => {
+      openWithPortals();
+      await panel.send({ type: 'loadLayoutFields', payload: { profileId: 'p1', layout: 'People' } });
+      vi.mocked(vscode.window.showWarningMessage).mockResolvedValueOnce('Create' as never);
+      await panel.send({
+        type: 'createRecord',
+        payload: { profileId: 'p1', layout: 'People', fieldData: { Name: 'Ada' }, portalData: { Orders: [{}] } }
+      });
+      expect(createRecord).toHaveBeenCalledWith(expect.anything(), 'People', { Name: 'Ada' });
+      expect(createRecord.mock.calls[0]).toHaveLength(3);
+    });
+
+    it('refuses related rows that name a recordId or hold non-text values', async () => {
+      openWithPortals();
+      await panel.send({
+        type: 'createRecord',
+        payload: { profileId: 'p1', layout: 'People', fieldData: { Name: 'Ada' }, portalData: { Orders: [{ recordId: '9', Total: 1 }] } }
+      });
+      expect(panel.last('error')?.message).toContain('recordId');
+
+      await panel.send({
+        type: 'createRecord',
+        payload: { profileId: 'p1', layout: 'People', fieldData: { Name: 'Ada' }, portalData: { Orders: [{ Total: { nested: 1 } }] } }
+      });
+      expect(panel.last('error')?.message).toContain('non-text value');
+      expect(createRecord).not.toHaveBeenCalled();
+    });
+
+    it('ignores a create request whose related rows are not shaped like rows', async () => {
+      openWithPortals();
+      const before = panel.posted.length;
+      await panel.sendUnanswered({
+        type: 'createRecord',
+        payload: { profileId: 'p1', layout: 'People', fieldData: { Name: 'Ada' }, portalData: { Orders: 'not rows' } }
+      });
+      expect(panel.posted.length).toBe(before);
+      expect(createRecord).not.toHaveBeenCalled();
+    });
+  });
+
   it('refuses an empty form, malformed payloads, offline mode, and a user switch-off of record editing', async () => {
     await panel.send({ ...create, payload: { ...create.payload, fieldData: { Name: '' } } });
     expect(panel.last('error')?.message).toMatch(/At least one field/);
@@ -380,6 +510,114 @@ describe('Record Editor create mode (stubbed services)', () => {
     const html = (vi.mocked(vscode.window.createWebviewPanel).mock.results.at(-1)?.value as { webview: { html: string } }).webview.html;
     expect(html).toContain('id="createButton"');
     expect(html).toContain('id="recordIdRow"');
+    expect(html).toContain('id="portalEditor"');
+  });
+
+  it.skipIf(!JSDOM)('shows related-row editors in create mode and submits them as portalData', () => {
+    const html = (vi.mocked(vscode.window.createWebviewPanel).mock.results.at(-1)?.value as { webview: { html: string } }).webview.html;
+    const page = loadPage(html, readFileSync(path.resolve(__dirname, '../../src/webviews/recordEditor/ui/index.js'), 'utf8'));
+    page.send({ type: 'init', payload: { profiles: [{ id: 'p1', name: 'P' }], activeProfileId: 'p1', defaults: { mode: 'create', profileId: 'p1', layout: 'People' } } });
+    page.send({ type: 'layoutsLoaded', payload: { profileId: 'p1', layouts: ['People'] } });
+    expect(page.document.getElementById('portalHeading')!.classList.contains('hidden')).toBe(true);
+
+    page.send({
+      type: 'layoutFields',
+      payload: {
+        profileId: 'p1',
+        layout: 'People',
+        fields: [{ name: 'Name' }],
+        portals: [{ portal: 'Orders', fields: ['Total', 'Note'] }],
+        authMode: 'direct',
+        metadataSupported: true
+      }
+    });
+
+    expect(page.document.getElementById('portalHeading')!.classList.contains('hidden')).toBe(false);
+    expect(page.document.body.textContent).toContain('Orders');
+
+    // Add one row, fill one field, leave the other empty; add a second row and remove it.
+    (page.document.querySelectorAll('.portal-section button')[0] as { click(): void }).click();
+    (page.document.querySelectorAll('.portal-section button')[0] as { click(): void }).click();
+    const rows = page.document.querySelectorAll('.portal-row');
+    expect(rows).toHaveLength(2);
+    rows[1]?.querySelector('button')?.click();
+    expect(page.document.querySelectorAll('.portal-row')).toHaveLength(1);
+
+    page.window.eval("const input = document.querySelector('.portal-row input'); input.value = '42'; input.dispatchEvent(new Event('input'));");
+
+    // In proxy mode the rows are explained instead of editable.
+    page.send({
+      type: 'layoutFields',
+      payload: {
+        profileId: 'p1',
+        layout: 'People',
+        fields: [{ name: 'Name' }],
+        portals: [{ portal: 'Orders', fields: ['Total'] }],
+        authMode: 'proxy',
+        metadataSupported: true
+      }
+    });
+    expect(page.document.querySelectorAll('.portal-row')).toHaveLength(0);
+    expect(page.document.body.textContent).toContain('not supported through a proxy connection');
+
+    page.send({
+      type: 'layoutFields',
+      payload: {
+        profileId: 'p1',
+        layout: 'People',
+        fields: [{ name: 'Name' }],
+        portals: [{ portal: 'Orders', fields: ['Total', 'Note'] }],
+        authMode: 'direct',
+        metadataSupported: true
+      }
+    });
+    (page.document.querySelectorAll('.portal-section button')[0] as { click(): void }).click();
+    page.window.eval("const input = document.querySelector('.portal-row input'); input.value = '42'; input.dispatchEvent(new Event('input'));");
+    page.window.eval("const field = document.querySelector('#fieldEditor input, #fieldEditor textarea'); field.value = 'Ada'; field.dispatchEvent(new Event('input'));");
+    page.document.getElementById('createButton')!.click();
+
+    const submission = page.posted.find((message) => message.type === 'createRecord');
+    expect(submission).toEqual({
+      type: 'createRecord',
+      payload: {
+        profileId: 'p1',
+        layout: 'People',
+        fieldData: { Name: 'Ada' },
+        portalData: { Orders: [{ 'Orders::Total': '42' }] }
+      }
+    });
+  });
+
+  it.skipIf(!JSDOM)('submits a create with related rows only when no field has a value', () => {
+    const html = (vi.mocked(vscode.window.createWebviewPanel).mock.results.at(-1)?.value as { webview: { html: string } }).webview.html;
+    const page = loadPage(html, readFileSync(path.resolve(__dirname, '../../src/webviews/recordEditor/ui/index.js'), 'utf8'));
+    page.send({ type: 'init', payload: { profiles: [{ id: 'p1', name: 'P' }], activeProfileId: 'p1', defaults: { mode: 'create', profileId: 'p1', layout: 'People' } } });
+    page.send({ type: 'layoutsLoaded', payload: { profileId: 'p1', layouts: ['People'] } });
+    page.send({
+      type: 'layoutFields',
+      payload: {
+        profileId: 'p1',
+        layout: 'People',
+        fields: [{ name: 'Name' }],
+        portals: [{ portal: 'Orders', fields: ['Total'] }],
+        authMode: 'direct',
+        metadataSupported: true
+      }
+    });
+
+    page.document.getElementById('createButton')!.click();
+    let submission = page.posted.find((message) => message.type === 'createRecord');
+    expect(submission).toBeUndefined();
+    expect(page.document.getElementById('status')!.textContent).toContain('at least one field');
+
+    (page.document.querySelectorAll('.portal-section button')[0] as { click(): void }).click();
+    page.window.eval("const input = document.querySelector('.portal-row input'); input.value = '42'; input.dispatchEvent(new Event('input'));");
+    page.document.getElementById('createButton')!.click();
+    submission = page.posted.find((message) => message.type === 'createRecord');
+    expect(submission).toEqual({
+      type: 'createRecord',
+      payload: { profileId: 'p1', layout: 'People', fieldData: {}, portalData: { Orders: [{ 'Orders::Total': '42' }] } }
+    });
   });
 });
 
@@ -455,5 +693,44 @@ describe('Record Editor create mode against the mock FileMaker server', () => {
     const errors = panel.posted.filter((m) => m.type === 'error').length;
     await panel.send({ type: 'createRecord', payload: { profileId: 'p1', layout: 'Contacts', fieldData: { NoSuchField: 'x' } } });
     expect(panel.posted.filter((m) => m.type === 'error').length).toBe(errors + 1);
+  }, 20_000);
+
+  it('creates a Customers record with a related Orders row through the real client', async () => {
+    workspace.isTrusted = true;
+    workspace.getConfiguration.mockImplementation(() => ({ get: (_k: string, d?: unknown) => d }));
+    const secrets = new SecretStore(new InMemorySecretStorage() as never);
+    await secrets.setPassword('p2', 'testpass1');
+    const fmClient = new FMClient(secrets, { debug() {}, info() {}, warn() {}, error() {} } as never, 5000);
+    const schemaService = new SchemaService(fmClient, { debug() {}, info() {}, warn() {}, error() {} });
+    const p = { ...profile(base), id: 'p2', database: 'Quality' };
+    const panel = openPanel({
+      profileStore: { getProfile: vi.fn(async () => p), listProfiles: vi.fn(async () => [p]), getActiveProfileId: vi.fn(() => 'p2') },
+      fmClient,
+      schemaService
+    });
+
+    await panel.send({ type: 'loadLayoutFields', payload: { profileId: 'p2', layout: 'Customers' } });
+    const listed = panel.last('layoutFields')?.payload as { portals?: Array<{ portal: string; fields: string[] }> };
+    expect(listed.portals).toContainEqual({ portal: 'Orders', fields: expect.arrayContaining(['Total']) });
+
+    vi.mocked(vscode.window.showWarningMessage).mockResolvedValueOnce('Create' as never);
+    await panel.send({
+      type: 'createRecord',
+      payload: {
+        profileId: 'p2',
+        layout: 'Customers',
+        fieldData: { FirstName: 'Related', LastName: 'Row' },
+        portalData: { Orders: [{ 'Orders::Total': '42' }] }
+      }
+    });
+
+    const created = panel.last('recordCreated')?.payload as { recordId: string };
+    expect(created.recordId).toMatch(/^\d+$/);
+    const fetched = await fmClient.getRecord(p, 'Customers', created.recordId);
+    expect(fetched.fieldData).toMatchObject({ FirstName: 'Related', LastName: 'Row' });
+    const orders = (fetched.portalData?.Orders ?? []) as Array<Record<string, unknown>>;
+    expect(orders.length).toBeGreaterThan(0);
+    expect(orders[0]).toMatchObject({ 'Orders::Total': 42 });
+    expect(typeof orders[0]?.recordId).toBe('string');
   }, 20_000);
 });
