@@ -1019,7 +1019,8 @@ function readCreatePortalData(value: unknown): Record<string, Array<Record<strin
   return value as Record<string, Array<Record<string, unknown>>>;
 }
 
-function parseDraftPayload(raw: unknown, loadOnly = false): DraftPayload | undefined {  const payload = toRecord(raw);
+function parseDraftPayload(raw: unknown, loadOnly = false): DraftPayload | undefined {
+  const payload = toRecord(raw);
   if (!payload) {
     return undefined;
   }
