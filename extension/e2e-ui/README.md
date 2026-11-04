@@ -63,6 +63,9 @@ A VS Code window opens on your desktop while the tests run and takes focus; leav
 create lives under one temp folder (user data, extensions, `HOME`, workspace), removed at the end; VS Code is started with
 `--use-mock-keychain`, so the macOS Keychain and your own VS Code profile and extensions are never touched. Nothing is
 signed in: the first-run "Welcome to VS Code / Sign in to GitHub Copilot" overlay is dismissed with "Continue without Signing In".
+On Linux the same throwaway profile is started with `--password-store=basic`: a headless runner has no OS keyring, and VS Code's
+keyring dialog would otherwise block the first secret write and every step after it. Only the invented test credentials in that
+ephemeral user-data directory use the plain text backend; nothing outside it is affected.
 
 ## Output
 
