@@ -217,6 +217,12 @@ export class Session {
       '--disable-updates',
       '--no-sandbox'
     ];
+    // The disposable profile holds invented E2E credentials only, so on Linux it may use VS Code's
+    // plain text credential backend: a headless runner has no OS keyring, and VS Code would
+    // otherwise open a modal keyring dialog on the first secret write, which blocks the extension
+    // host and every later step with it. Only this ephemeral user-data directory is affected; the
+    // macOS keychain protection and the extension's production SecretStorage stay untouched.
+    if (process.platform === 'linux') flags.push('--password-store=basic');
     if (trusted) flags.push('--disable-workspace-trust');
     if (helper) flags.push(`--extensionDevelopmentPath=${helperDir}`);
     if (!this.welcome) flags.push('--skip-welcome');

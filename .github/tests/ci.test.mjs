@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -8,6 +8,8 @@ import { fileURLToPath } from 'node:url';
 import { parse } from 'yaml';
 
 const read = (file) => readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
+// A file anywhere in the repository, for checks that reach outside .github/.
+const readRepo = (file) => readFileSync(new URL(`../../${file}`, import.meta.url), 'utf8');
 const ci = parse(read('workflows/ci.yml'));
 
 // The root gate uses --if-present. Keep the accepted command shape narrow so
@@ -108,6 +110,47 @@ test('strict real VS Code E2E runs weekly and is required before release packagi
   assert.equal(upload.if, 'always()');
   assert.equal(upload.with.path, 'artifacts/e2e-ui/');
   assert.deepEqual(ci.jobs.package.needs, ['build-test', 'e2e-ui']);
+});
+
+test('the first-run smoke journey repeats in CI on Linux, against the mock only', () => {
+  const job = ci.jobs['e2e-ui-smoke'];
+  assert.ok(job, 'the first-run smoke job is missing');
+  // Linux only: the runner needs a display, and the job says so by using xvfb-run.
+  assert.equal(job['runs-on'], 'ubuntu-latest');
+  assert.deepEqual(job.permissions, { contents: 'read' });
+  const checkout = job.steps.find((step) => step.uses?.startsWith('actions/checkout@'));
+  assert.equal(checkout.with['persist-credentials'], false);
+  // The VSIX is the runner's prerequisite, so it has to be packaged in the same job.
+  assert.ok(job.steps.some((step) => step.name === 'Package the Marketplace VSIX'));
+  const run = job.steps.find((step) => step.name === 'Run the first-run smoke journey');
+  assert.ok(run, 'the smoke journey is never run');
+  assert.match(run.run, /^xvfb-run -a npm run test:e2e-ui -w extension$/);
+  assert.equal(run.env.E2E_STRICT, '1', 'a skipped prerequisite must fail the job, not pass it');
+  assert.ok(run.env.E2E_ONLY, 'the job must name the one journey it runs');
+  const upload = job.steps.find((step) => step.name === 'Upload E2E report and logs');
+  assert.equal(upload.if, 'always()');
+  assert.equal(upload.with.path, 'artifacts/e2e-ui/');
+
+  // E2E_ONLY selects journeys by file-name prefix, so the name in the workflow has to
+  // match exactly one journey file that exists in the repository.
+  const only = run.env.E2E_ONLY;
+  const journeys = readdirSync(new URL('../../extension/e2e-ui/journeys/', import.meta.url))
+    .filter((file) => /^j\d+.*\.mjs$/.test(file))
+    .sort();
+  const selected = journeys.filter((file) => file.startsWith(only));
+  assert.equal(selected.length, 1, `E2E_ONLY=${only} matches ${JSON.stringify(selected)}`);
+  // The journey has to keep covering the mock calls the documentation used to deny.
+  const journey = readRepo(`extension/e2e-ui/journeys/${selected[0]}`);
+  assert.match(journey, /productInfo/, 'the smoke journey must check the product info call');
+  assert.match(journey, /databases/, 'the smoke journey must check the database list call');
+});
+
+test('the weekly full real-desktop suite still gates the release package', () => {
+  // The short smoke job does not replace the weekly suite: the tag pipeline still waits
+  // for every journey, and the smoke job is not a second release gate.
+  const job = ci.jobs['e2e-ui'];
+  assert.equal(job.if, "github.event_name == 'schedule' || startsWith(github.ref, 'refs/tags/v')");
+  assert.ok(!ci.jobs.package.needs.includes('e2e-ui-smoke'));
 });
 
 test('the root lint and coverage gates reach every workspace', () => {
