@@ -3,7 +3,7 @@ import { answerPickers, connect, createProfile, ensureProfileCommands } from '..
 import { assert } from '../lib/session.mjs';
 
 const J = 'J05 record editor';
-const field = (wv, name) => wv.locator(`#fieldEditor tr:has(td:text-is("${name}")) textarea`);
+const field = (wv, name) => wv.locator(`#fieldEditor tr:has(td:text-is("${name}")) .fm-field-control[aria-label]`);
 const status = async (wv) => (await wv.locator('#status').innerText()).replace(/\s+/g, ' ').trim();
 
 async function openEditor(s, recordId, layout = 'Products') {
@@ -17,11 +17,11 @@ async function openEditor(s, recordId, layout = 'Products') {
     .locator('#layoutSelect')
     .selectOption(layout)
     .catch(() => {});
-  if (!(await wv.locator('#fieldEditor textarea').count())) {
+  if (!(await wv.locator('#fieldEditor .fm-field-control[aria-label]').count())) {
     await wv.locator('#recordIdInput').fill(String(recordId));
     await wv.locator('#loadButton').click();
   }
-  await wv.locator('#fieldEditor textarea').first().waitFor({ timeout: 20000 });
+  await wv.locator('#fieldEditor .fm-field-control[aria-label]').first().waitFor({ timeout: 20000 });
   return wv;
 }
 
@@ -53,19 +53,18 @@ export async function run(ctx) {
   await s.step(
     J,
     'compare Viewer and Editor field geometry',
-    'both single-line controls are 34 px, fields are 58 px, and row pitch is 74 px with Copy inside the Viewer box',
+    'unlimited Name text uses 96 px controls, 120 px fields and 136 px row pitch; Viewer Copy stays in the label',
     async () => {
       const geometry = (row) => {
-        const control = row.querySelector('textarea');
+        const control = row.querySelector('.fm-field-control[aria-label]');
         const box = control.getBoundingClientRect();
         const button = row.querySelector('button');
-        const copy = button?.getBoundingClientRect();
         return {
           field: row.getBoundingClientRect().height,
           control: box.height,
           pitch: row.getBoundingClientRect().height + parseFloat(getComputedStyle(row.parentElement).rowGap),
           readonly: control.readOnly,
-          copyInside: !copy || (copy.top >= box.top && copy.bottom <= box.bottom && copy.left >= box.left && copy.right <= box.right)
+          copyInLabel: !!button && row.querySelector('.fm-field-label').contains(button)
         };
       };
       const editor = await wv.locator('#fieldEditor tr:has(td:text-is("Name"))').evaluate(geometry);
@@ -73,19 +72,26 @@ export async function run(ctx) {
       await s.cmd('FileMaker: Open Record Viewer');
       await answerPickers(s, ['Mock Quality', 'Products']);
       if (await s.pickerOpen()) await s.inputBox(String(productId), { timeout: 10000 });
-      const viewer = await s.webview('#fieldDataContainer', { visible: false });
+      // The empty data container has no box yet; identify the live panel by its Load button.
+      const viewer = await s.webview('body:has(#fieldDataContainer) #loadButton');
       await viewer.locator('#recordIdInput').fill(String(productId));
       await viewer.locator('#loadButton').click();
       const row = viewer.locator('#fieldDataContainer tr:has(td:text-is("Name"))');
       await row.locator('textarea').waitFor({ timeout: 20000 });
+      await viewer.waitForFunction(() => {
+        const control = document.querySelector('#fieldDataContainer textarea[aria-label="Name"]');
+        return document.visibilityState === 'visible' && control?.getBoundingClientRect().height > 0;
+      }, undefined, { timeout: 20000 });
       const viewed = await row.evaluate(geometry);
-      for (const [name, measured] of [['Editor', editor], ['Viewer', viewed]]) {
-        assert(Math.abs(measured.control - 34) < 1, `${name} control: ${JSON.stringify(measured)}`);
-        assert(Math.abs(measured.field - 58) < 1, `${name} field: ${JSON.stringify(measured)}`);
-        assert(Math.abs(measured.pitch - 74) < 1, `${name} pitch: ${JSON.stringify(measured)}`);
-      }
-      assert(Math.abs(viewed.field - editor.field) < 1 && viewed.readonly && viewed.copyInside, JSON.stringify({ editor, viewed }));
+      // Restore the editor before assertions so a geometry failure cannot strand later steps.
       wv = await openEditor(s, productId);
+      // The mock reports maxCharacters: 0 for Products/Name: unlimited text (PR #455).
+      for (const [name, measured] of [['Editor', editor], ['Viewer', viewed]]) {
+        assert(Math.abs(measured.control - 96) < 1, `${name} control: ${JSON.stringify(measured)}`);
+        assert(Math.abs(measured.field - 120) < 1, `${name} field: ${JSON.stringify(measured)}`);
+        assert(Math.abs(measured.pitch - 136) < 1, `${name} pitch: ${JSON.stringify(measured)}`);
+      }
+      assert(Math.abs(viewed.field - editor.field) < 1 && viewed.readonly && viewed.copyInLabel, JSON.stringify({ editor, viewed }));
       return JSON.stringify({ editor, viewed });
     }
   );
@@ -261,7 +267,7 @@ export async function run(ctx) {
       await field(wv, 'SKU').waitFor({ timeout: 15000 });
       await field(wv, 'SKU').fill('E2E-NEW-1');
       await field(wv, 'Name').fill('Created from the UI');
-      await field(wv, 'Category').fill('Hardware');
+      await field(wv, 'Category').selectOption('Hardware');
       await wv.getByRole('button', { name: 'Create Record' }).click();
       const text = await s.waitModal(15000);
       assert(/Create a new record/.test(text), text);
@@ -282,7 +288,11 @@ export async function run(ctx) {
       await s.dismissToasts();
       wv = await s.webview('#fieldEditor');
       await field(wv, 'SKU').fill('E2E-NEW-2');
-      await field(wv, 'Category').fill('Bogus');
+      // The menu prevents invalid choices; inject one to exercise server-side error 506.
+      await field(wv, 'Category').evaluate((select) => {
+        select.add(new Option('Bogus', 'Bogus'));
+      });
+      await field(wv, 'Category').selectOption('Bogus');
       await wv.getByRole('button', { name: 'Create Record' }).click();
       await s.modal('Create', { timeout: 15000 });
       await s.page.waitForTimeout(2500);
