@@ -72,11 +72,16 @@ export async function run(ctx) {
       await s.cmd('FileMaker: Open Record Viewer');
       await answerPickers(s, ['Mock Quality', 'Products']);
       if (await s.pickerOpen()) await s.inputBox(String(productId), { timeout: 10000 });
-      const viewer = await s.webview('#fieldDataContainer', { visible: false });
+      // The empty data container has no box yet; identify the live panel by its Load button.
+      const viewer = await s.webview('body:has(#fieldDataContainer) #loadButton');
       await viewer.locator('#recordIdInput').fill(String(productId));
       await viewer.locator('#loadButton').click();
       const row = viewer.locator('#fieldDataContainer tr:has(td:text-is("Name"))');
       await row.locator('textarea').waitFor({ timeout: 20000 });
+      await viewer.waitForFunction(() => {
+        const control = document.querySelector('#fieldDataContainer textarea[aria-label="Name"]');
+        return document.visibilityState === 'visible' && control?.getBoundingClientRect().height > 0;
+      }, undefined, { timeout: 20000 });
       const viewed = await row.evaluate(geometry);
       // Restore the editor before assertions so a geometry failure cannot strand later steps.
       wv = await openEditor(s, productId);

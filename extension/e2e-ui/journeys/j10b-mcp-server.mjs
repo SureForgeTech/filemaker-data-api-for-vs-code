@@ -595,11 +595,14 @@ export async function run(ctx) {
       (ctx.extraRoots ??= []).push(ws2);
       fs.writeFileSync(path.join(ws2, 'README.md'), '# second workspace\n');
       const known = new Set(s.app.windows());
-      spawnSync(
+      const opened = spawnSync(
         ctx.vscode.cli,
-        ['--user-data-dir', s.ud, '--extensions-dir', s.ex, '--new-window', ws2],
-        { env: safeEnv({ HOME: s.home }), encoding: 'utf8' }
+        ['--user-data-dir', s.ud, '--extensions-dir', s.ex, '--no-sandbox',
+          '--disable-workspace-trust', '--new-window', ws2],
+        { env: safeEnv({ HOME: s.home }), encoding: 'utf8', timeout: 15000 }
       );
+      assert(opened.status === 0,
+        `second-window CLI failed (${opened.status}): ${opened.error?.message ?? ''} ${opened.stdout} ${opened.stderr}`);
       let page2;
       for (let i = 0; i < 60 && !page2; i += 1) {
         await sleep(500);

@@ -5,6 +5,7 @@ import path from 'node:path';
 import {
   answerFileDialog,
   answerPickers,
+  batchExport,
   connect,
   createProfile,
   ensureProfileCommands
@@ -13,20 +14,6 @@ import { parseCsv } from '../lib/csv.mjs';
 import { assert } from '../lib/session.mjs';
 
 const J = 'J06 batch';
-
-async function batchExport(s, layout, findJson, out) {
-  fs.rmSync(out, { force: true });
-  await s.closeAllEditors();
-  await s.cmd('FileMaker: Batch Export (Find)');
-  await answerPickers(s, ['Mock Quality', layout]);
-  await s.inputBox(findJson, { timeout: 15000 });
-  await s.inputBox('', { timeout: 10000, prompt: /Sort JSON/ }); // optional sort: skip
-  await answerFileDialog(s, out, { timeout: 15000 });
-  if (path.extname(out).toLowerCase() === '.csv') await s.pick('Standard CSV');
-  await s.waitToast(/Started job/i, { timeout: 15000 });
-  for (let i = 0; i < 60 && !fs.existsSync(out); i += 1) await s.page.waitForTimeout(500);
-  await s.page.waitForTimeout(1500);
-}
 
 export async function run(ctx) {
   const { s, mock } = ctx;
@@ -86,7 +73,7 @@ export async function run(ctx) {
       const lines = fs.readFileSync(jl, 'utf8').split('\n').filter(Boolean);
       lines.forEach((l) => JSON.parse(l));
       const hostile = path.join(s.ws, 'hostile.csv');
-      await batchExport(s, 'Hostile', '[{}]', hostile);
+      await batchExport(s, 'Hostile', '[{"Name":"*"}]', hostile);
       const header = parseCsv(fs.readFileSync(hostile, 'utf8'))[0];
       const missing = man.hostileFieldNames.filter((n) => !header.includes(n));
       return `JSONL lines: ${lines.length}; hostile columns present ${header.length}, names missing from header: ${JSON.stringify(missing)}`;
@@ -100,10 +87,10 @@ export async function run(ctx) {
     upd,
     `recordId,Name,Price\n${pids[0]},Batch renamed A,11.5\n${pids[1]},Batch renamed B,12.5\n999999,Missing record,1\n${pids[2]},Bad category,3\n`
   );
-  const batchUpdate = async (file, mode) => {
+  const batchUpdate = async (file, mode, layout = 'Products') => {
     await s.closeAllEditors();
     await s.cmd('FileMaker: Batch Update from CSV/JSON');
-    await answerPickers(s, ['Mock Quality', 'Products']);
+    await answerPickers(s, ['Mock Quality', layout]);
     await answerFileDialog(s, file, { timeout: 15000 });
     await s.quickInputOpen();
     await s.page.waitForTimeout(500);
@@ -143,6 +130,9 @@ export async function run(ctx) {
       await batchUpdate(upd, 'Execute');
       await s.waitModal(15000);
       await s.modal('Execute');
+      await s.waitModal(15000);
+      assert(/no modId column/.test(await s.modalText()), await s.modalText());
+      await s.modal('Continue');
       await s.waitToast(/Started job/i, { timeout: 15000 });
       await s.page.waitForTimeout(5000);
       const a = await data.record('Products', pids[0]);
@@ -186,9 +176,12 @@ export async function run(ctx) {
         file,
         small.map((r) => r.map((c) => `"${c.replace(/"/g, '""')}"`).join(',')).join('\n')
       );
-      await batchUpdate(file, 'Execute');
+      await batchUpdate(file, 'Execute', 'Customers');
       await s.waitModal(15000);
       await s.modal('Execute');
+      await s.waitModal(15000);
+      assert(/rows have modId/.test(await s.modalText()), await s.modalText());
+      await s.modal('Check for newer changes (recommended)');
       await s.waitToast(/Started job/i, { timeout: 15000 });
       await s.page.waitForTimeout(5000);
       const after = await data.record('Customers', id);

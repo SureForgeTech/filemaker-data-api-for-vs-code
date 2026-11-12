@@ -6,6 +6,7 @@ import path from 'node:path';
 import {
   answerFileDialog,
   answerPickers,
+  batchExport,
   connect,
   createProfile,
   ensureProfileCommands,
@@ -389,21 +390,19 @@ export async function run(ctx) {
       const out = path.join(s.ws, 'big.csv');
       fs.rmSync(out, { force: true });
       await fault({ name: 'find-no-match-500', path: '/_find' });
-      await s.cmd('FileMaker: Batch Export (Find)');
-      await answerPickers(s, ['Mock Quality', 'Big']);
-      await s.inputBox('[{"Label":"*"}]', { timeout: 15000 });
-      await s.inputBox('', { timeout: 10000, prompt: /Sort JSON/ });
-      await answerFileDialog(s, out, { timeout: 15000 });
-      await s.page.waitForTimeout(12000);
-      await clear();
+      try {
+        await batchExport(s, 'Big', '[{"Label":"*"}]', out);
+      } finally {
+        await clear();
+        await s.setSetting('filemaker.batch.maxRecords', undefined);
+      }
       const toasts = await toastInfo(s);
       const lines = fs.existsSync(out)
         ? fs.readFileSync(out, 'utf8').split('\n').filter(Boolean).length - 1
         : -1;
-      await s.setSetting('filemaker.batch.maxRecords', undefined);
       if (lines !== 200)
         throw new Error(
-          `exported ${lines} rows instead of 200; toasts: ${toasts.map((t) => t.text).join(' | ')} (confirms S13/N4)`
+          `exported ${lines} rows instead of 200; toasts: ${toasts.map((t) => t.text).join(' | ')}`
         );
       return `200 rows exported; toasts: ${toasts.map((t) => t.text).join(' | ') || 'none'}`;
     }
