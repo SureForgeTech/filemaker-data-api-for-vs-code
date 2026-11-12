@@ -2,6 +2,7 @@ import { join } from 'path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as vscode from 'vscode';
 
+import { displayText } from '../../../src/ai/aiText';
 import { registerBatchCommands } from '../../../src/commands/batch';
 import { command, expectSafeError, layout, logger, profile, profileStore, resetCommandMocks, serviceError } from '../../helpers/commandHarness';
 
@@ -235,7 +236,7 @@ describe('batch commands', () => {
     updateInputs(false);
     vi.mocked(vscode.window.showWarningMessage).mockResolvedValueOnce(choice as never).mockResolvedValueOnce('Continue' as never);
     await command('batchUpdateFromFile')(arg);
-    expect(vscode.window.showWarningMessage).toHaveBeenCalledWith(expect.stringContaining(`Execute batch update for 1 records on ${layout}?`), { modal: true }, 'Execute');
+    expect(vscode.window.showWarningMessage).toHaveBeenCalledWith(expect.stringContaining(`Execute batch update for 1 records on ${displayText(layout)}?`), { modal: true }, 'Execute');
     if (choice === 'Execute') {
       const context = { log: vi.fn() };
       await tasks[0]!(context as never);
@@ -318,6 +319,33 @@ describe('batch commands', () => {
     expect(vscode.window.showWarningMessage).toHaveBeenCalledWith('No valid update rows found.');
     expect(vscode.window.showQuickPick).not.toHaveBeenCalled();
     expect(jobRunner.startJob).not.toHaveBeenCalled();
+  });
+
+  it('B4 escapes hostile confirmation names on one line and identifies the target without changing it', async () => {
+    const { profiles, tasks, batchService } = setup();
+    const target = { ...profile, name: 'Profile\n![x](https://host/beacon)', serverUrl: 'https://user:password@example.invalid:8443' };
+    profiles.getProfile.mockResolvedValue(target);
+    const targetLayout = ' Layout\nExecute anyway?\u202e ';
+    updateInputs(false);
+    vi.mocked(vscode.window.showWarningMessage).mockResolvedValueOnce('Execute' as never).mockResolvedValueOnce('Continue' as never);
+    await command('batchUpdateFromFile')({ ...arg, layout: targetLayout });
+    const message = vi.mocked(vscode.window.showWarningMessage).mock.calls[0]![0];
+    expect(message.split('\n')[0]).toBe(`Execute batch update for 1 records on ${displayText(targetLayout)}? Profile ${displayText(target.name)}, server "example.invalid:8443".`);
+    expect(message).not.toContain('password');
+    await tasks[0]!({ log: vi.fn() } as never);
+    expect(batchService.batchUpdate).toHaveBeenCalledWith(target, targetLayout, entries, expect.anything(), expect.anything());
+  });
+
+  it('B4 refuses files above the row cap before confirmation or scheduling', async () => {
+    const { settings, jobRunner, batchService } = setup();
+    settings.getBatchMaxRecords.mockReturnValue(1);
+    updateInputs(false);
+    vi.mocked(vscode.workspace.fs.readFile).mockResolvedValue(Buffer.from(JSON.stringify([...entries, ...entries])));
+    await command('batchUpdateFromFile')(arg);
+    expect(vscode.window.showWarningMessage).toHaveBeenCalledWith(expect.stringMatching(/2 rows exceed filemaker.batch.maxRecords \(1\)/));
+    expect(vscode.window.showQuickPick).not.toHaveBeenCalled();
+    expect(jobRunner.startJob).not.toHaveBeenCalled();
+    expect(batchService.batchUpdate).not.toHaveBeenCalled();
   });
 
   it.each(['read', 'defaults', 'schedule'])('reports a %s failure safely without crashing', async (failure) => {

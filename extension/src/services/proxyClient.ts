@@ -1,3 +1,4 @@
+import { withRequestLimits } from './requestLimits';
 import { assertFindCriteria } from '../utils/findCriteria';
 import axios, { type AxiosInstance } from 'axios';
 
@@ -92,7 +93,7 @@ export class ProxyClient {
   public constructor(
     private readonly secretStore: Pick<SecretStore, 'getProxyApiKey'>,
     logger: Pick<Logger, 'debug' | 'info' | 'warn' | 'error'>,
-    timeoutMs: number,
+    private readonly timeoutMs: number,
     httpClient?: AxiosInstance
   ) {
     this.logger = logger;
@@ -310,7 +311,7 @@ export class ProxyClient {
     // omitted — proxies are configured per-environment and don't need to display
     // human-readable profile names.
     try {
-      const response = await this.httpClient.post<ProxyEnvelope<T> | T>(
+      const response = await withRequestLimits(this.timeoutMs, signal, (limits) => this.httpClient.post<ProxyEnvelope<T> | T>(
         endpoint,
         {
           action,
@@ -319,11 +320,11 @@ export class ProxyClient {
         },
         {
           headers,
-          signal,
+          ...limits,
           maxRedirects: 0,
           ...httpsTransportFor(profile, endpoint)
         }
-      );
+      ));
 
       const responseData = response.data;
       if (responseData === undefined || responseData === null || typeof responseData === 'string') {

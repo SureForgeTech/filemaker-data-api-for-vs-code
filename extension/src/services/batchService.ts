@@ -130,12 +130,14 @@ export class BatchService {
           offset
         });
 
-        if (format === 'csv' && fields && !csvWriter) await startCsv(page.data ?? []);
+        const records = (page.data ?? []).slice(0, remaining);
+        if ((page.data?.length ?? 0) > remaining) truncated = true;
+        if (format === 'csv' && fields && !csvWriter) await startCsv(records);
         if (!page.data || page.data.length === 0) {
           break;
         }
 
-        for (const record of page.data) {
+        for (const record of records) {
           if (format === 'jsonl') {
             const note = portalNotes(record);
             await jsonlWriter?.append(note ? { ...record, exportNote: note } : record);
@@ -151,8 +153,8 @@ export class BatchService {
           }
         }
 
-        exported += page.data.length;
-        offset += page.data.length;
+        exported += records.length;
+        offset += records.length;
 
         if (job) {
           job.reportProgress(Math.round((exported / maxRecords) * 100), `Exported ${exported} records.`);
@@ -165,7 +167,7 @@ export class BatchService {
 
       // Reached the cap: "truncated" only if the layout really has another record (a found set of
       // exactly maxRecords rows is complete).
-      if (exported >= maxRecords && !job?.isCancellationRequested()) {
+      if (exported >= maxRecords && !truncated && !job?.isCancellationRequested()) {
         try {
           const probe = await this.fmClient.findRecords(profile, layout, { ...request, limit: 1, offset });
           truncated = (probe?.data?.length ?? 0) > 0;
@@ -214,6 +216,10 @@ export class BatchService {
     options?: Partial<BatchUpdateOptions>,
     job?: JobContext
   ): Promise<BatchUpdateResult> {
+    const maxRecords = normalizeMaxRecords(this.getMaxRecords());
+    if (entries.length > maxRecords) {
+      throw new Error(`Batch update refused: ${entries.length} rows exceed filemaker.batch.maxRecords (${maxRecords}). Split the file or raise the setting before retrying.`);
+    }
     const dryRun = options?.dryRun ?? this.getDryRunDefault();
     const configuredConcurrency = clampConcurrency(options?.concurrency ?? this.getConcurrency());
     const performanceMode = this.getPerformanceMode();
@@ -580,7 +586,7 @@ function parseCsvBatchUpdates(content: string): BatchUpdateEntry[] {
 
   const lastColumn = headers.length - 1;
   const exportNoteColumn = /^_+portalNote \(export information\)$/.test(headers[lastColumn] ?? '') && rows.slice(1).every((row) =>
-    !row[lastColumn] || /^.+: showing \d+ of \d+(?:; .+: showing \d+ of \d+)*$/.test(row[lastColumn]!));
+    !row[lastColumn] || row[lastColumn]!.split('; ').every((part) => /^.+: showing \d+ of \d+$/.test(part)));
   const entries: BatchUpdateEntry[] = [];
 
   for (const row of rows.slice(1)) {

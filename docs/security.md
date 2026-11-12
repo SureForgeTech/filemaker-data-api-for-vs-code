@@ -248,3 +248,25 @@ model or on the user. See also the [AI section of DATA_HANDLING.md](./DATA_HANDL
 ## Reporting security issues
 
 Do not open a public issue. Follow the [security policy](../SECURITY.md).
+
+## FileMaker request and batch budgets
+
+Every direct and proxy HTTP exchange has a wall-clock deadline set by
+`filemaker.requestTimeoutMs` (15 seconds by default), as well as the socket
+inactivity timeout. Receiving headers or dripping body bytes does not extend the
+deadline. Caller cancellation still stops the request. Sign-in, sign-out, server
+discovery and session retirement use these limits too (retirement uses at most
+three seconds).
+
+Responses are limited to 64 MiB after decompression per HTTP request. Smaller
+explicit limits used by AI tools still apply. Large exports can use smaller
+pages; a page or schema response over the limit must be reduced at the source.
+Uploads retain the existing `filemaker.containerUploadMaxBytes` limit (100 MiB
+by default, configurable up to 2 GiB); the transport allows up to 3 GiB outbound
+to accommodate multipart and proxy base64 overhead. The response limit does not
+reduce the container upload allowance. These are per-request budgets, not a
+total export-size limit.
+
+`filemaker.batch.maxRecords` (10,000 by default) caps both exports and update-file
+rows, including dry runs. Oversized update files are refused before any records
+are changed; split the file or deliberately raise the setting before retrying.

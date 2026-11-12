@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- [SECURITY] Hostile portal notes, numeric cells, certificate names and AI error text no longer cause excessive regex backtracking; exported portal notes bound names and require safe counts.
+- [SECURITY] Direct and proxy FileMaker requests now have a wall-clock deadline and a 64 MiB response limit, including sign-in, sign-out and server discovery.
+- [FIX] Batch exports keep the configured record cap even when the server returns too many rows.
+- [SECURITY] Batch updates refuse files above filemaker.batch.maxRecords and show escaped layout and profile names with the server host before execution.
+- [SECURITY] Generated client README files display layout and profile names as code so hostile names cannot load remote Markdown images or links.
+
 - [INTERNAL] The mock Data API answers the `productInfo` and `databases` calls that **Test Connection** makes, so Test Connection passes all three steps against the mock. The documentation that said the mock lacked them is corrected, a new first-run journey (test the connection, save the profile, connect, run the first query) runs against the mock on every pull request, and a test keeps the documentation in step with what the mock does.
 - Create Record can add new portal rows alongside a parent record on direct connections. Existing related rows are not edited; proxy connections show that portal-row creation is unavailable. This is mock-tested; real-server compatibility remains unverified.
 

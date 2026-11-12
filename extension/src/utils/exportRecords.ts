@@ -1,4 +1,5 @@
 import type { FileMakerRecord, PortalDataInfo } from '../types/fm';
+import { commentText } from './safeText';
 
 /** Metadata is ordered separately from fields, including integer-looking field names. */
 export function exportColumns(names: string[]): [string, string] {
@@ -11,8 +12,11 @@ export function exportColumns(names: string[]): [string, string] {
 export function portalNotes(record: FileMakerRecord): string {
   return (record.portalDataInfo ?? []).flatMap((info: PortalDataInfo) => {
     const name = info.portalObjectName ?? info.table;
-    return name && info.returnedCount < info.foundCount
-      ? [`${name}: showing ${info.returnedCount} of ${info.foundCount}`] : [];
+    return typeof name === 'string' && name.length > 0
+      && Number.isSafeInteger(info.returnedCount) && info.returnedCount >= 0
+      && Number.isSafeInteger(info.foundCount) && info.foundCount >= 0
+      && info.returnedCount < info.foundCount
+      ? [`${commentText(name.slice(0, 256)).replace(/;/g, '\\u003b')}${name.length > 256 ? '…' : ''}: showing ${info.returnedCount} of ${info.foundCount}`] : [];
   }).join('; ');
 }
 export function exportRow(record: FileMakerRecord, meta: [string, string], noteColumn?: string): Map<string, unknown> {

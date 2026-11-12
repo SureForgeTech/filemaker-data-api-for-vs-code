@@ -1,3 +1,4 @@
+import { withRequestLimits } from './requestLimits';
 import { CertificateAdvice } from './fmClient/certificates';
 import { randomUUID } from 'crypto';
 import axios, { type AxiosInstance } from 'axios';
@@ -680,9 +681,9 @@ export class FMClient {
     const timeout = Math.min(this.timeoutMs, 3000);
     try {
       const url = buildEndpoint(profile, `/sessions/${encodeURIComponent(token)}`);
-      await this.httpClient.request({ method: 'DELETE', url,
-        headers: { Authorization: `Bearer ${token}` }, timeout, signal: AbortSignal.timeout(timeout),
-        maxRedirects: 0, ...httpsTransportFor(profile, url) });
+      await withRequestLimits(timeout, undefined, (limits) => this.httpClient.request({ method: 'DELETE', url,
+        headers: { Authorization: `Bearer ${token}` }, ...limits,
+        maxRedirects: 0, ...httpsTransportFor(profile, url) }));
     } catch {
       // Never log an exception here: it can contain the token in the URL or headers.
       this.logger.warn('Could not close the previous FileMaker session; it will expire on the server.');

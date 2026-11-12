@@ -779,7 +779,7 @@ function parseEditableValue(value, name) {
   const metadata = metadataForField(state.presentationFields, name);
   if (normalizedType(metadata.result || metadata.type) !== 'number') return value;
   // Keep this decimal check in step with utils/numericText.ts (covered by parity tests).
-  const match = /^[-+]?(\d+\.?\d*|\.\d+)(?:[eE]([-+]?\d+))?$/.exec(value);
+  const match = /^[-+]?(\d+(?:\.\d*)?|\.\d+)(?:[eE]([-+]?\d+))?$/.exec(value);
   if (!match) return value;
   const number = Number(value);
   if (!Number.isFinite(number)) return value;

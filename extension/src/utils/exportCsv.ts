@@ -7,9 +7,9 @@ export interface CsvExportOptions {
   neutralizeFormulas?: boolean;
 }
 
-const PLAIN_NUMBER = /^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$/;
+const PLAIN_NUMBER = /^[-+]?(\d+(?:\.\d*)?|\.\d+)([eE][-+]?\d+)?$/;
 /** Signed numbers and phone numbers such as `-1,234.5` or `+1 (555) 123-4567`. */
-const NUMBER_OR_PHONE = /^[-+][\d\s().,/-]*\d[\d\s().,/-]*$/;
+const NUMBER_OR_PHONE = /^[-+][\d\s().,/-]*$/;
 
 /**
  * Spreadsheets run a cell that starts with `=`, `+`, `-`, `@`, tab or carriage return as a
@@ -19,7 +19,7 @@ const NUMBER_OR_PHONE = /^[-+][\d\s().,/-]*\d[\d\s().,/-]*$/;
  * as table); test/unit/queryBuilderCellText.test.ts compares the two.
  */
 export function neutralizeFormula(text: string): string {
-  if (!/^'*[=+\-@\t\r]/.test(text) || PLAIN_NUMBER.test(text) || NUMBER_OR_PHONE.test(text)) {
+  if (!/^'*[=+\-@\t\r]/.test(text) || PLAIN_NUMBER.test(text) || (NUMBER_OR_PHONE.test(text) && /\d/.test(text))) {
     return text;
   }
 

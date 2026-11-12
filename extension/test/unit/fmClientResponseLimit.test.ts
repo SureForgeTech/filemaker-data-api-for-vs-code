@@ -33,7 +33,7 @@ async function run(call: (client: FMClient) => Promise<unknown>, responses: unkn
 }
 
 describe('FMClient response size limit (used by the AI tools)', () => {
-  it('sets maxContentLength on list, get and find calls when asked, and on nothing otherwise', async () => {
+  it('sets maxContentLength on list, get and find calls when asked, and uses the default otherwise', async () => {
     const limited = await run(
       async (client) => {
         await client.listLayouts(profile, { maxResponseBytes: 1234 } as never);
@@ -48,6 +48,6 @@ describe('FMClient response size limit (used by the AI tools)', () => {
     expect(configs.every((config) => config.maxContentLength === 1234)).toBe(true);
 
     const plain = await run((client) => client.listLayouts(profile), [{ layouts: [] }]);
-    expect((plain.request.mock.calls[1]?.[0] as Record<string, unknown>).maxContentLength).toBeUndefined();
+    expect((plain.request.mock.calls[1]?.[0] as Record<string, unknown>).maxContentLength).toBe(64 * 1024 * 1024);
   });
 });

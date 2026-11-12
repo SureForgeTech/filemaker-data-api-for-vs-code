@@ -1,3 +1,4 @@
+import { withRequestLimits } from '../requestLimits';
 import { type AxiosError, type AxiosRequestConfig } from 'axios';
 import type { ConnectionProfile } from '../../types/fm';
 import type { DataApiEnvelope } from '../../types/dataApi';
@@ -37,17 +38,14 @@ export async function requestWithAuth<TResponse extends Record<string, unknown>>
       data: request.data,
       params: request.params,
       ...(request.strictQuery ? { paramsSerializer: { serialize: strictQuerySerializer } } : {}),
-      signal: request.signal,
-      timeout: client.timeoutMs,
-      maxBodyLength: Infinity,
-      ...(request.maxResponseBytes ? { maxContentLength: request.maxResponseBytes } : {}),
       // The Data API never redirects. Following one could send a login to another server or drop
       // the request body; a redirect is reported as an error that says where it pointed.
       maxRedirects: 0,
       ...httpsTransportFor(profile, buildEndpoint(profile, request.path))
     };
 
-    const response = await client.httpClient.request<unknown>(config);
+    const response = await withRequestLimits(client.timeoutMs, request.signal,
+      (limits) => client.httpClient.request<unknown>({ ...config, ...limits }), request.maxResponseBytes);
     return parseDataApiEnvelope<TResponse>(response);
   } catch (error) {
     const axiosError = error as AxiosError;
@@ -110,15 +108,13 @@ export async function requestWithAuthRaw<TResponse extends Record<string, unknow
       data: request.data,
       params: request.params,
       ...(request.strictQuery ? { paramsSerializer: { serialize: strictQuerySerializer } } : {}),
-      signal: request.signal,
-      timeout: client.timeoutMs,
-      maxBodyLength: Infinity,
       maxRedirects: 0,
       ...httpsTransportFor(profile, buildEndpoint(profile, request.path)),
       validateStatus: (status) => (status >= 200 && status < 300) || status === 304
     };
 
-    const response = await client.httpClient.request<unknown>(config);
+    const response = await withRequestLimits(client.timeoutMs, request.signal,
+      (limits) => client.httpClient.request<unknown>({ ...config, ...limits }), request.maxResponseBytes);
     const headers = normalizeHeaders(response.headers as Record<string, unknown>);
     if (response.status === 304) {
       return {
@@ -178,13 +174,12 @@ export async function requestNoAuth<TResponse extends Record<string, unknown>>(
     },
     data: request.data,
     params: request.params,
-    signal: request.signal,
-    timeout: client.timeoutMs,
     maxRedirects: 0,
     ...httpsTransportFor(profile, buildEndpoint(profile, request.path))
   };
 
-  const response = await client.httpClient.request<unknown>(config);
+  const response = await withRequestLimits(client.timeoutMs, request.signal,
+    (limits) => client.httpClient.request<unknown>({ ...config, ...limits }), request.maxResponseBytes);
   return parseDataApiEnvelope<TResponse>(response);
 }
 

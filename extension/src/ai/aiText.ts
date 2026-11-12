@@ -118,5 +118,6 @@ export function scrubGenericText(text: string): string {
     )
     .replace(/[A-Za-z]:\\[^\s'"<>|]+/g, '[path]')
     .replace(/(?<![\w.:@-])\/(?:[\w.~@%+-]+\/)+[\w.~@%+-]*/g, '[path]')
-    .replace(/\b(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}\b/gi, '[host]');
+    // Bound label retries when hostile dotted text has no valid final label.
+    .replace(/\b(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.){1,126}[a-z]{2,}\b/gi, '[host]');
 }

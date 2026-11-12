@@ -1,6 +1,7 @@
 import axios, { type AxiosResponse } from 'axios';
 import type * as vscode from 'vscode';
 
+import { withRequestLimits } from './requestLimits';
 import { FMClient } from './fmClient';
 import { FMClientError } from './errors';
 import type { Logger } from './logger';
@@ -79,7 +80,9 @@ export async function createSelfTestClient(
       const path = `/${(target.apiBasePath ?? '/fmi/data').replace(/^\/+|\/+$/g, '')}/${(target.apiVersionPath ?? 'vLatest').replace(/^\/+|\/+$/g, '')}/databases/${encodeURIComponent(target.database)}/layouts`;
       const url = `${base}${path}`;
       // Deliberately bypass automatic re-login. This request tests the old token itself.
-      const response = await http.get(url, { headers: { Authorization: `Bearer ${token}` }, signal, ...httpsTransportFor(target, url) });
+      const response = await withRequestLimits(timeout, signal, (limits) => http.get(url, {
+        headers: { Authorization: `Bearer ${token}` }, ...limits, ...httpsTransportFor(target, url)
+      }));
       parseDataApiEnvelope(response);
     }
   });

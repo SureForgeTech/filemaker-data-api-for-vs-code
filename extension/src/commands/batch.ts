@@ -1,3 +1,4 @@
+import { displayText } from '../ai/aiText';
 import * as vscode from 'vscode';
 import { singleFlight } from '../utils/singleFlight';
 
@@ -190,6 +191,12 @@ export function registerBatchCommands(deps: RegisterBatchCommandsDeps): vscode.D
             return;
           }
 
+          const maxRecords = settingsService.getBatchMaxRecords();
+          if (entries.length > maxRecords) {
+            vscode.window.showWarningMessage(`Batch update refused: ${entries.length} rows exceed filemaker.batch.maxRecords (${maxRecords}). Split the file or raise the setting before retrying.`);
+            return;
+          }
+
           const defaults = await batchService.getDefaultBatchUpdateOptions();
           const dryRunSelection = await vscode.window.showQuickPick(
             [
@@ -210,7 +217,7 @@ export function registerBatchCommands(deps: RegisterBatchCommandsDeps): vscode.D
           const rowsWithModId = entries.filter((entry) => entry.modId !== undefined).length;
           if (!dryRunSelection.value) {
             const confirmation = await vscode.window.showWarningMessage(
-              `Execute batch update for ${entries.length} records on ${layout}?\nRollback guidance: keep a pre-update export and rerun updates with previous values to revert.`,
+              `Execute batch update for ${entries.length} records on ${displayText(layout)}? Profile ${displayText(profile.name)}, server ${displayText(new URL(profile.serverUrl).host)}.\nRollback guidance: keep a pre-update export and rerun updates with previous values to revert.`,
               { modal: true },
               'Execute'
             );

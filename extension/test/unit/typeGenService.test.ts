@@ -1,3 +1,4 @@
+import { createRequire } from 'module';
 import { runInNewContext } from 'vm';
 import { execFileSync } from 'child_process';
 import { createHash } from 'crypto';
@@ -27,6 +28,24 @@ function createProfile(): ConnectionProfile {
 }
 
 describe('TypeGenService', () => {
+  it('B5 renders hostile profile and layout names as inert Markdown code', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'fm-hostile-readme-'));
+    try {
+      const names = ['![x](https://host/beacon)', '`![x](https://host/beacon)`', ' ```<img src="https://host/beacon">\n[link](https://host/beacon)```` '];
+      const schema = { supported: true, fromCache: false, fields: [], metadata: {} };
+      const service = new TypeGenService({ isOfflineModeEnabled: () => false, getLayoutSchema: vi.fn().mockResolvedValue(schema) } as never, {} as never,
+        { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }, { getWorkspaceRoot: () => root });
+      const artifacts = await service.generateTypeScriptClient({ ...createProfile(), name: '`![profile](https://host/beacon)``' }, names, join(root, 'client'));
+      const readme = await readFile(artifacts.readmePath, 'utf8');
+      const markdown = createRequire(import.meta.url)('markdown-it')({ html: true }) as { render(text: string): string };
+      const html = markdown.render(readme);
+      expect(html).not.toMatch(/<(?:img|a)\b[^>]*(?:src|href)=["']https:\/\/host\//);
+      expect(html).toContain('<code>![x](https://host/beacon)</code>');
+      expect(html).toContain('&lt;img');
+      expect(html).toContain('![profile](https://host/beacon)');
+    } finally { await rm(root, { recursive: true, force: true }); }
+  });
+
   it('generates unique compiling keys for duplicate Photo, repeating Phones and literal Phones(2) together', async () => {
     const root = await mkdtemp(join(tmpdir(), 'fm-duplicate-types-'));
     try {

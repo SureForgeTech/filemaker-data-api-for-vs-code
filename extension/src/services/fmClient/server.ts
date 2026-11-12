@@ -1,3 +1,4 @@
+import { withRequestLimits } from '../requestLimits';
 import type { ConnectionProfile } from '../../types/fm';
 import type { DataApiEnvelope } from '../../types/dataApi';
 import { FMClientError, toFMClientError } from '../errors';
@@ -92,15 +93,14 @@ export async function requestServerLevel<TResponse extends Record<string, unknow
   const basePath = normalizePath(profile.apiBasePath ?? '/fmi/data');
   const version = (profile.apiVersionPath ?? 'vLatest').replace(/^\/+|\/+$/g, '');
   try {
-    const response = await client.httpClient.request<unknown>({
+    const response = await withRequestLimits(client.timeoutMs, control?.signal, (limits) => client.httpClient.request<unknown>({
       method: 'GET',
       url: `${base}${basePath}/${version}${path}`,
       headers: { Accept: 'application/json' },
-      signal: control?.signal,
-      timeout: client.timeoutMs,
+      ...limits,
       maxRedirects: 0,
       ...httpsTransportFor(profile, `${base}${basePath}/${version}${path}`)
-    });
+    }), control?.maxResponseBytes);
     onStatus?.(response.status);
     return parseDataApiEnvelope<TResponse>(response);
   } catch (error) {
