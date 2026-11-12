@@ -51,6 +51,7 @@ test('the CSV journey answers the format picker before expecting a started job',
       if (name === 'Batch Export (Find) all Customers to CSV') await fn();
     },
     closeAllEditors: async () => {},
+    dismissToasts: async () => {},
     cmd: async (title) => {
       assert.equal(title, 'FileMaker: Batch Export (Find)');
       stage = 'layout';
