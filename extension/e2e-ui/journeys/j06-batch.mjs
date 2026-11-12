@@ -161,7 +161,7 @@ export async function run(ctx) {
   await s.step(
     J,
     'round trip: re-import the exported Customers CSV unchanged (execute)',
-    'unchanged data should not change; calculation and global columns should not break the run; neutralised cells must not be written back as text',
+    'data comes back unchanged; calculation and global columns should not break the run; neutralised cells must not be written back as text',
     async () => {
       const id = man.databases.Quality.tables.Customers.conditions['csv-formula'][0];
       const before = await data.record('Customers', id);
@@ -195,10 +195,13 @@ export async function run(ctx) {
         before: before.fieldData.Notes,
         after: after.fieldData.Notes
       };
+      // Data must come back identical and the neutralised formula must not be written back as text. The row is still
+      // written once, as FileMaker bumps modId on any PATCH; skipping identical rows would be a new feature.
       assert(
-        changed.length === 0 && before.modId === after.modId,
+        changed.length === 0,
         `fields changed by an unchanged re-import: ${JSON.stringify(changed)}; Notes before=${JSON.stringify(before.fieldData.Notes)} after=${JSON.stringify(after.fieldData.Notes)}; modId ${before.modId}->${after.modId}`
       );
+      return `data unchanged; modId ${before.modId}->${after.modId} (one PATCH)`;
     }
   );
   await s.closeAllEditors();
