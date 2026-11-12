@@ -6,6 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { parse } from 'yaml';
+import './e2e-journeys.test.mjs';
 
 const read = (file) => readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
 // A file anywhere in the repository, for checks that reach outside .github/.
@@ -92,10 +93,11 @@ test('strict E2E fails instead of skipping when its VSIX prerequisite is absent'
   }
 });
 
-test('strict real VS Code E2E runs weekly and is required before release packaging', () => {
+test('strict real VS Code E2E runs weekly, on demand and before release packaging', () => {
   assert.deepEqual(ci.on.schedule, [{ cron: '0 8 * * 1' }]);
   const job = ci.jobs['e2e-ui'];
-  assert.equal(job.if, "github.event_name == 'schedule' || startsWith(github.ref, 'refs/tags/v')");
+  assert.ok(Object.hasOwn(ci.on, 'workflow_dispatch'));
+  assert.equal(job.if, "github.event_name == 'schedule' || startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'");
   assert.equal(job['runs-on'], 'ubuntu-latest');
   assert.equal(job['timeout-minutes'], 120);
   assert.deepEqual(job.permissions, { contents: 'read' });
@@ -149,7 +151,8 @@ test('the weekly full real-desktop suite still gates the release package', () =>
   // The short smoke job does not replace the weekly suite: the tag pipeline still waits
   // for every journey, and the smoke job is not a second release gate.
   const job = ci.jobs['e2e-ui'];
-  assert.equal(job.if, "github.event_name == 'schedule' || startsWith(github.ref, 'refs/tags/v')");
+  assert.ok(Object.hasOwn(ci.on, 'workflow_dispatch'));
+  assert.equal(job.if, "github.event_name == 'schedule' || startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'");
   assert.ok(!ci.jobs.package.needs.includes('e2e-ui-smoke'));
 });
 

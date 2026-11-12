@@ -22,6 +22,7 @@ async function batchExport(s, layout, findJson, out) {
   await s.inputBox(findJson, { timeout: 15000 });
   await s.inputBox('', { timeout: 10000, prompt: /Sort JSON/ }); // optional sort: skip
   await answerFileDialog(s, out, { timeout: 15000 });
+  if (path.extname(out).toLowerCase() === '.csv') await s.pick('Standard CSV');
   await s.waitToast(/Started job/i, { timeout: 15000 });
   for (let i = 0; i < 60 && !fs.existsSync(out); i += 1) await s.page.waitForTimeout(500);
   await s.page.waitForTimeout(1500);
