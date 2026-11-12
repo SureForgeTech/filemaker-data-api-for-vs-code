@@ -232,9 +232,6 @@ export function registerFmWebProjectCommands(
           await fmWebRuntimeGenerator.generateLayoutPage(firstLayout.id);
         }
 
-        const bridge = await fmBridgeServer.ensureStarted();
-        await fmWebRuntimeGenerator.writeBridgeEnv(bridge.baseUrl, fmBridgeServer.getSessionToken());
-
         const runtimeRoot = fmWebRuntimeGenerator.getGeneratedRuntimeRoot();
         // The folder can arrive with the repository, including its own package.json, and npm
         // runs whatever scripts that file defines. Say so and ask before running anything.
@@ -244,8 +241,13 @@ export function registerFmWebProjectCommands(
           'Run'
         );
         if (answer !== 'Run') {
+          await fmBridgeServer.stop();
+          await fmWebRuntimeGenerator.clearBridgeEnv();
           return;
         }
+
+        const bridge = await fmBridgeServer.ensureStarted();
+        await fmWebRuntimeGenerator.writeBridgeEnv(bridge.baseUrl, fmBridgeServer.getSessionToken());
 
         const terminal = vscode.window.createTerminal({
           name: 'FM Web Preview',
@@ -253,7 +255,7 @@ export function registerFmWebProjectCommands(
         });
         terminal.show(true);
         terminal.sendText('npm install --no-audit --no-fund');
-        terminal.sendText('npm run dev');
+        terminal.sendText('npm run dev -- --hostname 127.0.0.1 --port 3000');
 
         vscode.window.showInformationMessage(
           `FM bridge ready at ${bridge.baseUrl}. Preview app starting from .fmweb/generated/runtime-next.`

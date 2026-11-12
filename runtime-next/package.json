@@ -4,11 +4,12 @@
   "private": true,
   "scripts": {
     "build": "tsc -p tsconfig.json --noEmit",
-    "dev": "next dev",
+    "dev": "next dev --hostname 127.0.0.1 --port 3000",
     "lint": "eslint \"app/**/*.{ts,tsx}\" \"lib/**/*.{ts,tsx}\" \"next.config.ts\" --max-warnings=0",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "start": "next start --hostname 127.0.0.1 --port 3000"
   },
   "dependencies": {
     "@fmweb/shared": "file:../shared",

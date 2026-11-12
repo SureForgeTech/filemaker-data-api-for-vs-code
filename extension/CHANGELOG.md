@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- [SECURITY] FM Web preview listens only on 127.0.0.1:3000, and the bridge refuses missing origins and origins outside that preview port. The browser bundle still contains the session token; local processes that obtain it can forge an Origin.
+- [SECURITY] FM Web preview script buttons ask for confirmation in VS Code with the exact script, escaped parameter and connection host. Oversized confirmation values are refused, and repeated prompts are throttled.
+- [SECURITY] Cancelling FM Web preview startup stops the bridge and removes its saved address and token without removing unrelated env settings.
+- [SECURITY] FM Web layout URL actions refuse schemes other than HTTP and HTTPS. Script and layout names and script parameters reach the preview bridge unchanged.
+
 - [INTERNAL] The mock Data API answers the `productInfo` and `databases` calls that **Test Connection** makes, so Test Connection passes all three steps against the mock. The documentation that said the mock lacked them is corrected, a new first-run journey (test the connection, save the profile, connect, run the first query) runs against the mock on every pull request, and a test keeps the documentation in step with what the mock does.
 - Create Record can add new portal rows alongside a parent record on direct connections. Existing related rows are not edited; proxy connections show that portal-row creation is unavailable. This is mock-tested; real-server compatibility remains unverified.
 

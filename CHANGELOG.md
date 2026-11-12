@@ -36,7 +36,10 @@ PR title prefix matches the highest-tier label added:
 
 ### [SECURITY]
 
-- None.
+- FM Web preview listens only on 127.0.0.1:3000, and the bridge refuses missing origins and origins outside that preview port. The browser bundle still contains the session token; local processes that obtain it can forge an Origin.
+- FM Web preview script buttons ask for confirmation in VS Code with the exact script, escaped parameter and connection host. Oversized confirmation values are refused, and repeated prompts are throttled.
+- Cancelling FM Web preview startup stops the bridge and removes its saved address and token without removing unrelated env settings.
+- FM Web layout URL actions refuse schemes other than HTTP and HTTPS. Script and layout names and script parameters reach the preview bridge unchanged.
 
 ## 1.8.0 (2026-11-02)
 

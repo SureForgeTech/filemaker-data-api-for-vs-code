@@ -47,6 +47,7 @@ it.each(['.fmweb', '.fmweb/generated', '.fmweb/generated/runtime-next', '.fmweb/
   // The env writer never traverses app; all other ancestors protect the secret too.
   if (!folder.endsWith('/app')) {
     await expect(gen.writeBridgeEnv('http://127.0.0.1:123/fm', 'private')).rejects.toThrow(/symlink|outside/);
+    await expect(gen.clearBridgeEnv()).rejects.toThrow(/symlink|outside/);
     expect(await readdir(outside)).toEqual([]);
   }
 });

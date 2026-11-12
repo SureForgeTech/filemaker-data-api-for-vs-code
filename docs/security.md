@@ -142,8 +142,11 @@ request with:
 3. **Per-session bridge token**: a 256-bit random token must be sent
    in the `X-FM-Bridge-Token` header. The token is generated on each
    `ensureStarted()` and discarded on `stop()`.
-4. **Origin allow-list**: cross-origin requests must come from
-   explicitly allowed origins.
+4. **Origin allow-list**: every request must carry exactly
+   `http://localhost:3000` or `http://127.0.0.1:3000` as its Origin.
+   Missing origins, HTTPS and other ports are refused. The preview dev/start
+   scripts and extension launch bind to `127.0.0.1:3000`; if that port is busy,
+   stop its existing service before starting the preview.
 5. **Rate limit and request budget** (see `filemaker.fmWeb.bridge.*`
    settings): token-bucket rate limiter + hard per-token-lifetime
    request cap. Throttled requests receive `HTTP 429` with
@@ -158,7 +161,20 @@ with a `.gitignore` beside it) as `NEXT_PUBLIC_FMWEB_BRIDGE_TOKEN`. That
 name means Next.js also puts it in the preview app's browser bundle, so
 treat the preview page like any other local client of the bridge. A new
 token is generated each time the bridge starts; rate limiting bounds the
-blast radius if it is exfiltrated.
+blast radius if it is exfiltrated. Loopback binding keeps the preview off the
+network, but another local user may still fetch its browser bundle. A local
+process holding the token can forge an allowed Origin; these headers are not
+an authentication boundary against local processes. Do not share the preview
+or its bundle. Cancelling the preview start stops an existing bridge and removes
+its generated env entries.
+
+Every preview `/runScript` request asks in a VS Code modal naming the exact
+script, layout, parameter and connection host, and says it came from a layout
+file. Control and formatting characters are escaped. Values that exceed the
+confirmation display bounds are refused in full, never shortened for approval.
+Only one prompt may be pending, with a five-second cooldown after it closes;
+other bridge routes keep their existing behavior. Layout URL actions accept
+only HTTP and HTTPS; runtime tabs use `noopener,noreferrer`.
 
 ## Workspace trust and restrict-only policy
 
@@ -181,7 +197,7 @@ blast radius if it is exfiltrated.
 
 The extension asks before it: saves a record (listing the changed fields),
 deletes a record, executes a batch update (and asks whether to check each record for newer changes or overwrite them, or whether to continue when the file has no modId column), warns before saving text that contains a NUL character, asks before overwriting generated files that the extension did not write, asks twice before Test My Server's write test (create, edit, delete a scratch record) and before it runs a script, runs workspace plugins, starts the
-FM Web preview (`npm install`, `npm run dev`), runs a Layout Mode `runScript`
+FM Web preview (`npm install`, `npm run dev`), runs a Layout Mode or FM Web preview `runScript`
 behavior, sends credentials to an address that came from a workspace profile
 template or to a remote `http://` address, switches AI tools back on, and for
 every AI write, delete or script run.

@@ -11,10 +11,17 @@ function start() {
     listLayoutDefinitions: vi.fn(async () => []),
     generateLayoutPage: vi.fn(async () => undefined),
     writeBridgeEnv: vi.fn(async () => undefined),
+    clearBridgeEnv: vi.fn(async () => undefined),
     getGeneratedRuntimeRoot: () => '/workspace/.fmweb/generated/runtime-next'
   };
   const terminal = { show: vi.fn(), sendText: vi.fn() };
   (vscode.window as unknown as { createTerminal: unknown }).createTerminal = vi.fn(() => terminal);
+
+  const bridge = {
+    ensureStarted: vi.fn(async () => ({ baseUrl: 'http://127.0.0.1:1234' })),
+    getSessionToken: () => 'session-token',
+    stop: vi.fn(async () => undefined)
+  };
 
   registerFmWebProjectCommands({
     context: {} as never,
@@ -23,10 +30,7 @@ function start() {
     schemaService: {} as never,
     fmWebProjectService: {} as never,
     fmWebRuntimeGenerator: generator as never,
-    fmBridgeServer: {
-      ensureStarted: vi.fn(async () => ({ baseUrl: 'http://127.0.0.1:1234' })),
-      getSessionToken: () => 'session-token'
-    } as never,
+    fmBridgeServer: bridge as never,
     roleGuard: { assertFeature: vi.fn(async () => true) } as never,
     logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() } as never,
     refreshExplorer: vi.fn()
@@ -36,13 +40,27 @@ function start() {
     ([id]) => id === 'filemakerDataApiTools.startFmWebPreviewServer'
   );
   const handler = registered[registered.length - 1]?.[1] as () => Promise<void>;
-  return { run: handler, terminal, generator };
+  return { run: handler, terminal, generator, bridge };
 }
 
 describe('FM Web preview', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     (vscode.workspace as unknown as { isTrusted: boolean }).isTrusted = true;
+  });
+
+  it('A3 asks before starting the bridge or writing its token, and clears an existing session on cancel', async () => {
+    const { run, generator, bridge } = start();
+    vi.mocked(vscode.window.showWarningMessage).mockImplementationOnce(async () => {
+      expect(bridge.ensureStarted).not.toHaveBeenCalled();
+      expect(generator.writeBridgeEnv).not.toHaveBeenCalled();
+      return undefined;
+    });
+    await run();
+    expect(bridge.ensureStarted).not.toHaveBeenCalled();
+    expect(generator.writeBridgeEnv).not.toHaveBeenCalled();
+    expect(bridge.stop).toHaveBeenCalledOnce();
+    expect(generator.clearBridgeEnv).toHaveBeenCalledOnce();
   });
 
   it('shows what will run and does nothing when declined', async () => {
@@ -60,14 +78,14 @@ describe('FM Web preview', () => {
     expect(terminal.sendText).not.toHaveBeenCalled();
   });
 
-  it('runs npm only after the user agrees', async () => {
+  it('A1 pins the preview launch to loopback after the user agrees', async () => {
     vi.mocked(vscode.window.showWarningMessage).mockResolvedValue('Run' as never);
     const { run, terminal } = start();
 
     await run();
 
     expect(terminal.sendText).toHaveBeenCalledWith('npm install --no-audit --no-fund');
-    expect(terminal.sendText).toHaveBeenCalledWith('npm run dev');
+    expect(terminal.sendText).toHaveBeenCalledWith('npm run dev -- --hostname 127.0.0.1 --port 3000');
   });
 
   it('hands the preview app the bridge address and its session token', async () => {

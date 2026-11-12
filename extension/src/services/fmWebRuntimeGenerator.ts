@@ -80,7 +80,7 @@ export function withoutMonorepoTooling(pkg: PackageManifest): PackageManifest {
 }
 
 /** Bump together with the `fmweb-managed: runtime template vN` line in the managed files. */
-export const RUNTIME_TEMPLATE_VERSION = 7;
+export const RUNTIME_TEMPLATE_VERSION = 8;
 const MANAGED_MARKER = /^(?:\/\/|\/\*) fmweb-managed: runtime template v(\d+)/;
 
 /**
@@ -96,7 +96,7 @@ const MANAGED_MARKER = /^(?:\/\/|\/\*) fmweb-managed: runtime template v(\d+)/;
  * here. The hash of the raw template file in use is appended at runtime, so it does not.
  */
 export const MANAGED_TEMPLATE_FILES: Record<string, string[]> = {
-  'package.json': ['01f94b699e9d6c9939b2bb1a49028f028c7ba29e2f9f53bd2160318edbecb991', '6d184961fb6759b90115ff94d15dac9455b401917d2d1527b7d3b98531b67ee8', 'c170e5afd10b11e6a02c5914756407fce984f6d925766c0a68077cd0515af9b8'],
+  'package.json': ['01f94b699e9d6c9939b2bb1a49028f028c7ba29e2f9f53bd2160318edbecb991', '6d184961fb6759b90115ff94d15dac9455b401917d2d1527b7d3b98531b67ee8', 'c170e5afd10b11e6a02c5914756407fce984f6d925766c0a68077cd0515af9b8', 'd34857f30034d25a7e99534409b0c92311a77c73a1c3cf8ebef16cf5df6be258', 'ccc47856df9562b307f16fcdcce8505b0ad72c8c3e5ec29ba66c906d79ea936e', '9045c17af4565e76b46df29dbbed9c4a15d7747c5c2dc28ebf268fbf3543c9a5'],
   'vitest.config.ts': [
     // The raw template file, which is what an app generated before the shared alias was rewritten
     // carries. The raw file of the template in use is appended at runtime, not listed here.
@@ -131,12 +131,12 @@ export const MANAGED_TEMPLATE_FILES: Record<string, string[]> = {
  * one; the runtime-template test fails until you do.
  */
 export const SHIPPED_MARKED_HASHES: Record<string, string[]> = {
-  'app/styles.css': ['15d2d57725d731126dc25aa9b303089e38539ff8deb472cbbafb2818c3c5e668', 'bf07315f6023a7a419f8e926ed9f7d7c5351527705bd7acdb6a79cc306575e0c', '6cfbca26c1eefc8430cce0c58533650ef13d173ba46655462b651b0d0797c52a', '12d9335a7c1b4aea281d087e4abfa43e2db3f3a398d99839221b7447926c20e9'],
-  'app/layouts/[id]/page.tsx': ['4a7882e3638ccadf65d48b1fa7a16a14b98df4009671453ea82f4ce18159e895', '167da245a60540ea0f64900f31445424f4dbe6c025a525e7314088f4d0b8f3de', 'b1511cd97b2a9578d29c979e1f3cd4d824558af6b6a998019e1f119f607cdec5', 'dcec25cb4a48333db7d9dc07cea9b84008dbbd2de2fe0724b864268c81e261f6', '86c82b206e05ab63cb5568634195287ab8328b8cb26c014b3c0a3f6264110788'],
-  'lib/bridge-client.ts': ['e0253ec75ce1dd79cef212a05f12cc4db4570ffb5cc8f36fb3775f9ac72f323e', '4c1b977065ac9689fc4992c7139f685e16f6489240d1f195ebe4044c20e99b07', '7823748b4050231a7a8bfbc781181bab1aea425a5c5c6855b06a5d7f0918d1a9', 'e43af510f1160deb036a789425475d92f757c46caacc43cae613aeae898b2113', '1a2aad8b95024684b8b3949b3d06350b329dd2f5d0b4e07764bb5d88866c02c0', '73c3c93d26a832f8e3b7b603fe17d8745011954ca2bb8a9034609005d2ebbc0e'],
-  'lib/runtime-data.ts': ['22cad0412d5a831000a671fc210edde6e7eb6285ea49356981b4e80d9ab0d729', '17ef4bdd043cd5e61fc23bee9516acb66696f4775f53c347048277c32693de3b', 'da5854ee29102d44e966881ccdc2679afd1691d12eee0a1365803b86f0d6ff82', 'd0c19e1992bf77583343490fd7e163e582dcfec03f2deb4d9680cdb6b627e9b8', 'b2afe833d53d11acb2a0e17e8e3b8e9e0c7f6f929d24e0ddc503f7fea6fa1036', '2df2769b31c53c8432ad0ed84b8582933f169095ec3af0c9d3caa5a7ce456861'],
-  'lib/runtime-behavior.ts': ['8d74f0dc280c8a42e4e64e1b47a0df0d11f09beba8605808c5263a81a6f3b94d', '84f4d5c3c7c0f01e033d48476e419150ba1ed28fc28542c61f319613f8d59609', 'bac62b9460c693e064c4f0e516d6e2f382c7a22ed21548ae1a3a59e633dca2d1', '74a2c6f22d6d68e83e590c3f9e5d3c3772d0877db9d8d73f308598057ec5bbff', '8b70dafeeeb6444f885b34e67a6b09cce070334bffc2ca787bca60c2bf8f7809', 'd5d55cbf6d9b1c3354c52250a7c2f6225b671d64a7da3d8912ebce4254618468'],
-  'app/layouts/[id]/runtime-layout-client.tsx': ['6becf8abb393e1e501f75390540b0fbefec17c9ca77803fc4f9352157a67249e', '12d62d25e10b9a94af9e23f997c0bfc1f522c5d50906d67cc6b13a10de6748e5', '40c2f2e4b688c23049ecd70ae2d707766a079953e09134c3ddfd13e7fea09a5b', 'a0cb143cc37ecc41db012951881277e7bd5cfb413ae257ce5ce7909b40466d42', '8e4ee2d8871914d66669a2b17aa72502be87a08ec021ffc96dd84b8dfdd44a13', '3699982b4cafeee34798a1f389a70236b8fc44d280a06497a720376da8ed561b']
+  'app/styles.css': ['15d2d57725d731126dc25aa9b303089e38539ff8deb472cbbafb2818c3c5e668', 'bf07315f6023a7a419f8e926ed9f7d7c5351527705bd7acdb6a79cc306575e0c', '6cfbca26c1eefc8430cce0c58533650ef13d173ba46655462b651b0d0797c52a', '12d9335a7c1b4aea281d087e4abfa43e2db3f3a398d99839221b7447926c20e9', 'e7dec4a52e70cbfca91a3a8ffb2fa81426bf72d1bff8b33567218e99ad55ce58'],
+  'app/layouts/[id]/page.tsx': ['4a7882e3638ccadf65d48b1fa7a16a14b98df4009671453ea82f4ce18159e895', '167da245a60540ea0f64900f31445424f4dbe6c025a525e7314088f4d0b8f3de', 'b1511cd97b2a9578d29c979e1f3cd4d824558af6b6a998019e1f119f607cdec5', 'dcec25cb4a48333db7d9dc07cea9b84008dbbd2de2fe0724b864268c81e261f6', '86c82b206e05ab63cb5568634195287ab8328b8cb26c014b3c0a3f6264110788', 'a6ab9fcb8eb66ea812806b627549b0f07c36097fa5abe557c411fce9a2239fc3'],
+  'lib/bridge-client.ts': ['e0253ec75ce1dd79cef212a05f12cc4db4570ffb5cc8f36fb3775f9ac72f323e', '4c1b977065ac9689fc4992c7139f685e16f6489240d1f195ebe4044c20e99b07', '7823748b4050231a7a8bfbc781181bab1aea425a5c5c6855b06a5d7f0918d1a9', 'e43af510f1160deb036a789425475d92f757c46caacc43cae613aeae898b2113', '1a2aad8b95024684b8b3949b3d06350b329dd2f5d0b4e07764bb5d88866c02c0', '73c3c93d26a832f8e3b7b603fe17d8745011954ca2bb8a9034609005d2ebbc0e', 'f5e789fc679307d814c72243e5e48434936e51c1a06f9a0bae1ad8aa922af4ba'],
+  'lib/runtime-data.ts': ['22cad0412d5a831000a671fc210edde6e7eb6285ea49356981b4e80d9ab0d729', '17ef4bdd043cd5e61fc23bee9516acb66696f4775f53c347048277c32693de3b', 'da5854ee29102d44e966881ccdc2679afd1691d12eee0a1365803b86f0d6ff82', 'd0c19e1992bf77583343490fd7e163e582dcfec03f2deb4d9680cdb6b627e9b8', 'b2afe833d53d11acb2a0e17e8e3b8e9e0c7f6f929d24e0ddc503f7fea6fa1036', '2df2769b31c53c8432ad0ed84b8582933f169095ec3af0c9d3caa5a7ce456861', '45b891dbc1eb3ae905d0280b2b7f5caf00307803014b001e18349dc14e99ba27'],
+  'lib/runtime-behavior.ts': ['8d74f0dc280c8a42e4e64e1b47a0df0d11f09beba8605808c5263a81a6f3b94d', '84f4d5c3c7c0f01e033d48476e419150ba1ed28fc28542c61f319613f8d59609', 'bac62b9460c693e064c4f0e516d6e2f382c7a22ed21548ae1a3a59e633dca2d1', '74a2c6f22d6d68e83e590c3f9e5d3c3772d0877db9d8d73f308598057ec5bbff', '8b70dafeeeb6444f885b34e67a6b09cce070334bffc2ca787bca60c2bf8f7809', 'd5d55cbf6d9b1c3354c52250a7c2f6225b671d64a7da3d8912ebce4254618468', 'b987dec8f8c24a803085e898a9ce89067014cc0c519fcda27697bcd18b1622b4'],
+  'app/layouts/[id]/runtime-layout-client.tsx': ['6becf8abb393e1e501f75390540b0fbefec17c9ca77803fc4f9352157a67249e', '12d62d25e10b9a94af9e23f997c0bfc1f522c5d50906d67cc6b13a10de6748e5', '40c2f2e4b688c23049ecd70ae2d707766a079953e09134c3ddfd13e7fea09a5b', 'a0cb143cc37ecc41db012951881277e7bd5cfb413ae257ce5ce7909b40466d42', '8e4ee2d8871914d66669a2b17aa72502be87a08ec021ffc96dd84b8dfdd44a13', '3699982b4cafeee34798a1f389a70236b8fc44d280a06497a720376da8ed561b', '1ba07edbce098c6d206bab7538fb453f9a5ab196a583716cbefa9e1001b90986']
 };
 
 /** Known shipped shared sources (including generated package.json). Keep old hashes when updating. */
@@ -474,6 +474,24 @@ export class FmWebRuntimeGenerator {
 
     await writeOwnerOnlyFile(envPath, `${lines.join('\n')}\n`);
     return envPath;
+  }
+
+  /** Revoke the generated preview's saved bridge address and token without removing user env values. */
+  public async clearBridgeEnv(): Promise<void> {
+    const runtimeRoot = this.getGeneratedRuntimeRoot();
+    await this.assertSafeFolder(runtimeRoot);
+    const envPath = path.join(runtimeRoot, '.env.local');
+    await refuseSymlink(envPath);
+    if (!(await exists(envPath))) return;
+    const existing = await readFile(envPath, 'utf8');
+    const kept = existing.split(/\r?\n/).filter((line) =>
+      !/^\s*(?:export\s+)?NEXT_PUBLIC_FMWEB_BRIDGE_(?:URL|TOKEN)\s*=/.test(line)
+    ).join('\n');
+    if (kept.trim().length === 0) {
+      await rm(envPath, { force: true });
+    } else {
+      await writeOwnerOnlyFile(envPath, kept);
+    }
   }
 
   private async ensureRuntimeGitignore(runtimeRoot: string): Promise<void> {

@@ -3,7 +3,7 @@ import type { AddressInfo } from 'net';
 import { Readable } from 'stream';
 
 import nock from 'nock';
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as vscode from 'vscode';
 
 import { FmBridgeServer } from '../../src/services/fmBridgeServer';
@@ -36,6 +36,7 @@ type Handler = (seen: Seen, response: ServerResponse) => void;
 
 describe('running a script uses the documented endpoint', () => {
   const servers: Server[] = [];
+  beforeEach(() => vi.mocked(vscode.window.showWarningMessage).mockResolvedValue('Run script' as never));
   beforeAll(() => nock.restore());
   afterAll(() => {
     nock.activate();

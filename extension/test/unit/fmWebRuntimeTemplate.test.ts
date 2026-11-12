@@ -53,6 +53,26 @@ describe('FM Web runtime template', () => {
     );
   }
 
+  it('A1 binds new and regenerated preview scripts to the exact loopback address and port', async () => {
+    const gen = generator();
+    await gen.generateRuntimeAppTemplate();
+    const file = path.join(gen.getGeneratedRuntimeRoot(), 'package.json');
+    const assertScripts = async () => {
+      const pkg = JSON.parse(await readFile(file, 'utf8'));
+      expect(pkg.scripts.dev).toBe('next dev --hostname 127.0.0.1 --port 3000');
+      expect(pkg.scripts.start).toBe('next start --hostname 127.0.0.1 --port 3000');
+      expect(MANAGED_TEMPLATE_FILES['package.json']).toContain(normalizedHash(await readFile(file)));
+    };
+    await assertScripts();
+    // The last shipped manifest, before loopback binding was added.
+    const previous = JSON.parse(await readFile(file, 'utf8'));
+    previous.scripts.dev = 'next dev';
+    delete previous.scripts.start;
+    await writeFile(file, `${JSON.stringify(previous, null, 2)}\n`);
+    expect((await gen.generateRuntimeAppTemplate()).updated).toContain('package.json');
+    await assertScripts();
+  });
+
   it('generated web layouts retain standard geometry and ship the shared view presentation', async () => {
     const layoutsDir = path.join(dir, 'layouts');
     await mkdir(layoutsDir);
@@ -519,6 +539,7 @@ describe('FM Web runtime template', () => {
     await symlink(outside, envPath);
 
     await expect(gen.writeBridgeEnv('http://127.0.0.1:1/fm', 'abc')).rejects.toThrow(/symbolic link/);
+    await expect(gen.clearBridgeEnv()).rejects.toThrow(/symbolic link/);
     expect(await readFile(outside, 'utf8')).toBe('untouched');
 
     await rm(envPath);
@@ -553,9 +574,9 @@ describe('FM Web runtime template', () => {
       };
       const request = { layout: 'L', query: [{ A: '*' }] };
       // The way the generated app builds its client from NEXT_PUBLIC_* env values.
-      const ok = new generated.RuntimeBridgeClient(env.NEXT_PUBLIC_FMWEB_BRIDGE_URL, undefined, env.NEXT_PUBLIC_FMWEB_BRIDGE_TOKEN);
+      const ok = new generated.RuntimeBridgeClient(env.NEXT_PUBLIC_FMWEB_BRIDGE_URL, (url, init) => fetch(url, { ...init, headers: { ...init?.headers, Origin: 'http://localhost:3000' } }), env.NEXT_PUBLIC_FMWEB_BRIDGE_TOKEN);
       expect((await ok.find(request)).data).toHaveLength(1);
-      await expect(new generated.RuntimeBridgeClient(env.NEXT_PUBLIC_FMWEB_BRIDGE_URL).find(request)).rejects.toThrow(
+      await expect(new generated.RuntimeBridgeClient(env.NEXT_PUBLIC_FMWEB_BRIDGE_URL, (url, init) => fetch(url, { ...init, headers: { ...init?.headers, Origin: 'http://localhost:3000' } })).find(request)).rejects.toThrow(
         /bridge session token/
       );
     } finally {

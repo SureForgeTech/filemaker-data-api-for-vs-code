@@ -50,6 +50,10 @@ async function loadRuntimeClient(): Promise<{
   return import(/* @vite-ignore */ pathToFileURL(file).href);
 }
 
+const previewFetch: typeof fetch = (url, init) => fetch(url, {
+  ...init, headers: { ...init?.headers, Origin: 'http://localhost:3000' }
+});
+
 describe('FM Web preview bridge token (real server, real preview client)', () => {
   beforeEach(() => {
     nock.enableNetConnect('127.0.0.1');
@@ -66,15 +70,15 @@ describe('FM Web preview bridge token (real server, real preview client)', () =>
       const { RuntimeBridgeClient } = await loadRuntimeClient();
       const request = { layout: 'Contacts', query: [{ Name: '*' }] };
 
-      await expect(new RuntimeBridgeClient(baseUrl).find(request)).rejects.toThrow(/bridge session token/);
-      await expect(new RuntimeBridgeClient(baseUrl, undefined, 'wrong-token').find(request)).rejects.toThrow(
+      await expect(new RuntimeBridgeClient(baseUrl, previewFetch).find(request)).rejects.toThrow(/bridge session token/);
+      await expect(new RuntimeBridgeClient(baseUrl, previewFetch, 'wrong-token').find(request)).rejects.toThrow(
         /bridge session token/
       );
       expect(findRecords).not.toHaveBeenCalled();
 
       const token = server.getSessionToken();
       expect(token).toMatch(/^[0-9a-f]{64}$/);
-      const result = (await new RuntimeBridgeClient(baseUrl, undefined, token).find(request)) as {
+      const result = (await new RuntimeBridgeClient(baseUrl, previewFetch, token).find(request)) as {
         data: unknown[];
       };
       expect(result.data).toHaveLength(1);
@@ -92,7 +96,7 @@ describe('FM Web preview bridge token (real server, real preview client)', () =>
       const post = (token?: string) =>
         fetch(`${baseUrl}/find`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(token ? { 'X-FM-Bridge-Token': token } : {}) },
+          headers: { Origin: 'http://localhost:3000', 'Content-Type': 'application/json', ...(token ? { 'X-FM-Bridge-Token': token } : {}) },
           body: JSON.stringify({ layout: 'L', query: [{ a: 1 }] })
         });
       expect((await post()).status).toBe(403);
@@ -165,6 +169,26 @@ describe('writeBridgeEnv', () => {
     expect(text).not.toContain('old-token');
     expect(text.match(/NEXT_PUBLIC_FMWEB_BRIDGE_TOKEN=/g)).toHaveLength(1);
     expect(text).toContain(':6000');
+  });
+
+  it('A3 removes saved bridge entries on cancel while preserving unrelated env values', async () => {
+    const gen = generator();
+    const envPath = await gen.writeBridgeEnv('http://127.0.0.1:5000/fm', 'old-token');
+    const { writeFile } = await import('fs/promises');
+    await writeFile(envPath, `${await readFile(envPath, 'utf8')}OTHER=value\n export NEXT_PUBLIC_FMWEB_BRIDGE_TOKEN=stale\n`);
+    await gen.clearBridgeEnv();
+    expect(await readFile(envPath, 'utf8')).toBe('OTHER=value\n');
+    await gen.writeBridgeEnv('http://127.0.0.1:5000/fm', 'another-token');
+    await gen.clearBridgeEnv();
+    expect(await readFile(envPath, 'utf8')).toBe('OTHER=value\n');
+  });
+
+  it('A3 removes an env file containing only bridge entries and tolerates repeated cleanup', async () => {
+    const gen = generator();
+    const envPath = await gen.writeBridgeEnv('http://127.0.0.1:5000/fm', 'old-token');
+    await gen.clearBridgeEnv();
+    await expect(stat(envPath)).rejects.toMatchObject({ code: 'ENOENT' });
+    await expect(gen.clearBridgeEnv()).resolves.toBeUndefined();
   });
 
   it('refuses values that could add lines to the env file, and refuses in an untrusted workspace', async () => {

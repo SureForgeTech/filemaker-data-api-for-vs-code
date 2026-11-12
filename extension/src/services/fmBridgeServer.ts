@@ -1,10 +1,11 @@
+import * as vscode from 'vscode';
 import { assertFindCriteria } from '../utils/findCriteria';
 import { createHash, randomBytes, timingSafeEqual } from 'crypto';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'http';
 
 import { assertNoNulText } from '../utils/nulText';
 import { sanitizeCreatePortalData } from '../utils/createPortalRows';
-import type { FindRecordsRequest } from '../types/fm';
+import type { ConnectionProfile, FindRecordsRequest } from '../types/fm';
 import type { FMClient } from './fmClient';
 import { FMClientError } from './errors';
 import type { FmWebProjectService } from './fmWebProjectService';
@@ -36,6 +37,8 @@ export class FmBridgeServer {
   private sessionToken: string | undefined;
   private rateLimiter: BridgeRateLimiter | undefined;
   private rateLimitWarningEmitted = false;
+  private scriptPromptPending = false;
+  private scriptPromptAfter = 0;
 
   public constructor(
     private readonly profileStore: Pick<ProfileStore, 'getActiveProfileId' | 'getProfile'>,
@@ -148,7 +151,7 @@ export class FmBridgeServer {
       }
 
       const origin = readHeader(request.headers.origin);
-      if (origin && !isAllowedOrigin(origin)) {
+      if (!isAllowedOrigin(origin)) {
         this.sendJson(response, 403, { error: 'Origin is not allowed.' });
         return;
       }
@@ -244,6 +247,17 @@ export class FmBridgeServer {
     const timeout = Number.isFinite(Number(payload.timeoutMs))
       ? Math.max(1_000, Math.min(120_000, Number(payload.timeoutMs)))
       : DEFAULT_ROUTE_TIMEOUT_MS;
+
+    // Confirmation time is not part of the FileMaker request timeout.
+    if (route === '/runScript') {
+      const sessionToken = this.sessionToken;
+      await this.confirmScriptRun(profile, payload);
+      const refusal = await this.options.authorizeRoute?.(route);
+      if (!this.fmWebProjectService.isWorkspaceTrusted() || refusal ||
+          sessionToken !== this.sessionToken || await this.resolveProfileId() !== profile.id) {
+        throw new FMClientError(refusal ?? 'The bridge session, workspace trust or active connection changed; script was not run.', { status: 403 });
+      }
+    }
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeout);
@@ -347,6 +361,35 @@ export class FmBridgeServer {
     }
   }
 
+  private async confirmScriptRun(profile: ConnectionProfile, payload: Record<string, unknown>): Promise<void> {
+    const layout = requireString(payload.layout, 'layout');
+    const script = requireString(payload.scriptName, 'scriptName');
+    const parameter = typeof payload.scriptParam === 'string' ? payload.scriptParam : undefined;
+    const target = profile.authMode === 'proxy' ? profile.proxyEndpoint ?? profile.serverUrl : profile.serverUrl;
+    const host = new URL(target).host;
+    const message = [
+      `Run script ${confirmationText(script, 'Script name', 512)} on layout ${confirmationText(layout, 'Layout name', 512)}?`,
+      `Parameter: ${parameter === undefined ? '(not supplied)' : confirmationText(parameter, 'Parameter', 2048)}`,
+      `Connection: ${confirmationText(profile.name, 'Connection name', 512)} (${confirmationText(host, 'Server host', 512)})`,
+      'This request came from a layout file in your workspace.'
+    ].join('\n\n');
+
+    // Independent of the configurable request limiter: never queue prompts, even if it is disabled.
+    if (this.scriptPromptPending || Date.now() < this.scriptPromptAfter) {
+      throw new FMClientError('Script confirmation is rate limited. Wait until the current prompt closes and at least 5 seconds before retrying.', { status: 429 });
+    }
+    this.scriptPromptPending = true;
+    try {
+      const answer = await vscode.window.showWarningMessage(message, { modal: true }, 'Run script');
+      if (answer !== 'Run script') {
+        throw new FMClientError('Script run cancelled; nothing was run.', { status: 403, code: 'SCRIPT_CANCELLED' });
+      }
+    } finally {
+      this.scriptPromptPending = false;
+      this.scriptPromptAfter = Date.now() + 5_000;
+    }
+  }
+
   private async resolveProfileId(): Promise<string | undefined> {
     const project = await this.fmWebProjectService.readProjectConfig();
     return project?.activeProfileId ?? this.profileStore.getActiveProfileId();
@@ -394,6 +437,16 @@ function tokenMatches(presented: string | undefined, expected: string | undefine
   return timingSafeEqual(digest(presented), digest(expected));
 }
 
+/** Plain modal text: quote whitespace/controls and bidi/format characters, never truncate a value. */
+function confirmationText(value: string, label: string, maxLength: number): string {
+  const escaped = JSON.stringify(value).replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu,
+    (character) => character.split('').map((unit) => `\\u${unit.charCodeAt(0).toString(16).padStart(4, '0')}`).join(''));
+  if (escaped.length > maxLength) {
+    throw new FMClientError(`${label} is too long to show in full in a confirmation; script was not run.`, { status: 400 });
+  }
+  return escaped;
+}
+
 function requireString(value: unknown, fieldName: string): string {
   if (typeof value !== 'string' || value.trim().length === 0) {
     throw new Error(`${fieldName} is required.`);
@@ -435,17 +488,8 @@ function isLocalSocket(remoteAddress: string | undefined): boolean {
   return remoteAddress === '127.0.0.1' || remoteAddress === '::1' || remoteAddress === '::ffff:127.0.0.1';
 }
 
-function isAllowedOrigin(origin: string): boolean {
-  try {
-    const parsed = new URL(origin);
-    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-      return false;
-    }
-
-    return parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1';
-  } catch {
-    return false;
-  }
+function isAllowedOrigin(origin: string | undefined): boolean {
+  return origin === 'http://localhost:3000' || origin === 'http://127.0.0.1:3000';
 }
 
 function getRoutePath(rawUrl: string | undefined): string | undefined {
