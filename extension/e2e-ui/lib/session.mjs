@@ -323,7 +323,7 @@ export class Session {
     fs.mkdirSync(path.join(this.helperIO, 'requests'), { recursive: true });
     fs.writeFileSync(
       path.join(this.helperIO, 'requests', `${id}.json`),
-      JSON.stringify({ action, ...args })
+      JSON.stringify({ action, ...args, workspacePath: this.ws })
     );
     const out = path.join(this.helperIO, 'responses', `${id}.json`);
     const t0 = Date.now();
@@ -457,7 +457,7 @@ export class Session {
           .catch(() => {});
         await this.page.bringToFront().catch(() => {});
       }
-      await this.page.keyboard.press(attempt >= 2 ? 'Meta+Shift+P' : 'F1');
+      await this.page.keyboard.press(attempt >= 2 ? (process.platform === 'darwin' ? 'Meta+Shift+P' : 'Control+Shift+P') : 'F1');
       try {
         await this.page
           .locator('.quick-input-box input')

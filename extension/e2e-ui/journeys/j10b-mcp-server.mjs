@@ -613,17 +613,27 @@ export async function run(ctx) {
       await page2
         .locator('.statusbar-item', { hasText: /FileMaker/ })
         .first()
-        .waitFor({ timeout: 45000 })
-        .catch(() => {});
-      await sleep(5000);
+        .waitFor({ timeout: 45000 });
       const s2 = Object.create(s);
       s2.page = page2;
+      s2.ws = ws2;
       try {
+        const win = await s.app.browserWindow(page2);
+        try {
+          await win.evaluate((w) => {
+            if (w.isMinimized()) w.restore();
+            w.show();
+            w.focus();
+            w.webContents.focus();
+          });
+        } finally { await win.dispose(); }
+        await page2.bringToFront();
+        await page2.waitForFunction(() => document.hasFocus(), null, { timeout: 15000 });
         await s2.dismissStartupOverlays().catch(() => {});
+        assert(!(await s2.modalVisible()), `unexpected second-window modal: ${await s2.modalText()}`);
         await page2
           .screenshot({ path: ctx.report.nextShot(J, 'second-window'), scale: 'css' })
           .catch(() => {});
-        await page2.bringToFront().catch(() => {});
         await s2.cmd('FileMaker: Start/Stop AI Server for External Tools');
         await s2.waitModal(20000);
         await s2.modal('Start Here');
