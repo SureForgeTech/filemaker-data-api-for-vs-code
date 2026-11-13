@@ -6,9 +6,9 @@ A free, open-source VS Code extension for the FileMaker Data API: connect, query
 
 Install it from the Marketplace: search for **FileMaker Data API Tools** (publisher SureForgeTech), or run `code --install-extension SureForgeTech.filemaker-data-api-tools`.
 
-Version **1.9.0** adds new related portal rows to Create Record on direct connections (mock-tested; real-server compatibility remains unverified). It mostly improves safety: batch updates follow write rules, old saved addresses lose embedded credentials safely, and server responses and the source-checkout FM Web preview have tighter limits. Read the [upgrade notes](extension/UPGRADE.md) for the new prompts and settings rules.
+Version **1.9.0** adds new related portal rows to Create Record on direct connections. It mostly improves safety: batch updates follow write rules, old saved addresses lose embedded credentials safely, and server responses and the source-checkout FM Web preview have tighter limits. Read the [upgrade notes](extension/UPGRADE.md) for the new prompts and settings rules.
 
-One real FileMaker server was exercised on **2026-10-21**, but its version was not recorded. No server version has a completed recorded smoke test; see [Compatibility](extension/docs/COMPATIBILITY.md). FileMaker Cloud sign-in with a Claris ID is **not supported**.
+We have tested it against our own FileMaker Server and a built-in mock of the Data API. We would love more people to try it on other server versions and setups and tell us what they find: see [Compatibility](extension/docs/COMPATIBILITY.md) and open an issue with anything you notice. FileMaker Cloud sign-in with a Claris ID is not supported yet.
 
 ## Documentation
 
