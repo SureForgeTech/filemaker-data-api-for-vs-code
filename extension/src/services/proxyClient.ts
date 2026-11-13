@@ -312,20 +312,23 @@ export class ProxyClient {
     // human-readable profile names.
     try {
       const transport = httpsTransportFor(profile, endpoint);
+      const body = {
+        action,
+        profile: buildProxyProfilePayload(profile),
+        payload
+      };
+      // Include the JSON envelope and base64 overhead in the upload budget.
+      const uploadBytes = action === 'uploadContainer' ? Buffer.byteLength(JSON.stringify(body)) : 0;
       const response = await withRequestLimits(this.timeoutMs, signal, (limits) => this.httpClient.post<ProxyEnvelope<T> | T>(
         endpoint,
-        {
-          action,
-          profile: buildProxyProfilePayload(profile),
-          payload
-        },
+        body,
         {
           headers,
           ...transport,
           ...limits,
           maxRedirects: 0
         }
-      ), undefined, action === 'uploadContainer' ? 'upload' : ['getRecord', 'findRecords'].includes(action), transport.transport);
+      ), undefined, action === 'uploadContainer' ? 'upload' : ['getRecord', 'findRecords'].includes(action), transport.transport, uploadBytes);
 
       const responseData = response.data;
       if (responseData === undefined || responseData === null || typeof responseData === 'string') {

@@ -1,4 +1,4 @@
-import axios, { AxiosError, CanceledError, type AxiosRequestConfig } from 'axios';
+import axios, { CanceledError, type AxiosRequestConfig } from 'axios';
 import { createServer } from 'http';
 import type { AddressInfo } from 'net';
 import nock from 'nock';
@@ -183,25 +183,14 @@ function transferAdapter(kind: Transfer, bytesPerTick: number, finishMs = 19_000
   return axios.create({ adapter: (config) => new Promise((resolve, reject) => {
     let loaded = 0;
     let ticks = 0;
-    let idle: ReturnType<typeof setTimeout> | undefined;
     const upload = kind.includes('upload');
-    const stop = () => { clearInterval(tick); clearTimeout(finish); clearTimeout(idle); };
-    const resetIdle = () => {
-      clearTimeout(idle);
-      idle = setTimeout(() => { stop(); reject(new AxiosError('Socket idle timeout', 'ECONNABORTED', config)); }, config.timeout);
-    };
-    // Axios can consume the entire Buffer at once, before the socket drains it.
-    if (upload) {
-      config.onUploadProgress?.({ loaded: 1024 * 1024, bytes: 1024 * 1024, lengthComputable: false });
-      resetIdle();
-    }
+    const stop = () => { clearInterval(tick); clearTimeout(finish); };
+    // Axios can buffer the whole upload immediately; this says nothing about remote progress.
+    if (upload) config.onUploadProgress?.({ loaded: 1024 * 1024, bytes: 1024 * 1024, lengthComputable: false });
     const tick = setInterval(() => {
       if (++ticks * tickMs > progressSeconds * 1000) return;
       loaded += bytesPerTick;
-      if (upload) {
-        // Model real socket writes separately from axios' buffered upload events.
-        if (bytesPerTick > 0) resetIdle();
-      } else config.onDownloadProgress?.({ loaded, bytes: bytesPerTick, lengthComputable: false });
+      if (!upload) config.onDownloadProgress?.({ loaded, bytes: bytesPerTick, lengthComputable: false });
     }, tickMs);
     const finish = setTimeout(() => {
       stop();
@@ -218,7 +207,33 @@ function transferAdapter(kind: Transfer, bytesPerTick: number, finishMs = 19_000
 }
 
 describe('transfer progress deadlines', () => {
-  it.each(transfers)('caps a continuously progressing %s at 30 minutes', async (kind) => {
+  it.each(['upload', 'proxy upload'] as const)('bounds the whole %s exchange using its encoded body size', async (kind) => {
+    vi.useFakeTimers();
+    try {
+      let bodyBytes = 0;
+      let settled = false;
+      const http = axios.create({ adapter: (config) => new Promise((_resolve, reject) => {
+        bodyBytes = Buffer.byteLength(config.data as string | Buffer);
+        expect(config.timeout).toBe(0);
+        expect(config.onDownloadProgress).toBeUndefined();
+        config.signal?.addEventListener?.('abort', () => reject(new CanceledError('cancelled', config)), { once: true });
+      }) });
+      const outcome = transfer(kind, http, undefined, { content: Buffer.alloc(32 * 1024), timeoutMs: 100 })
+        .then(() => 'completed', (error: unknown) => error).finally(() => { settled = true; });
+      await vi.advanceTimersByTimeAsync(0);
+      // Budget the multipart envelope or full proxy JSON, including base64 expansion.
+      expect(bodyBytes).toBeGreaterThan(kind === 'upload' ? 32 * 1024 : 32 * 1024 * 4 / 3);
+      const deadline = bodyBytes / (32 * 1024) * 1000;
+      await vi.advanceTimersByTimeAsync(Math.floor(deadline) - 1);
+      expect(settled).toBe(false);
+      await vi.advanceTimersByTimeAsync(2);
+      expect(settled).toBe(true);
+      expect(await outcome).toMatchObject({ kind: 'timeout' });
+      expect(vi.getTimerCount()).toBe(0);
+    } finally { vi.useRealTimers(); }
+  });
+
+  it.each(transfers.filter((kind) => !kind.includes('upload')))('caps a continuously progressing %s at 30 minutes', async (kind) => {
     vi.useFakeTimers();
     try {
       let settled = false;
@@ -237,7 +252,7 @@ describe('transfer progress deadlines', () => {
   it.each(transfers)('lets a large progressing %s finish beyond the default deadline', async (kind) => {
     vi.useFakeTimers();
     try {
-      // Model over 100 MiB of actual byte progress without allocating a huge fixture.
+      // Downloads report over 100 MiB of progress; uploads use their encoded body size.
       const outcome = transfer(kind, transferAdapter(kind, 8 * 1024 * 1024)).then(() => 'completed', () => 'aborted');
       await vi.advanceTimersByTimeAsync(19_000);
       expect(await outcome).toBe('completed');
@@ -249,7 +264,7 @@ describe('transfer progress deadlines', () => {
     vi.useFakeTimers();
     try {
       for (const bytes of kind.includes('upload') ? [0] : [0, 1]) {
-        const outcome = transfer(kind, transferAdapter(kind, bytes)).then(() => 'completed', (error: unknown) => error);
+        const outcome = transfer(kind, transferAdapter(kind, bytes), undefined, { content: Buffer.alloc(32) }).then(() => 'completed', (error: unknown) => error);
         await vi.advanceTimersByTimeAsync(15_000);
         expect(await outcome).toMatchObject({ kind: 'timeout' });
         expect(vi.getTimerCount()).toBe(0);
@@ -257,7 +272,7 @@ describe('transfer progress deadlines', () => {
     } finally { vi.useRealTimers(); }
   });
 
-  it.each(transfers)('times out %s after its earlier progress stops', async (kind) => {
+  it.each(transfers.filter((kind) => !kind.includes('upload')))('times out %s after its earlier progress stops', async (kind) => {
     vi.useFakeTimers();
     try {
       let settled = false;
@@ -285,17 +300,17 @@ describe('transfer progress deadlines', () => {
 });
 
 
-describe('real HTTP upload socket timeouts', () => {
-  it.each(['upload', 'proxy upload'] as const)('lets a slow, steadily draining %s outlast the default 15 second deadline', async (kind) => {
+describe('real HTTP upload deadlines', () => {
+  it.each(['upload', 'proxy upload'] as const)('lets a slow, steadily draining %s outlast the base request timeout', async (kind) => {
     nock.restore();
     let received = 0;
     const server = createServer((request, response) => {
-      // Keep the request paused and consume at most 64 KiB every 40 ms. A 32 MiB
-      // Buffer takes over 20 seconds, including on a fast loopback interface.
+      // Consume at most 8 KiB every 80 ms, regardless of client socket buffering.
+      // Even the direct 64 KiB body takes longer than the 300 ms base timeout.
       const reader = setInterval(() => {
-        const chunk = request.read(64 * 1024) as Buffer | null;
+        const chunk = request.read(8 * 1024) as Buffer | null;
         if (chunk) received += chunk.length;
-      }, 40);
+      }, 80);
       request.on('end', () => {
         clearInterval(reader);
         response.setHeader('Content-Type', 'application/json');
@@ -308,32 +323,33 @@ describe('real HTTP upload socket timeouts', () => {
       await new Promise<void>((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
       const target = { ...profile, serverUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}` };
       const started = performance.now();
-      await transfer(kind, axios.create({ proxy: false }), undefined, { target, content: Buffer.alloc(32 * 1024 * 1024) });
-      expect(received).toBeGreaterThanOrEqual(32 * 1024 * 1024);
-      expect(performance.now() - started).toBeGreaterThan(15_000);
+      await transfer(kind, axios.create({ proxy: false }), undefined, { target, content: Buffer.alloc(64 * 1024), timeoutMs: 300 });
+      expect(received).toBeGreaterThanOrEqual(64 * 1024);
+      expect(performance.now() - started).toBeGreaterThan(300);
     } finally {
       server.closeAllConnections();
       await new Promise<void>((resolve) => server.close(() => resolve()));
       nock.activate();
       nock.disableNetConnect();
     }
-  }, 60_000);
+  }, 10_000);
 
   it.each(['upload', 'proxy upload'] as const)('stops a %s when the real server stops reading', async (kind) => {
     nock.restore();
     let received = 0;
     const server = createServer((request) => {
-      request.once('readable', () => { received = (request.read() as Buffer | null)?.length ?? 0; });
-      // Leave the rest of the body unread so the client's socket stops draining.
+      request.once('readable', () => { received = (request.read(1) as Buffer | null)?.length ?? 0; });
+      // Leave the rest unread and never reply, even if it fits in the client's buffers.
     });
     try {
       await new Promise<void>((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
       const target = { ...profile, serverUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}` };
       const started = performance.now();
       await expect(transfer(kind, axios.create({ proxy: false }), undefined, {
-        target, content: Buffer.alloc(32 * 1024 * 1024), timeoutMs: 300
+        target, content: Buffer.alloc(32), timeoutMs: 300
       })).rejects.toMatchObject({ kind: 'timeout' });
       expect(received).toBeGreaterThan(0);
+      expect(performance.now() - started).toBeGreaterThanOrEqual(250);
       expect(performance.now() - started).toBeLessThan(5000);
     } finally {
       server.closeAllConnections();

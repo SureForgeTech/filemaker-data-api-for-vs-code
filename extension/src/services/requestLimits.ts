@@ -9,13 +9,18 @@ export const DEFAULT_MAX_RESPONSE_BYTES = 64 * 1024 * 1024;
 const TRANSFER_PROGRESS_BYTES = 64 * 1024;
 const MAX_TRANSFER_MS = 30 * 60 * 1000;
 
+/** Budget the whole upload exchange for a slow but real 32 KiB/s link. */
+export function uploadDeadlineMs(timeoutMs: number, bodyBytes: number): number {
+  return Math.min(MAX_TRANSFER_MS, Math.max(timeoutMs, bodyBytes / (32 * 1024) * 1000));
+}
+
 type Transport = { request(options: RequestOptions, callback: (response: IncomingMessage) => void): ClientRequest };
 
 /**
  * Axios' socket inactivity timeout can be kept alive by a dripping response. This deadline
  * covers the whole HTTP exchange, while retaining caller cancellation. Downloads may renew
- * it after substantial byte progress. Upload events measure buffering, so uploads use socket
- * inactivity instead. Every transfer has a 30 minute ceiling. Use disposable timers rather
+ * it after substantial byte progress. Upload events measure buffering, so uploads use a
+ * size-based deadline instead. Every transfer has a 30 minute ceiling. Use disposable timers rather
  * than requiring AbortSignal.any in older extension hosts.
  */
 export async function withRequestLimits<T>(
@@ -24,7 +29,8 @@ export async function withRequestLimits<T>(
   send: (limits: AxiosRequestConfig) => Promise<T>,
   maxResponseBytes = DEFAULT_MAX_RESPONSE_BYTES,
   transfer: boolean | 'upload' = false,
-  transport?: Transport
+  transport?: Transport,
+  uploadBytes = 0
 ): Promise<T> {
   const controller = new AbortController();
   const cancel = () => controller.abort(signal?.reason);
@@ -36,10 +42,11 @@ export async function withRequestLimits<T>(
     timedOut = true;
     controller.abort();
   };
-  let timer = transfer === 'upload' ? undefined : setTimeout(expire, timeoutMs);
-  timer?.unref();
-  const ceiling = transfer ? setTimeout(expire, MAX_TRANSFER_MS) : undefined;
+  const timer = setTimeout(expire, transfer === 'upload' ? uploadDeadlineMs(timeoutMs, uploadBytes) : timeoutMs);
+  timer.unref();
+  const ceiling = transfer === true ? setTimeout(expire, MAX_TRANSFER_MS) : undefined;
   ceiling?.unref();
+  let connectionTimer: ReturnType<typeof setTimeout> | undefined;
   let finished = false;
   const progress = () => {
     let renewedAt = 0;
@@ -53,20 +60,18 @@ export async function withRequestLimits<T>(
   try {
     return await send({
       signal: controller.signal,
-      timeout: timeoutMs,
+      // Socket inactivity cannot measure remote upload drain progress across platforms.
+      timeout: transfer === 'upload' ? 0 : timeoutMs,
       ...(transfer === true ? { onDownloadProgress: progress() } : {}),
       ...(transfer === 'upload' ? { transport: {
         request: (options: RequestOptions, callback: (response: IncomingMessage) => void) => {
           const req = transport ? transport.request(options, callback)
             : (options.protocol === 'https:' ? https : http).request(options, callback);
-          // Axios 1.20 and our TLS transport otherwise start a deadline lasting until
-          // response headers. Use the native idle timeout while the upload drains.
-          req.setTimeout = (ms, listener) => http.ClientRequest.prototype.setTimeout.call(req, ms, listener);
           // Still bound DNS, proxy lookup and connection setup before a socket is ready.
-          timer = setTimeout(expire, timeoutMs);
-          timer.unref();
+          connectionTimer = setTimeout(expire, timeoutMs);
+          connectionTimer.unref();
           req.once('socket', (socket) => {
-            const connected = () => clearTimeout(timer);
+            const connected = () => clearTimeout(connectionTimer);
             if (socket.connecting) socket.once('connect', connected);
             else connected();
           });
@@ -89,6 +94,7 @@ export async function withRequestLimits<T>(
     finished = true;
     clearTimeout(timer);
     clearTimeout(ceiling);
+    clearTimeout(connectionTimer);
     signal?.removeEventListener('abort', cancel);
   }
 }

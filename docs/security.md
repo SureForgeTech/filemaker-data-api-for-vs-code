@@ -261,11 +261,12 @@ by default).
 - **Downloads and large reads** renew the deadline each time 64 KiB of body
   arrives, so a healthy slow transfer finishes and a stalled or dripping one
   stops.
-- **Uploads** have no wall-clock deadline, because the HTTP client reports upload
-  progress before the bytes reach the server. They stop on the socket inactivity
-  timeout (nothing written for the base time) and on caller cancellation. A very
-  slow link can still be stopped by the inactivity timeout late in a large
-  upload.
+- **Uploads** have a wall-clock deadline for the whole exchange, including the
+  response wait. It grows with the body size at 32 KiB per second (including
+  multipart or proxy base64 overhead), lasts at least the request timeout, and
+  has a 30 minute ceiling. Stalled uploads stop at that deadline; socket activity
+  does not renew it. Connection setup, including DNS and proxy lookup, still
+  uses the base timeout.
 - **Every transfer** also has a 30 minute ceiling.
 
 Caller cancellation still stops any request. Session retirement uses at most

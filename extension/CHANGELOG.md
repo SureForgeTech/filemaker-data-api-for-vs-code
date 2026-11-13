@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- [SECURITY] Large downloads and uploads can keep making progress beyond the request deadline; stalled transfers stop, trickling downloads time out, and all transfers have a 30 minute ceiling.
+- [SECURITY] Large downloads and uploads have bounded deadlines: downloads renew after progress; upload deadlines grow with body size, last at least the request timeout, and have a 30 minute ceiling; stalled transfers stop and trickling downloads time out.
 - [SECURITY] Batch update confirmation accepts saved server addresses that are not parseable URLs.
 - [SECURITY] Error notifications keep bracketed codes and file paths readable while breaking injected links.
 - [SECURITY] FM Web refreshes recognize the current shared container-link safety code without overwriting local edits.
