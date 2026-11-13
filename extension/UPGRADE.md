@@ -2,6 +2,82 @@
 
 What to do, and what will look different, when you move from one version to the next. Each section lists only changes you can notice. For everything else, see the [Changelog](./CHANGELOG.md).
 
+## Upgrading from 1.8.0 to 1.9.0
+
+Your profiles, saved queries and settings carry over; nothing stored needs converting. No command or setting was removed or renamed. This minor release adds related portal rows to Create Record and mostly improves safety. AI tools and enterprise mode remain off by default.
+
+### Create Record can add related rows
+
+On a direct connection, **FileMaker: Create Record** offers **Add row** for portals listed in the layout metadata. New rows are created with the parent record; existing related rows are not edited. Proxy connections explain that portal-row creation is unavailable. This was tested with the mock server; real-server compatibility is unverified.
+
+### Batch update follows record editing and write rules
+
+Executing **FileMaker: Batch Update from CSV/JSON** now needs `filemaker.features.recordEdit.enabled` as well as batch operations enabled, workspace trust and permission under the enterprise batch, record and write rules. The job checks policy and offline mode again before each row and stops with a reason if they change. The confirmation shows the layout, profile and server, with hidden characters made visible.
+
+A file with more rows than `filemaker.batch.maxRecords` is refused before updates start; split it or deliberately raise the setting. Dry runs still write nothing and remain available when writes are disabled or offline mode is on; an offline dry run does not contact the server. The row cap applies to dry runs too. Dry runs still require `filemaker.features.batch.enabled` and a trusted folder.
+
+### Certificate trust and AI access follow write rules
+
+Trusting a saved server certificate and **FileMaker: Set AI Access for Connection** now follow locked-profile and enterprise write rules. They are unavailable in offline mode. Ask your administrator when policy prevents a change.
+
+### Old saved addresses lose embedded credentials
+
+A saved address containing a user name or password is cleaned up. A password moves to secure storage first, without replacing a password already saved there. A warning asks you to re-enter or confirm the credential in **Edit Connection Profile** before connecting. If secure storage fails or is unavailable, the old saved entry is kept for a later attempt so the password is not lost. A user name with no password is also removed. A URL password moves only for direct-auth profiles; a proxy-mode entry with a URL password is left as it was. The warning appears whenever an address contains credentials, even if the stored value is kept. New addresses with embedded credentials are still refused. Test Connection holds its temporary password and session token in memory only; removing a profile attempts to close its server session before deleting local secrets.
+
+### Plain HTTP now shows a warning
+
+Connect shows a non-blocking warning with no buttons; connecting continues regardless. It appears once per profile per session and only for non-loopback `http://` addresses. Loopback addresses are exempt. Use HTTPS so credentials and data are encrypted in transit.
+
+### An untrusted folder cannot supply policy or cached schema
+
+Until you trust a folder, `.vscode/filemaker.config.json` is ignored, the offline schema cache is not used, and environment and layout comparison are unavailable. In a trusted folder, cached schema is checked against its stored checksum before use; altered content is refused. Existing caches keep working after you change the hash algorithm.
+
+### Three groups of settings now need User settings
+
+Workspace values for these keys are ignored, even in a trusted folder. Move any value you still want to your **User** settings:
+
+- `filemaker.snippets.includeAuthByDefault` (authorization placeholders in copied requests).
+- `filemaker.schema.hashAlgorithm` (schema checksums).
+- `filemaker.fmWeb.bridge.rateLimitPerSecond`, `filemaker.fmWeb.bridge.rateLimitBurst` and `filemaker.fmWeb.bridge.requestBudget` (local bridge limits).
+
+Run **FileMaker: Show Effective Settings** to see which value applies.
+
+### Write AI Context works with AI tools switched off
+
+**FileMaker: Write AI Context** no longer needs `filemaker.ai.enabled`. It still follows `filemaker.features.ai.enabled`, enterprise AI policy and offline mode. It writes structure to a local file, with no record data; it does not switch on AI tools.
+
+### Requests have time and size limits
+
+Each server response is limited to **64 MiB** after decompression. Only record GET and find reads (including proxy `getRecord`/`findRecords`) renew their deadline after each 64 KiB; stalled or trickling reads stop. Other requests (scripts, writes, layout metadata, sign-in, sign-out and discovery) have the fixed base deadline from `filemaker.requestTimeoutMs` (default 15000 ms, maximum 120000 ms (2 minutes)). Upload deadlines grow with file size, last at least the request timeout and have a **30 minute ceiling**. The 30 minute transfer ceiling cannot be raised from settings. Connection setup still uses the base timeout. The separate container upload size setting is unchanged.
+
+A timeout says **request timed out (after N s)** (uploads omit the seconds) after the operation name and tells you to raise `filemaker.requestTimeoutMs` for a slow server. After a timed-out change, check whether it was applied before trying again. For an oversized response, the notice names the failed action (for example, “Failed to run find query.”); **maxContentLength size of 67108864 exceeded** is in **Details**, under **Stack trace (redacted)**, with no HTTP status. To recover, ask for fewer records per page or reduce the response at the source. Raising the timeout does not raise the size limit or the 30 minute ceiling. An HTTP 413 means the server or gateway refused the request size; send a smaller file or fewer records.
+
+### Errors, links, file names and confirmations look different
+
+Errors appear on one line, shortened, with injected links broken; bracketed codes and file paths remain readable. Copied error reports keep server text inside code blocks. Record Editor and Record Viewer open container links only on the selected connection's own server. Suggested save names retain case and extension while unsafe characters are removed; exported layout and query names stay exact. Comparison reports and generated client README files show names safely. AI approvals, Layout Mode and preview script confirmations, and plugin consent show hidden characters as visible escapes and refuse values too long to show in full.
+
+### Offline cache folders ignore their own contents in Git
+
+The offline metadata cache folder now contains its own `.gitignore` with `*` and `!.gitignore`; the `.gitignore` itself stays visible and can be committed. Schema snapshots are not ignored and remain available to commit. Both can contain internal database names; review snapshots before sharing them.
+
+### FM Web preview runs a clean private copy
+
+The preview remains a source-checkout feature, unavailable in the Marketplace package. It listens only on `127.0.0.1:3000`, opens through a single-use private launch link and requires the resulting private session cookie. The bridge token stays on the preview server. Next.js development endpoints, such as live reload, are outside the cookie check.
+
+VS Code asks before installing or starting, and before a script runs from Layout Mode or a preview button, showing the script, escaped parameter and connection host. Cancelling preview startup stops the old preview and clears saved bridge credentials. Installation uses a clean private temporary copy, with install scripts disabled and separate npm configuration and cache. Your npm configuration and edited or added runtime files are left alone and listed as ignored. A layout with an edited or linked generated file is skipped with a warning. Only **FileMaker: Generate FM Web Next.js App** offers regeneration that deletes files, after **Regenerate from template** lists them by name and you confirm.
+
+Only one script prompt can be open at a time, with a cooldown of 5 seconds after it closes.
+
+On Windows, stopping uses `taskkill` with a 5 second limit; restarting shows a warning if stopping the previous preview fails.
+
+On Windows, the preview searches absolute PATH entries for `node.exe` and `node_modules\npm\bin\npm-cli.js` (the standard Node.js installer layout); these can be in separate entries. A version manager such as nvm-windows works only if its PATH entries expose both files in those locations; a non-standard npm location may produce **Could not find Node.js and npm on PATH**. On macOS and Linux, the preview runs `npm` from PATH. Cancelling stops the process tree and removes private files without flashing a console window. Proxy and extra certificate environment settings pass through for company networks. Old marked temporary preview folders are removed only when older than one day and their owning extension-host process no longer exists (checked by process id). Each start resolves package versions again with `npm install`; see [FM Web reference](./docs/FM_WEB.md) for the remaining limits.
+
+### Rolling back
+
+Use **Install Specific Version...** in the Extensions view to install 1.8.0 from the Marketplace, or install its VSIX from the [GitHub release](https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/releases/tag/v1.8.0). Profile data is unchanged. Passwords already moved to secure storage stay there under the same key; the offline cache gains only a `hashAlgorithm` field and a `.gitignore`. Installing an older version does not undo changes sent to FileMaker.
+
+After rolling back, delete `.fmweb/generated/runtime-next` and generate it again with 1.8.0: 1.9.0 writes template version 10 (`proxy.ts`, `lib/preview-security.ts` and `/api/bridge`), while 1.8.0 expects its older template and a token in `.env.local` that 1.9.0 no longer writes.
+
 ## Upgrading from 1.7.0 to 1.8.0
 
 Your profiles, saved queries and settings carry over; there is no data migration. No command or setting was removed or renamed, and no VS Code setting default changed; the on-screen changes you may notice are listed below. FileMaker Cloud sign-in with a Claris ID is still **not supported**; Cloud is untested.

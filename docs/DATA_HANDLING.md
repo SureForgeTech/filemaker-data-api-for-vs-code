@@ -8,14 +8,18 @@ and compliance review.
 
 | Data category | Examples | Location | Format | Encryption | Retention and deletion |
 | --- | --- | --- | --- | --- | --- |
-| Connection profiles | Profile id, display name, server URL, database, auth mode, username, API path, proxy endpoint, AI access, custom CA file path, and (if you trusted a certificate) its SHA-256 fingerprint and whether an expired one was accepted | VS Code `globalState` under the extension profile store | JSON | Not encrypted by the extension. Profile objects must not contain passwords, session tokens, or proxy API keys. | Retained until the user deletes the profile or VS Code removes extension global state. Profile deletion also clears related saved queries and active-profile selection. |
+| Connection profiles | Profile id, display name, server URL, database, auth mode, username, API path, proxy endpoint, AI access, custom CA file path, and (if you trusted a certificate) its SHA-256 fingerprint and whether an expired one was accepted | VS Code `globalState` under the extension profile store | JSON | Not encrypted by the extension. New profile objects cannot contain passwords, session tokens or proxy API keys. Legacy embedded URL credentials are retained until safe migration succeeds (see Security Notes). | Retained until the user deletes the profile or VS Code removes extension global state. Profile deletion attempts to close the server session first, then clears local credentials, related saved queries and active-profile selection. |
 | Credentials | FileMaker password, session token, proxy API key | VS Code `SecretStorage` by default; optional workspace-state fallback envelope when SecretStorage is unavailable and fallback mode is enabled | SecretStorage record, or an obfuscation envelope (AES-256-GCM with salt, IV, ciphertext and auth tag, keyed from the machine id) | Encrypted at rest by the OS-backed SecretStorage provider. The optional workspace-state fallback is **obfuscation only**: its key comes from the VS Code machine id, which is not secret, so it hides values from casual viewing but does not protect against anyone who can read the workspace state on this machine. | Deleted when the user deletes the profile. A successful SecretStorage write also removes any older fallback envelope for the same key. |
 | Schema snapshots | Captured layout metadata, field metadata, script metadata, snapshot summaries | `.vscode/filemaker/snapshots/` in the workspace by default (`filemaker.schema.snapshots.storage` = `workspaceFiles`, trusted workspaces); VS Code `workspaceState` when that setting is `workspaceState` or the workspace is untrusted | JSON | Not encrypted by the extension. Schema metadata can reveal internal names and should be treated as internal project data. | Retained until explicitly pruned by the configured max snapshots per layout, deleted with workspace state, or removed with the workspace files. |
 | Saved queries | Query name, profile id, database, layout, find JSON, sort JSON, limits, timestamps | VS Code `workspaceState` or `globalState`, selected by `filemaker.savedQueries.scope` | JSON | Not encrypted by the extension. | Retained until the user deletes the query, imports over it, deletes the related profile, or VS Code removes the selected state scope. |
 | Cache | Runtime schema/layout metadata cache, in-flight request state | Extension host memory only | JavaScript objects | Not persisted. No at-rest encryption is applied because the data is not written to disk by the extension. | Cleared on extension host reload, process exit, profile invalidation, or TTL expiry. Schema cache TTL is bounded by `filemaker.schema.cacheTtlSeconds` and defaults to 300 seconds. |
-| Offline metadata cache | Layout metadata (field names, types, value lists) the extension read while online, so it can be browsed in offline mode | `.vscode/filemaker/offline-metadata/` in the workspace (trusted workspaces only), with an `index.json` | JSON | Not encrypted by the extension. Reveals internal names; do not commit to a public repository. | Refreshed by **FileMaker: Refresh Offline Metadata Cache** and whenever metadata is read online; the index keeps at most 1,000 items. Deleted with the workspace files. |
+| Offline metadata cache | Layout metadata (field names, types, value lists) the extension read while online, so it can be browsed in offline mode | `.vscode/filemaker/offline-metadata/` in the workspace (trusted workspaces only), with an `index.json` and a `.gitignore` that ignores the cache contents | JSON and Git ignore rules | Not encrypted by the extension. Reveals internal names; do not commit to a public repository. | Refreshed by **FileMaker: Refresh Offline Metadata Cache** and whenever metadata is read online; the index keeps at most 1,000 items. Cached content is checksum-checked before use and ignored in untrusted folders. Deleted with the workspace files. The cache folders ignore their own contents in Git using `*` and `!.gitignore`; the `.gitignore` itself stays visible and can be committed; schema snapshots are not ignored and remain available to commit. |
 | Plugin approvals | Which workspace plugin folders you approved (workspace path and SHA-256 of the folder contents) | VS Code `globalState` | JSON | Not encrypted; contains no secrets. | Kept until VS Code removes extension global state. A changed folder is asked about again. |
 | Audit logs | AI tool activity: tool, connection, layout, record ids, outcome, whether you confirmed | `ai-audit.log` in the extension's global storage folder (outside the workspace) | Text lines | Not encrypted. Field values are not logged. Model-supplied text is escaped and length-limited. | Capped at 256 KB; reads and refusals are dropped before write entries. Shown by **FileMaker: Show AI Activity**. There is no other durable audit-log file: request history and metrics are bounded VS Code `workspaceState`, and output-channel messages are transient IDE logs. |
+| Test Connection credentials | Temporary password or proxy API key and throwaway session token | Extension host memory only for the test | In-memory values | Not persisted by Test Connection; saved secrets may be read for an unchanged profile | Throwaway session is closed after the test; saved profile secrets are unchanged. |
+| FM Web project files | Layout definitions, synced metadata, generated runtime files and a non-secret `.env.local` notice | `.fmweb/` in the workspace | JSON and source files | Not encrypted; no live preview bridge token is saved here | Edited or added runtime files are left alone and listed as ignored by the private preview. Explicit regeneration deletes only after a modal names the files or folders and the user confirms. |
+| FM Web private preview | Clean template, generated layouts, installed dependencies, private npm cache, empty `user.npmrc` and `global.npmrc`, `.fmweb-preview-owner` marker, `launch-used` state | System temporary folder, `fmweb-preview-*` | Source, package and state files | Private folder (owner-only modes on Unix; Windows uses the user's temporary-folder permissions); not encrypted | Process tree stopped and private files removed on cancellation or shutdown. Stale marked folders older than a day are removed only when their owning extension-host process no longer exists. |
+| Preview credentials | Bridge token, single-use launch code, private session credential | Extension host and private preview server environment; launch code in the browser launch URL; session cookie in the browser | Random per-start values; HttpOnly, SameSite=Strict cookie | Not saved in workspace files or browser JavaScript; loopback HTTP is not encrypted | Launch expires after two minutes or first redemption; restart invalidates the previous launch and session. Keep the launch link private. |
 
 ## Data Flow
 
@@ -46,7 +50,7 @@ Extension host services
 
 ## Deletion Behavior
 
-- Deleting a connection profile removes the profile metadata, clears the active
+- Deleting a connection profile attempts to close its server session first, then removes the profile metadata, clears the active
   profile selection when applicable, deletes credentials for that profile, and
   removes saved queries tied to that profile.
 - Clearing VS Code extension state or removing a workspace can remove
@@ -59,11 +63,29 @@ Extension host services
 - Offline metadata cache files live in `.vscode/filemaker/offline-metadata/` and are deleted with the workspace files.
 - The AI activity log and generated AI context file (default location) live in the extension's storage folder; removing the extension's global storage removes them.
 - In-memory caches do not survive extension host restart or VS Code reload.
+- Preview cancellation stops the process tree, removes private temporary files and clears legacy saved bridge address/token entries while preserving unrelated environment lines. The ownership marker prevents cleanup of unrecognized folders or folders whose owning process is still alive.
 
 ## Security Notes
 
 - Secrets must stay out of profile metadata, saved queries, schema snapshots,
-  diagnostics, request history, and logs.
+  diagnostics, request history and logs. In 1.9.0, saved server addresses with
+  embedded credentials are cleaned only after any password is safely stored.
+  Existing separately saved passwords are preserved. A warning asks the user to
+  re-enter or confirm the credential in Edit Connection Profile. If secure
+  storage is unavailable, the original entry remains for a later attempt.
+  A user name with no password is also removed. A URL password moves only for direct-auth profiles; a proxy-mode entry with a URL password is left as it was. The warning appears whenever an address contains credentials, even if the stored value is kept.
+- Connect warns once per profile per session before using remote plain HTTP.
+  Certificate trust and Set AI Access follow locked profiles and write rules and
+  are unavailable offline. Batch update follows record and write rules, checked
+  per row; dry runs still write nothing and remain available offline. Dry runs still require `filemaker.features.batch.enabled` and a trusted folder.
+- Untrusted folders cannot supply `.vscode/filemaker.config.json` or offline
+  schema caches, or run environment and layout comparison. Trusted caches are
+  checksum-checked before use; hash-setting changes do not invalidate intact data.
+- Error text is shortened to one line with injected links broken, while bracketed
+  codes and paths remain readable. Copied reports keep server text in code blocks.
+  Record panels open container links only on the selected connection's own server.
+  Suggested file names lose unsafe characters while keeping case and extension;
+  exported layout and query names remain exact.
 - Schema snapshots and saved queries are not encrypted. Treat exported or
   workspace-file copies as internal project artifacts.
 - Normal record operations send API requests to the configured FileMaker server or
@@ -75,6 +97,27 @@ Extension host services
   Read-only checks retrieve a record but omit its values from the report. Scratch-record
   writes and script execution require separate confirmation; cleanup is attempted
   even after cancellation. A failed cleanup names the scratch record to remove.
+- FM Web asks before installing or starting its private preview and before any
+  Layout Mode or preview button script. Script dialogs show the exact script,
+  escaped parameter and connection host; hidden characters are visible and values
+  too long to show in full are refused. Cancelling a script prompt runs no
+  script. Cancelling preview startup clears its saved bridge address and token. AI and plugin approval
+  dialogs also show hidden characters and refuse oversized values.
+- Preview browser requests go to `127.0.0.1:3000`; the server adds the bridge token
+  to requests to the local extension bridge. The launch link sets a private cookie
+  checked on pages/assets and independently by the bridge route. Next.js
+  development endpoints, such as live reload, are outside the cookie check.
+- There are no new network destinations in 1.9.0. Preview installation still
+  downloads dependencies from `registry.npmjs.org`, with install scripts disabled,
+  empty npm configuration and a private cache. Each start resolves package versions
+  with `npm install`; workspace npm configuration, overrides and edited runtime
+  files stay unchanged and are not used by the private preview. Proxy variables
+  and `NODE_EXTRA_CA_CERTS` pass through. Normal API and opted-in AI destinations
+  remain as described here.
+- Requests now have a 64 MiB response cap after decompression. Upload deadlines
+  grow with file size, last at least `filemaker.requestTimeoutMs` and stop at
+  30 minutes; stalled transfers stop. This does not reduce the separate container
+  upload allowance. See [request and batch budgets](./security.md#filemaker-request-and-batch-budgets).
 - These reports open as editor documents; they are not sent to a support service.
   Copying a diagnosis can hide its server address, port and revealing certificate details.
   Review organization-specific names before sharing either report. Jobs keep full
@@ -85,7 +128,9 @@ Extension host services
 
 **FileMaker: Write AI Context** writes a Markdown file with database structure:
 the connection name, database name, and the layout, field and script names you
-select. It contains no record data, value-list values, field descriptions,
+select. It works without `filemaker.ai.enabled`, but still follows
+`filemaker.features.ai.enabled`, enterprise AI policy and offline mode.
+It contains no record data, value-list values, field descriptions,
 server address, user name or credentials.
 
 - It is written to the extension's storage folder by default, outside any

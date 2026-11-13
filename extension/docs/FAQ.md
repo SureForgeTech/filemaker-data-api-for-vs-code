@@ -36,7 +36,7 @@ The file comes from the repository you cloned, so review it like any repository 
 
 Passwords, API keys and session tokens are kept in your operating system's keychain; if you turn on `filemaker.secrets.fallback` = `workspace-state`, an obfuscated copy is stored in VS Code workspace storage instead, which is not protection against local access.
 
-That storage is VS Code SecretStorage, which uses Keychain on macOS, Credential Manager on Windows and a keyring such as GNOME Keyring on Linux. Secrets are never written to settings, profiles, saved queries, snapshots or logs. If SecretStorage is not available (for example a Linux machine without a keyring), connecting fails with an error unless you turn the fallback on yourself. The setting is read from your user settings only, and the default is `vscode-only`.
+That storage is VS Code SecretStorage, which uses Keychain on macOS, Credential Manager on Windows and a keyring such as GNOME Keyring on Linux. Secrets are never written to settings, profiles, saved queries, snapshots or logs. If SecretStorage is not available (for example a Linux machine without a keyring), connecting fails with an error unless you turn the fallback on yourself. The setting is read from your user settings only, and the default is `vscode-only`. In 1.9.0 old saved addresses with embedded credentials are cleaned only after any password is safely stored, keeping an existing saved password. A warning asks you to re-enter or confirm it in **Edit Connection Profile**. If storage is unavailable, the old entry stays for a later attempt. Test Connection keeps temporary credentials and its session token in memory, closes the session and leaves saved secrets unchanged. Connecting to remote plain HTTP warns once per profile per session; prefer HTTPS.
 
 ## Can I use FileMaker Cloud?
 
@@ -52,15 +52,15 @@ Running scripts needs a trusted workspace. It is blocked in offline mode, for th
 
 ## How do I put a file into a container field?
 
-Run **FileMaker: Upload to Container**, choose a profile and a layout, enter the record ID and the container field name, and pick the file. The default size limit is 100 MB (`filemaker.containerUploadMaxBytes`), and the upload needs a trusted workspace.
+Run **FileMaker: Upload to Container**, choose a profile and a layout, enter the record ID and the container field name, and pick the file. The default size limit is 100 MB (`filemaker.containerUploadMaxBytes`), and the upload needs a trusted workspace. Its deadline grows with size, lasts at least `filemaker.requestTimeoutMs` and stops at 30 minutes. Connection setup still uses the base timeout. Check the record before retrying a timed-out upload.
 
 A container field is read-only in the Record Editor, which points you to this upload, and a container column is skipped by a batch update, so files always go through this separate action. If a container field shows only a URL instead of the file, the [Troubleshooting page](./TROUBLESHOOTING.md) explains what to check.
 
 ## Why is it slow, and what limits are there?
 
-Batch work runs as a job. A batch update sends `filemaker.batch.concurrency` requests at a time (default 4, at most 10), and a batch export fetches page by page and stops at `filemaker.batch.maxRecords` records (default 10,000; the hard limit is 250,000). With `filemaker.performance.mode` set to `high-scale` an export is always written as JSONL.
+Batch work runs as a job. A batch update sends `filemaker.batch.concurrency` requests at a time (default 4, at most 10), and a batch export fetches page by page and stops at `filemaker.batch.maxRecords` records (default 10,000; the hard limit is 250,000). With `filemaker.performance.mode` set to `high-scale` an export is always written as JSONL. Update files above `filemaker.batch.maxRecords` are refused too, including dry runs. Execution needs record editing enabled and enterprise batch, record and write permission, checked again before every row. Dry runs still write nothing and remain available offline or with writes disabled; offline dry runs do not contact the server. Dry runs still require `filemaker.features.batch.enabled` and a trusted folder.
 
-Each Data API request times out after `filemaker.requestTimeoutMs` (default 15000 milliseconds). Sessions are renewed for you: a FileMaker Data API token expires after about 15 minutes of inactivity, and the extension renews it about 30 seconds early (`filemaker.session.refreshLeadSeconds`).
+Other requests (scripts, writes, layout metadata, sign-in, sign-out and discovery) have the fixed base deadline from `filemaker.requestTimeoutMs` (default 15000 ms, maximum 120000 ms (2 minutes)). Only record GET and find reads (including proxy `getRecord`/`findRecords`) renew their deadline after each 64 KiB; stalled or trickling reads stop. Upload deadlines grow with file size, with a 30 minute ceiling. The 30 minute transfer ceiling cannot be raised from settings. Stalled transfers stop. **request timed out (after N s)** (uploads omit the seconds) names the setting; a timed-out change may already have been applied, so check before repeating it. For an oversized response, the notice names the failed action (for example, “Failed to run find query.”); **maxContentLength size of 67108864 exceeded** is in **Details**, under **Stack trace (redacted)**, with no HTTP status. This means the response crossed the 64 MiB cap after decompression: reduce page size or the response at the source. Raising the timeout cannot raise that cap. HTTP 413 means the server or gateway refused the request size. Sessions are renewed for you: a FileMaker Data API token expires after about 15 minutes of inactivity, and the extension renews it about 30 seconds early (`filemaker.session.refreshLeadSeconds`).
 
 The FileMaker server has limits of its own. When it asks the extension to slow down, the extension waits for the server's `Retry-After` and tries again; the [Troubleshooting page](./TROUBLESHOOTING.md) covers what to do when a request is refused for that reason.
 
@@ -68,7 +68,7 @@ The FileMaker server has limits of its own. When it asks the extension to slow d
 
 FileMaker Data API requests go only to the FileMaker server or proxy you configured; everything else stays on your computer unless you use AI tools, whose provider receives the tool output you allow (see the AI question below).
 
-The files written into your workspace, such as schema snapshots, the offline metadata cache and generated types, hold layout, field and script names, so keep them out of public repositories. The AI context file holds names only, never record data. Logs, request history and error details are redacted: passwords, tokens, API keys and authorization headers are hidden, and the request history keeps metadata rather than record bodies.
+The files written into your workspace, such as schema snapshots, the offline metadata cache and generated types, hold layout, field and script names, so keep them out of public repositories. The cache folders ignore their own contents in Git using `*` and `!.gitignore`; the `.gitignore` itself stays visible and can be committed; snapshots are not ignored and remain available to commit. Untrusted folders cannot use the offline schema cache or workspace enterprise file, or compare environments and layouts. Trusted cache content is checksum-checked. The AI context file holds names only, never record data. Logs, request history and error details are redacted: passwords, tokens, API keys and authorization headers are hidden, and the request history keeps metadata rather than record bodies. Errors are shortened to one line with injected links broken; copied reports keep server text inside code blocks. Record panels open container links only on the connection's own server.
 
 See the [security overview](../../docs/security.md) and [Data handling](../../docs/DATA_HANDLING.md) for the details.
 
@@ -79,6 +79,18 @@ Only if you turn it on. The AI features are off by default (`filemaker.ai.enable
 Anything a tool returns goes to the model provider that VS Code, or the MCP client behind it, uses, and the extension cannot control what that provider or the other tools of the same agent do with it. The extension applies its own limits: 50 records per call, 500 records per session, 30 calls a minute, 10 write attempts per session and 3 a minute, results capped at 200 KB, every write confirmed in a dialog, and hidden fields kept out with `filemaker.ai.hiddenFields`. The `AI: off` item in the status bar switches everything off at once.
 
 The control that does not depend on the model is your FileMaker account: connect with a dedicated account whose privilege set is read-only. [Data handling](../../docs/DATA_HANDLING.md#ai-tools) has the full list of what is sent, kept out and limited.
+
+## Can I write AI context without switching AI tools on?
+
+Yes. **FileMaker: Write AI Context** works with `filemaker.ai.enabled` off. It still follows `filemaker.features.ai.enabled`, enterprise AI policy and offline mode, and writes a local file of names without record data. It does not enable AI tools.
+
+## Why is a workspace setting ignored?
+
+In 1.9.0 these are User-only: `filemaker.snippets.includeAuthByDefault`, `filemaker.schema.hashAlgorithm`, `filemaker.fmWeb.bridge.rateLimitPerSecond`, `filemaker.fmWeb.bridge.rateLimitBurst` and `filemaker.fmWeb.bridge.requestBudget`. Workspace values are ignored; move an intended value to User settings. **FileMaker: Show Effective Settings** explains which value applies. Certificate trust and **Set AI Access for Connection** also follow locked profiles and write rules and are unavailable offline.
+
+## What changed in the FM Web preview?
+
+It remains a source-checkout feature, unavailable in the Marketplace package. The app listens only on `127.0.0.1:3000` and opens through a single-use launch link and private session cookie; the bridge token stays on the server. Next.js development endpoints such as live reload are outside the cookie check. VS Code asks before installing/starting and before scripts. It runs a clean private temporary copy, ignores workspace npm configuration and edited runtime files, and leaves your files alone. Explicit regeneration deletes only after a modal names the files and you confirm. Each start resolves package versions with `npm install`, with install scripts off. On Windows, the preview searches absolute PATH entries for `node.exe` and `node_modules\npm\bin\npm-cli.js` (the standard Node.js installer layout); these can be in separate entries. A version manager such as nvm-windows works only if its PATH entries expose both files in those locations; a non-standard npm location may produce **Could not find Node.js and npm on PATH**. On macOS and Linux, the preview runs `npm` from PATH. On Windows, cancellation stops its process tree and removes private files. See [FM Web reference](./FM_WEB.md).
 
 ## What license is the extension under?
 

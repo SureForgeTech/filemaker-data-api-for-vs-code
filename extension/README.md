@@ -10,7 +10,7 @@ Connect to any FileMaker Data API server and run queries, browse schema, edit re
 
 **Built by [ABD Enterprises](https://abdenterprises.com).** Free, open source (MIT), no telemetry, no cloud account.
 
-Version **1.8.0** adds a **Browse** button in the connection wizard for a custom CA certificate, clearer sign-in errors that explain the two common causes and link to the fix, and the field-order and panel fixes listed in the changelog. See the [upgrade notes](https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/blob/main/extension/UPGRADE.md) before importing a file.
+Version **1.9.0** adds new related portal rows to Create Record on direct connections (mock-tested; real-server compatibility remains unverified). It mostly improves safety: batch updates follow write rules, old saved addresses lose embedded credentials safely, and server responses and the source-checkout FM Web preview have tighter limits. Read the [upgrade notes](https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/blob/main/extension/UPGRADE.md) for the new prompts and settings rules.
 
 One real FileMaker server was exercised on **2026-10-21**, but its version was not recorded. No server version has a completed recorded smoke test; see [Compatibility](https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/blob/main/extension/docs/COMPATIBILITY.md). FileMaker Cloud sign-in with a Claris ID is **not supported**.
 
@@ -23,14 +23,14 @@ One real FileMaker server was exercised on **2026-10-21**, but its version was n
 - **Copy any request as code**: curl, fetch(), a `.http` file, a Postman collection or TypeScript, from the Query Builder, Script Runner, record panels or the Command Palette. Passwords and tokens are never copied.
 - **Track schema**: capture snapshots, diff them, compare environments, and generate TypeScript types, a typed client and editor snippets.
 - **Batch**: export to JSONL or CSV, or update many records from a CSV or JSON file, with a dry run first.
-- **Control**: workspace trust (Restricted Mode keeps editing, scripts and batch jobs off), an enterprise mode with roles, an offline metadata mode, and confirmation before risky actions.
+- **Control**: workspace trust (Restricted Mode keeps editing, scripts and batch jobs off), an enterprise mode with roles (off by default), an offline metadata mode (off by default), and confirmation before risky actions.
 - **Trust a private server on purpose**: for FileMaker Server's default certificate or a company certificate, review the certificate in the connection wizard and trust exactly that one by its fingerprint. A different certificate later is refused before credentials are sent, including with VS Code's default proxy setting. This needs a direct route; a required proxy is refused with advice. See the User Guide's Certificates section.
 - **AI, off by default**: give AI coding tools your real layout names, let an agent in VS Code or an MCP client (Claude Code, Cursor) read records and, with your approval, change one record at a time, or ask `@filemaker` in the Chat view (read only).
 - **Windows, Linux and macOS**: build, lint, type check and the unit tests run on Windows and Linux in CI.
 
 ## Product tour
 
-The screenshots show a mock FileMaker Data API with made-up data (names and `example.com` addresses), not a real server. The first screenshot is from the current version; the rest were taken in an older one, so version labels and some field styling differ and panels now follow the editor theme.
+The screenshots show a mock FileMaker Data API with made-up data (names and `example.com` addresses), not a real server. The screenshots were taken before 1.9.0, so version labels and some field styling differ and panels now follow the editor theme.
 
 ![The query builder on the Contacts layout: field pickers, a populated find request and a preview of the matching rows](docs/marketplace/query-builder-hero.png)
 
@@ -70,9 +70,9 @@ Capture schema snapshots and compare them to see which fields were added, remove
 
 ## Security & Trust
 
-- **Credentials stay in your keychain**: passwords, API keys and session tokens live in the OS keychain through VS Code's SecretStorage API, not in settings or logs.
+- **Credentials stay in your keychain by default**: passwords, API keys and session tokens use VS Code SecretStorage. The optional workspace-state fallback is obfuscation only. Old saved addresses with embedded passwords are cleaned only after secure storage succeeds; Test Connection keeps temporary credentials in memory.
 - **No telemetry, no cloud account**: no telemetry is collected and nothing is sent to the extension's authors — there is no account to sign in to; it talks only to your FileMaker server or your proxy (and an AI provider you switch on yourself, off by default).
-- **Read only in an untrusted folder**: in Restricted Mode an untrusted workspace stays read only — you can browse, read metadata and run finds; editing, writing and plugins need a trusted workspace.
+- **Read only in an untrusted folder**: you can browse, read server metadata and run finds. Workspace enterprise configuration and offline schema caches are ignored; comparison, editing, writing and plugins need trust.
 - **Report a vulnerability**: follow the [security policy](https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/blob/main/SECURITY.md) for how to report one.
 
 ## Requirements
@@ -102,7 +102,7 @@ For guided steps, run **FileMaker: Open Getting Started Walkthrough**. The full 
 
 ## AI tools
 
-Off by default. Turn on `filemaker.ai.enabled` in your **user** settings (a workspace setting cannot), pick a connection with **FileMaker: Set AI Access for Connection**, and AI tools in VS Code (for example Copilot agent mode) can list layouts and scripts, describe a layout, find and read records, and explain error codes. With `filemaker.ai.allowWrites` they can also create, edit and delete one record at a time, and with `filemaker.ai.allowScripts` run scripts you put on `filemaker.ai.scriptAllowlist`. **FileMaker: Write AI Context** writes a short file of layout, field and script names that AI coding tools can load.
+Off by default. Turn on `filemaker.ai.enabled` in your **user** settings (a workspace setting cannot), pick a connection with **FileMaker: Set AI Access for Connection**, and AI tools in VS Code (for example Copilot agent mode) can list layouts and scripts, describe a layout, find and read records, and explain error codes. With `filemaker.ai.allowWrites` they can also create, edit and delete one record at a time, and with `filemaker.ai.allowScripts` run scripts you put on `filemaker.ai.scriptAllowlist`. **FileMaker: Write AI Context** writes a short local file of layout, field and script names without needing to turn AI tools on; offline mode and the feature and enterprise AI rules still apply.
 
 **Chat with `@filemaker`.** In VS Code's Chat view, `@filemaker /layouts`, `/describe`, `/find` and `/explain` read the database through the same tools and rules, read only, with everything from the database shown as plain text. See the User Guide, "Chat with @filemaker".
 

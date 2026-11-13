@@ -15,10 +15,10 @@ Flows:
 
 - **Layout authoring:** the webview edits `LayoutDefinition` JSON in `.fmweb/layouts`.
 - **Metadata sync:** the extension pulls layouts, fields and script names into `.fmweb/metadata`.
-- **Runtime generation:** the extension copies the template app and the generated layout artifacts into `.fmweb/generated`. Generated files are deterministic and existing user-customized files are skipped.
+- **Runtime generation:** the extension copies the template app and the generated layout artifacts into `.fmweb/generated`. Recognized untouched files refresh; edited files are kept. Only the explicit generation command offers deletion after a named confirmation.
 - **Live data:** the Next.js app calls the extension's localhost bridge (`/fm/*`) for record and script operations. It keeps the found set and current record in session state and carries the record context between web layouts.
 
-Design constraints: webviews never reach FileMaker directly; credentials never leave VS Code SecretStorage (only `FMClient` and `ProxyClient` read them); the bridge binds to localhost only.
+Design constraints: webviews never reach FileMaker directly; FileMaker credentials stay in the extension host; the bridge binds to loopback only. The browser calls a route on the private preview server, which adds the bridge token server-side.
 
 ## Project paths
 
@@ -26,8 +26,9 @@ Design constraints: webviews never reach FileMaker directly; credentials never l
 | --- | --- |
 | `.fmweb/layouts` | Authored layout definitions |
 | `.fmweb/metadata` | Synced FileMaker metadata cache |
-| `.fmweb/generated/runtime-next` | Generated runtime app (its private `.env.local` holds the bridge URL and the session token) |
+| `.fmweb/generated/runtime-next` | Generated runtime app; `.env.local` contains only a non-secret notice, not live preview credentials |
 | `.fmweb/generated/layouts` | Generated runtime layout artifacts |
+| System temporary folder: `fmweb-preview-*` | Private running copy, dependencies, npm cache, empty npm config files, `.fmweb-preview-owner` ownership marker and `launch-used` single-use launch state |
 
 ## Layout schema
 
@@ -48,14 +49,26 @@ The bridge (`fmBridgeServer`) is started by **FileMaker: Start FM Web Preview Se
 - binds to `127.0.0.1` on a random port and rejects non-loopback peers;
 - requires a trusted workspace;
 - requires a 256-bit per-session token in the `X-FM-Bridge-Token` header, generated when the bridge starts and discarded when it stops, and compares it in constant time;
-- accepts only `localhost` and `127.0.0.1` origins and JSON `POST` requests to `/fm/*` with validated payloads;
-- caps the request body at 1 MB and applies a token-bucket rate limit and a per-session request budget (`filemaker.fmWeb.bridge.*` settings; throttled requests get HTTP 429 with `Retry-After`);
+- accepts only `http://localhost:3000` and `http://127.0.0.1:3000` origins and JSON `POST` requests to `/fm/*` with validated payloads;
+- caps the request body at 1 MB and applies a token-bucket rate limit and a per-session request budget (User-only settings `filemaker.fmWeb.bridge.rateLimitPerSecond`, `filemaker.fmWeb.bridge.rateLimitBurst` and `filemaker.fmWeb.bridge.requestBudget`; workspace values are ignored; throttled requests get HTTP 429 with `Retry-After`);
 - serves only the active connection and rejects a request that names another profile;
 - applies the user's own limits to changes: record changes (edit, create, delete) are refused in offline mode, when `filemaker.features.recordEdit.enabled` is off, and when the enterprise role or `disabledFeatures` disallow `writeOperations` or `recordEdit`; script runs are refused in offline mode, when `filemaker.features.scriptRunner.enabled` is off, and when they disallow `scriptRunner`.
 
-The bridge never returns secrets. The token is written to a private `.env.local` in the generated app (as `NEXT_PUBLIC_FMWEB_BRIDGE_TOKEN`, together with the bridge URL), through a temporary file, and the write is refused if `.env.local` is a symbolic link; the generated client sends it in the header. Apps generated earlier get their managed runtime files (bridge client, data hook, layout client; marked `fmweb-managed: runtime template v2`) refreshed to the current template when they are unmodified or carry an older marker; an edited copy is left alone and named in a warning. The runtime keeps record context and found-set IDs in session storage, not credentials.
+The bridge never returns secrets. Its token stays in extension-host memory and the private server's `FMWEB_BRIDGE_TOKEN` environment variable. It is never a `NEXT_PUBLIC_` value or sent to browser JavaScript. The browser calls `/api/bridge/<route>`; that route checks the private session cookie, Host and exact Origin before adding the token. It does not forward browser credentials or upstream headers. Record context and found-set IDs stay in session storage, without credentials.
 
-Threats and mitigations in short: remote access (loopback binding and socket check), cross-site requests (origin allow-list, JSON only, token), untrusted workspace content (trust required; the preview asks before it runs `npm install` and `npm run dev`), credential leakage (secrets stay in `FMClient`), resource exhaustion (body cap, rate limit, budget). Any local process that obtains the token can use the bridge as the runtime does; the token lives in extension host memory and in the private `.env.local`.
+The preview app binds only to `127.0.0.1:3000`. VS Code opens a private launch link valid for two minutes. Redeeming it once sets an HttpOnly, SameSite=Strict session cookie and redirects to `/` without the code. A private `launch-used` file prevents reuse across workers. Pages and assets need the cookie; the bridge route checks it independently. Only `127.0.0.1:3000` and `localhost:3000` Host values are accepted. Restarting invalidates the old launch and session. A busy port is an error; it does not open the service already using that port. **Known limit:** Next.js development endpoints such as live reload are outside the cookie check. Keep launch links private; software running as you, administrators and downloaded packages remain outside this protection.
+
+Before installing or starting, a VS Code dialog describes the commands and lists edited or added runtime files that will be ignored. The preview runs a clean private temporary copy of the shipped template and generated layouts. Your `.npmrc`, `.env*` overrides, custom runtime files, lockfiles, `node_modules` and build output are left alone and not used. A layout with an edited or linked generated file is skipped with a warning. Starting does not delete your files.
+
+Installation uses `npm install --ignore-scripts --no-audit --no-fund` against `registry.npmjs.org`, with separate empty user/global configuration, an explicit prefix, a private npm cache and a limited environment. The template dev script runs with npm pre/post scripts disabled. Your npm configuration is left unchanged; proxy variables and `NODE_EXTRA_CA_CERTS` pass through for company networks. **Known limit:** `npm install` resolves package versions at each start; the private preview does not reuse a workspace lockfile. No install scripts run; a failed install stops startup.
+
+Only **FileMaker: Generate FM Web Next.js App** offers **Regenerate from template**, with a modal naming exactly which files or folders (including their contents) will be deleted. Confirm to delete those names; cancel to keep them. Otherwise generation refreshes recognized untouched files and warns about edited or linked files it keeps.
+
+Before every script run from Layout Mode or a preview button, VS Code shows the script, layout, escaped parameter, its length and connection host. Hidden characters are visible escapes; a value too long to display in full is refused. Only one preview script prompt can be open, with a five-second cooldown after closing. Cancelling a script prompt runs no script. Cancelling preview startup clears its saved bridge address and token while preserving unrelated `.env` lines. Script names and parameters are sent exactly as supplied. Link actions accept only HTTP and HTTPS.
+
+Private temporary folders contain a `.fmweb-preview-owner` marker naming the owning extension-host process. Cancellation or shutdown stops the process tree and removes private files. Stale marked folders older than a day are removed only if their owning process no longer exists; an open window's folder is left alone. On Windows, the preview searches absolute PATH entries for `node.exe` and `node_modules\npm\bin\npm-cli.js` (the standard Node.js installer layout); these can be in separate entries. A version manager such as nvm-windows works only if its PATH entries expose both files in those locations; a non-standard npm location may produce **Could not find Node.js and npm on PATH**. On macOS and Linux, the preview runs `npm` from PATH. No command shell or console window opens. If startup says **Could not find Node.js and npm on PATH**, install Node.js with npm and restart VS Code. Cancellation also stops the Windows process tree.
+
+These changes add no new network destinations: the preview still reaches the public npm registry for dependencies, the local bridge, and through it the configured FileMaker server or proxy. It does not send data to the extension authors.
 
 ## What the Marketplace build contains
 

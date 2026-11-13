@@ -2,7 +2,7 @@
 
 This page lists the errors the extension reports, with the symptom you see, the likely cause and the fix steps.
 
-Start with **Test Connection** in the connection wizard. It names the step that failed: reaching the Data API, listing the hosted databases, or signing in. The failed step tells you which section below to read. **FileMaker: Diagnose Connection** goes deeper without signing in: it checks the address, the host name, the port, the certificate and VS Code's network settings, then asks the Data API for its product information. It sends no credentials and changes nothing.
+Start with **Test Connection** in the connection wizard. It names the step that failed: reaching the Data API, listing the hosted databases, or signing in. The failed step tells you which section below to read. The mock answers `productInfo` and `databases`, so it can pass all three steps; that does not prove compatibility with any real server version. Test Connection keeps its temporary password or proxy key and session token in memory, closes the throwaway session and leaves saved secrets unchanged. **FileMaker: Diagnose Connection** goes deeper without signing in: it checks the address, the host name, the port, the certificate and VS Code's network settings, then asks the Data API for its product information. It sends no credentials and changes nothing. Error messages are shortened to one line, with injected links broken and bracketed codes and paths kept readable; copied error reports keep server text in code blocks.
 
 The [FileMaker failure-mode catalogue](../../docs/FILEMAKER_FAILURE_MODES.md) has the maintainer view of the same ground, with the code and the evidence behind each behaviour.
 
@@ -233,7 +233,7 @@ The [FileMaker failure-mode catalogue](../../docs/FILEMAKER_FAILURE_MODES.md) ha
 ### Likely cause
 
 - VS Code runs the extension in Restricted Mode until you trust the folder. In an untrusted workspace the extension can browse, read metadata and run finds, but it will not edit, create or delete records, upload to containers, run scripts, write generated files, run batch jobs, load plugins, start the FM Web preview or register AI tools, and it ignores a `.filemaker/profile-template.json`.
-- Workspace settings that change how connections and commands behave are ignored until you trust the workspace.
+- Workspace settings that change how connections and commands behave, `.vscode/filemaker.config.json` and the offline schema cache are ignored until you trust the workspace. Environment and layout comparison are unavailable. Trusted cache content is checked against its checksum; altered cache data is refused.
 
 ### Fix steps
 
@@ -276,6 +276,7 @@ The [FileMaker failure-mode catalogue](../../docs/FILEMAKER_FAILURE_MODES.md) ha
 - "The server did not return Data API JSON (...; HTTP n, content type)".
 - "The server redirected the request".
 - HTTP 429, 502, 503 or 504.
+- **request timed out (after N s)** (uploads omit the seconds), or a failed-action notice with the oversize limit text in **Details**, under **Stack trace (redacted)**.
 
 ### Likely cause
 
@@ -293,9 +294,11 @@ The [FileMaker failure-mode catalogue](../../docs/FILEMAKER_FAILURE_MODES.md) ha
 1. Check the Server URL, the scheme (`https://`) and the port, and that the FileMaker Data API is enabled (Admin Console > Connectors).
 2. Check the spelling of the host name, the VPN and the DNS.
 3. Open the Server URL in a browser to see what answers, and check the base path and the version.
-4. For a timeout, ask whether a firewall is dropping the traffic from your address. Raise `filemaker.requestTimeoutMs` only for a slow server, not for an unreachable one.
+4. For a timeout, ask whether a firewall is dropping traffic. **request timed out (after N s)** (uploads omit the seconds) names `filemaker.requestTimeoutMs` (default 15000). Other requests (scripts, writes, layout metadata, sign-in, sign-out and discovery) have the fixed base deadline from `filemaker.requestTimeoutMs` (default 15000 ms, maximum 120000 ms (2 minutes)). Only record GET and find reads (including proxy `getRecord`/`findRecords`) renew their deadline after each 64 KiB; stalled or trickling reads stop. Upload deadlines grow with file size, up to 30 minutes. Stalled transfers stop. Raising the setting helps a slow server but cannot raise the 30 minute ceiling. After a create, edit, delete, upload or script timeout, check whether it was applied before retrying.
 5. For HTTP 429 the extension reads `Retry-After`: wait, and avoid large exports at busy times. For 502, 503 and 504, try again shortly and ask the administrator to check the Admin Console.
-6. For a dropped connection, try again; if it keeps happening, ask the administrator.
+6. For a dropped connection, try again; after a change, check whether it was applied first. If it keeps happening, ask the administrator.
+7. For an oversized response, the notice names the failed action (for example, “Failed to run find query.”); **maxContentLength size of 67108864 exceeded** is in **Details**, under **Stack trace (redacted)**, with no HTTP status. The response crossed the 64 MiB cap after decompression. Reduce records per page or the response at the source. Increasing the timeout does not raise this cap. HTTP 413 instead means a server or gateway request-size limit: send a smaller file or fewer records.
+8. Connect shows a non-blocking warning with no buttons; connecting continues regardless. It appears once per profile per session and only for non-loopback `http://` addresses. Loopback addresses are exempt. Use HTTPS so credentials and data are encrypted in transit.
 
 ## A find returns nothing
 
@@ -431,6 +434,8 @@ The [FileMaker failure-mode catalogue](../../docs/FILEMAKER_FAILURE_MODES.md) ha
 2. Fix the access, then run the job again for the records that were not attempted.
 3. The failed rows are listed with their reason and their record ID, and the job carried on with the rest.
 
+Executing an update also needs `filemaker.features.recordEdit.enabled` and permission for batch, record and write operations. The job rechecks policy and offline mode before each row, and stops with a reason if they change. Dry runs remain available offline or with writes disabled; offline previews make no server request. Dry runs still require `filemaker.features.batch.enabled` and a trusted folder. Files above `filemaker.batch.maxRecords` are refused, including dry runs: split the file or deliberately raise the cap.
+
 ## Commands are greyed out or missing
 
 ### Symptom
@@ -479,7 +484,7 @@ The [FileMaker failure-mode catalogue](../../docs/FILEMAKER_FAILURE_MODES.md) ha
 
 1. To replace the file, run **FileMaker: Upload to Container**, choose the profile and the layout, enter the record ID and the container field name, and pick the file. The default size limit is 100 MB (`filemaker.containerUploadMaxBytes`), and uploading needs a trusted workspace.
 2. Container fields are read-only in the Record Editor, which points at **Use Upload to container**. Save and Create Record leave them out, including repetitions.
-3. To open the file, use the URL the extension shows.
+3. Record Editor and Record Viewer open only container links on the selected connection's own server. If the URL names another server, ask the administrator to check the container address; it is refused by these panels.
 
 ## Saved queries, generated files and CSV files
 
@@ -491,8 +496,8 @@ The [FileMaker failure-mode catalogue](../../docs/FILEMAKER_FAILURE_MODES.md) ha
 
 ### Likely cause
 
-- The import expects a JSON file exported with **FileMaker: Export Saved Queries**. Invalid JSON, or a file without a query list, leaves the existing queries alone.
-- Generated file names avoid names that Windows reserves, and names that differ only in letter case can share a file on Windows and on macOS's default disk format. A name with spaces or punctuation gets a new file name with a short hash.
+- The import expects a JSON file exported with **FileMaker: Export Saved Queries (JSON)**. Invalid JSON, or a file without a query list, leaves the existing queries alone.
+- Generated file names avoid names that Windows reserves, and layout names that differ only in letter case get separate type files with short hash suffixes on Windows and on macOS's default disk format. A name with spaces or punctuation gets a new file name with a short hash.
 - The export puts an apostrophe in front of text that starts with `=`, `+`, `-`, `@`, a tab or a carriage return, so that a spreadsheet does not run it as a formula.
 
 ### Fix steps
@@ -528,8 +533,8 @@ The [FileMaker failure-mode catalogue](../../docs/FILEMAKER_FAILURE_MODES.md) ha
 
 ### Fix steps
 
-1. Run **FileMaker: Show Effective Settings**. It covers the 24 policy-related settings and shows where each value comes from.
-2. For any other setting, the badge in the Settings editor (**Per workspace**) tells you that it works as typed.
+1. Run **FileMaker: Show Effective Settings**. It covers the policy-related settings and shows where each value comes from.
+2. In 1.9.0, `filemaker.snippets.includeAuthByDefault`, `filemaker.schema.hashAlgorithm`, `filemaker.fmWeb.bridge.rateLimitPerSecond`, `filemaker.fmWeb.bridge.rateLimitBurst` and `filemaker.fmWeb.bridge.requestBudget` are User-only. A workspace value is ignored; put your intended value in User settings. For other settings, read the badge and the guide's [Settings reference](./USER_GUIDE.md#settings-reference).
 
 ## The password cannot be stored, or the wizard asks for it again
 
@@ -548,6 +553,24 @@ The [FileMaker failure-mode catalogue](../../docs/FILEMAKER_FAILURE_MODES.md) ha
 1. Install and unlock a keyring, or set `filemaker.secrets.fallback` in your **user** settings. That fallback is obfuscated, not protected: use it only when there is no keyring.
 2. Type the password again when you changed the server address, the proxy address or the user name. This is intended. If you only change the profile name or the database, the saved secret is kept.
 3. When editing a profile, "••••••• (saved)" in the password box means you can leave it empty to keep the saved password.
+4. A warning about credentials in a saved server address means 1.9.0 is cleaning up an old entry. Re-enter or confirm the credential in **Edit Connection Profile**. An embedded password is removed only after secure storage succeeds; an existing saved password is preserved. If storage fails, the original entry is kept for a later attempt.
+
+## The FM Web preview will not start on Windows
+
+### Symptom
+
+- **Could not find Node.js and npm on PATH. Install Node.js with npm to start the preview.**
+- The preview reports a busy port or a failed install.
+
+### Likely cause
+
+- On Windows, the preview searches absolute PATH entries for `node.exe` and `node_modules\npm\bin\npm-cli.js` (the standard Node.js installer layout); these can be in separate entries. A version manager such as nvm-windows works only if its PATH entries expose both files in those locations; a non-standard npm location may produce **Could not find Node.js and npm on PATH**. On macOS and Linux, the preview runs `npm` from PATH. Port 3000 may be occupied, or dependencies cannot be downloaded. The Marketplace package does not include the preview template.
+
+### Fix steps
+
+1. Use the source checkout for the preview. Use the standard Node.js installer layout (or expose both required files through absolute PATH entries) and restart VS Code so it sees PATH.
+2. Stop the service using `127.0.0.1:3000`; the preview will not open another service as its own.
+3. Check proxy and extra certificate environment settings if the install fails. Workspace npm configuration and `.env` overrides are ignored, and no install scripts run. The start dialog lists edited or added runtime files it will ignore; it leaves them alone. See [FM Web reference](./FM_WEB.md) for the clean private copy, named regeneration confirmation and cancellation cleanup.
 
 ## Where to get logs
 
@@ -555,7 +578,7 @@ The [FileMaker failure-mode catalogue](../../docs/FILEMAKER_FAILURE_MODES.md) ha
 - **FileMaker: Show Diagnostics** opens a report with your VS Code and extension versions, the operating system, the active profile (no secrets), your settings and recent log lines.
 - **FileMaker: Copy Connection Diagnosis for Bug Report** copies the latest connection diagnosis. It asks **Hide the server address?** first, and hiding also removes the port and the certificate details.
 - **FileMaker: About / Show Version** shows the extension version, the build, your VS Code version and the **Extension host** line. **Copy for bug report** copies a short block of those facts, with no server address, profile name, user name, token or folder path.
-- **FileMaker: Show Effective Settings** shows the value in effect for the policy-related settings (24 of them: the switches, limits and paths a project could try to change), not every setting.
+- **FileMaker: Show Effective Settings** shows the value in effect for the policy-related settings (the switches, limits and paths a project could try to change), not every setting.
 - **Details...** on an error message opens a document with the failing endpoint and the retry chain, redacted. It is safe to paste into a bug report.
 - **FileMaker: Test My Server** writes a report with the HTTP status and the FileMaker code the server actually returned. **Copy report with server address hidden** shares it without the address.
 
