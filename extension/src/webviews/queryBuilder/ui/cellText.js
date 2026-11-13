@@ -10,9 +10,9 @@
     root.CellText = api;
   }
 })(typeof self !== 'undefined' ? self : this, function () {
-  const PLAIN_NUMBER = /^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$/;
+  const PLAIN_NUMBER = /^[-+]?(\d+(?:\.\d*)?|\.\d+)([eE][-+]?\d+)?$/;
   // Signed numbers and phone numbers such as `-1,234.5` or `+1 (555) 123-4567`.
-  const NUMBER_OR_PHONE = /^[-+][\d\s().,/-]*\d[\d\s().,/-]*$/;
+  const NUMBER_OR_PHONE = /^[-+][\d\s().,/-]*$/;
 
   /**
    * A spreadsheet runs a cell that starts with `=`, `+`, `-`, `@`, tab or carriage return
@@ -20,7 +20,7 @@
    * Plain numbers and phone numbers are left alone.
    */
   function neutralizeFormula(text) {
-    if (!/^'*[=+\-@\t\r]/.test(text) || PLAIN_NUMBER.test(text) || NUMBER_OR_PHONE.test(text)) {
+    if (!/^'*[=+\-@\t\r]/.test(text) || PLAIN_NUMBER.test(text) || (NUMBER_OR_PHONE.test(text) && /\d/.test(text))) {
       return text;
     }
 

@@ -150,6 +150,19 @@ describe('offline cache key consistency', () => {
     expect(result!.metadata).toEqual(metadata);
   });
 
+  it('creates an ignore file before caching metadata and preserves an existing ignore file', async () => {
+    const root = join(tmpdir(), `fm-test-${randomUUID()}`);
+    await mkdir(root, { recursive: true });
+    const service = createTestService(root);
+    const profile = { id: 'p', name: 'P', serverUrl: 'https://example.test', database: 'DB', authMode: 'direct' as const };
+    const ignore = join(root, '.vscode/filemaker/offline-metadata/.gitignore');
+    await service.cacheLayoutMetadata(profile, ' Layout ', { valueLists: ['Private'] });
+    expect(await readFile(ignore, 'utf8')).toBe('*\n!.gitignore\n');
+    await writeFile(ignore, '# keep custom rules\n*\n');
+    await service.cacheLayoutMetadata(profile, ' Layout ', {});
+    expect(await readFile(ignore, 'utf8')).toBe('# keep custom rules\n*\n');
+  });
+
   it('should not return cache for different layout', async () => {
     const root = join(tmpdir(), `fm-test-${randomUUID()}`);
     await mkdir(root, { recursive: true });

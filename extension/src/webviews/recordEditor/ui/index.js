@@ -673,7 +673,8 @@ function buildFieldEditor(keys) {
       debouncedMarkDirtyState();
     };
     const input = typeof FieldStandards !== 'undefined'
-      ? FieldStandards.createStandardControl(document, fieldPresentation(key), toEditableValue(state.draftFieldData[key]), change, Boolean(note))
+      ? FieldStandards.createStandardControl(document, fieldPresentation(key), toEditableValue(state.draftFieldData[key]), change, Boolean(note),
+        state.profiles.find((profile) => profile.id === (state.loaded?.profileId || profileSelect.value))?.serverOrigin)
       : document.createElement('textarea');
     input.id = `record-field-${fieldInputs.size}`;
     input.classList.add('fm-field-control');
@@ -779,7 +780,7 @@ function parseEditableValue(value, name) {
   const metadata = metadataForField(state.presentationFields, name);
   if (normalizedType(metadata.result || metadata.type) !== 'number') return value;
   // Keep this decimal check in step with utils/numericText.ts (covered by parity tests).
-  const match = /^[-+]?(\d+\.?\d*|\.\d+)(?:[eE]([-+]?\d+))?$/.exec(value);
+  const match = /^[-+]?(\d+(?:\.\d*)?|\.\d+)(?:[eE]([-+]?\d+))?$/.exec(value);
   if (!match) return value;
   const number = Number(value);
   if (!Number.isFinite(number)) return value;

@@ -1,3 +1,4 @@
+import { withRequestLimits } from './requestLimits';
 import { assertFindCriteria } from '../utils/findCriteria';
 import axios, { type AxiosInstance } from 'axios';
 
@@ -92,7 +93,7 @@ export class ProxyClient {
   public constructor(
     private readonly secretStore: Pick<SecretStore, 'getProxyApiKey'>,
     logger: Pick<Logger, 'debug' | 'info' | 'warn' | 'error'>,
-    timeoutMs: number,
+    private readonly timeoutMs: number,
     httpClient?: AxiosInstance
   ) {
     this.logger = logger;
@@ -310,20 +311,24 @@ export class ProxyClient {
     // omitted — proxies are configured per-environment and don't need to display
     // human-readable profile names.
     try {
-      const response = await this.httpClient.post<ProxyEnvelope<T> | T>(
+      const transport = httpsTransportFor(profile, endpoint);
+      const body = {
+        action,
+        profile: buildProxyProfilePayload(profile),
+        payload
+      };
+      // Include the JSON envelope and base64 overhead in the upload budget.
+      const uploadBytes = action === 'uploadContainer' ? Buffer.byteLength(JSON.stringify(body)) : 0;
+      const response = await withRequestLimits(this.timeoutMs, signal, (limits) => this.httpClient.post<ProxyEnvelope<T> | T>(
         endpoint,
-        {
-          action,
-          profile: buildProxyProfilePayload(profile),
-          payload
-        },
+        body,
         {
           headers,
-          signal,
-          maxRedirects: 0,
-          ...httpsTransportFor(profile, endpoint)
+          ...transport,
+          ...limits,
+          maxRedirects: 0
         }
-      );
+      ), undefined, action === 'uploadContainer' ? 'upload' : ['getRecord', 'findRecords'].includes(action), transport.transport, uploadBytes);
 
       const responseData = response.data;
       if (responseData === undefined || responseData === null || typeof responseData === 'string') {

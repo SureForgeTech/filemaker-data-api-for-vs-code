@@ -524,6 +524,26 @@ describe('FM Web runtime template', () => {
     ).toContain(current);
   });
 
+  it('lets a future template refresh this release of field standards while preserving local edits', async () => {
+    const nextRelease = path.join(dir, 'next-release');
+    await mkdir(path.join(nextRelease, 'runtime-next'), { recursive: true });
+    await writeFile(path.join(nextRelease, 'runtime-next/package.json'), '{}');
+    await mkdir(path.join(nextRelease, 'shared/src'), { recursive: true });
+    await writeFile(path.join(nextRelease, 'shared/package.json'), '{}');
+    const shipped = await readFile(path.join(extensionDir, '../shared/src/field-standards.ts'), 'utf8');
+    const updated = shipped + '\n// next release\n';
+    await writeFile(path.join(nextRelease, 'shared/src/field-standards.ts'), updated);
+    const gen = generator(path.join(nextRelease, 'extension'));
+    const target = path.join(gen.getGeneratedRuntimeRoot(), 'shared/src/field-standards.ts');
+    await mkdir(path.dirname(target), { recursive: true });
+    await writeFile(target, shipped.replace(/\r?\n/g, '\r\n'));
+    expect((await gen.generateRuntimeAppTemplate()).updated).toContain('shared/src/field-standards.ts');
+    expect(await readFile(target, 'utf8')).toBe(updated);
+    await writeFile(target, shipped + '\n// local customization\n');
+    expect((await gen.generateRuntimeAppTemplate()).needsManualUpdate).toContain('shared/src/field-standards.ts');
+    expect(await readFile(target, 'utf8')).toBe(shipped + '\n// local customization\n');
+  });
+
   it('records the generated runtime manifest hash so future refreshes recognize this release', async () => {
     const gen = generator();
     await gen.generateRuntimeAppTemplate();

@@ -1242,8 +1242,8 @@
             "type": "number",
             "default": 10000,
             "minimum": 1,
-            "description": "Per workspace. Safety cap for batch export record count.",
-            "markdownDescription": "**Per workspace.** Safety cap for batch export record count.",
+            "description": "Per workspace. Safety cap for batch export and batch update row counts.",
+            "markdownDescription": "**Per workspace.** Safety cap for batch export and batch update row counts.",
             "order": 2
           },
           "filemaker.batch.concurrency": {

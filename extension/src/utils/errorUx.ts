@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 
 import type { NormalizedError, RequestChainEntry } from '../types/errors';
 import { isTrustableCertificateCode } from './networkErrors';
+import { errorMessageText } from './plainText';
 import { normalizeError } from './normalizeError';
 import { redactString, redactValue } from './redact';
 
@@ -153,7 +154,7 @@ export async function showErrorWithDetails(
   const allButtons = [...actionButtons, DETAILS_ACTION, COPY_REPORT_ACTION];
 
   const selection = await vscode.window.showErrorMessage(
-    normalized.message,
+    displayErrorMessage(normalized.message),
     ...allButtons
   );
 
@@ -234,7 +235,7 @@ export async function showErrorWithDetails(
 export const showCommandError = showErrorWithDetails;
 
 export function toUserErrorMessage(error: unknown, fallbackMessage = 'Unexpected error.'): string {
-  return normalizeError(error, { fallbackMessage }).message;
+  return displayErrorMessage(normalizeError(error, { fallbackMessage }).message);
 }
 
 interface RenderErrorReportOptions {
@@ -262,16 +263,18 @@ export function renderErrorReport(
   const lines: string[] = [];
   lines.push('# FileMaker Data API — Error Report');
   lines.push('');
-  lines.push(`- **Message:** ${redactString(normalized.message)}`);
+  lines.push('- **Message:**');
+  lines.push('');
+  lines.push(fencedText(errorMessageText(redactString(normalized.message))));
   lines.push(`- **Kind:** ${normalized.kind}`);
   if (normalized.status !== undefined) {
     lines.push(`- **HTTP status:** ${normalized.status}`);
   }
   if (normalized.code) {
-    lines.push(`- **Code:** ${normalized.code}`);
+    lines.push(`- **Code:** ${markdownErrorMessage(normalized.code)}`);
   }
   if (normalized.networkCode) {
-    lines.push(`- **Network code:** ${normalized.networkCode}`);
+    lines.push(`- **Network code:** ${markdownErrorMessage(normalized.networkCode)}`);
   }
   if (normalized.endpoint) {
     lines.push(`- **Endpoint:** ${redactString(normalized.endpoint)}`);
@@ -305,20 +308,14 @@ export function renderErrorReport(
   if (normalized.safeHeaders && Object.keys(normalized.safeHeaders).length > 0) {
     lines.push('## Response headers (redacted)');
     lines.push('');
-    lines.push('```');
-    for (const [key, value] of Object.entries(normalized.safeHeaders)) {
-      lines.push(`${key}: ${value}`);
-    }
-    lines.push('```');
+    lines.push(fencedText(Object.entries(normalized.safeHeaders).map(([key, value]) => `${key}: ${value}`).join('\n')));
     lines.push('');
   }
 
   if (normalized.details !== undefined) {
     lines.push('## Details (redacted)');
     lines.push('');
-    lines.push('```json');
-    lines.push(JSON.stringify(redactValue(normalized.details), null, 2));
-    lines.push('```');
+    lines.push(fencedText(JSON.stringify(redactValue(normalized.details), null, 2), 'json'));
     lines.push('');
   }
 
@@ -326,9 +323,7 @@ export function renderErrorReport(
   if (stack) {
     lines.push('## Stack trace (redacted)');
     lines.push('');
-    lines.push('```');
-    lines.push(redactString(stack));
-    lines.push('```');
+    lines.push(fencedText(redactString(stack)));
     lines.push('');
   }
 
@@ -370,4 +365,22 @@ function extractStack(raw: unknown): string | undefined {
     return candidate;
   }
   return undefined;
+}
+
+function displayErrorMessage(value: string): string {
+  // Notifications are plain text; break link syntax without adding visible escape characters.
+  return errorMessageText(errorMessageText(value).replace(/\]\(/g, '] ('));
+}
+
+function markdownErrorMessage(value: string): string {
+  return errorMessageText(value).replace(/[\\[\]<>`]/g, (character) => `\\${character}`);
+}
+
+function fencedText(value: string, language = ''): string {
+  // Details and stacks can contain another copy of the original server message.
+  if (value.length > 16_384) value = `${value.slice(0, 16_384)}… (truncated)`;
+  let longest = 2;
+  for (const run of value.matchAll(/`+/g)) longest = Math.max(longest, run[0].length);
+  const fence = '`'.repeat(longest + 1);
+  return `${fence}${language}\n${value}\n${fence}`;
 }

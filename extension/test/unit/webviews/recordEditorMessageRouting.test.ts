@@ -46,6 +46,9 @@ async function flush(): Promise<void> {
   for (let tick = 0; tick < 3; tick += 1) {
     await new Promise((resolve) => setTimeout(resolve, 0));
   }
+  // A write first reads the enterprise policy from disk, which takes longer than a timer tick on a
+  // busy or slow machine (CI), so give that read a real moment to finish.
+  await new Promise((resolve) => setTimeout(resolve, 30));
 }
 
 function open(overrides: Overrides = {}) {
@@ -152,7 +155,7 @@ describe('Record Editor: message routing', () => {
       expect(panel.posted).toContainEqual({
         type: 'init',
         payload: {
-          profiles: [{ id: 'p1', name: 'Production', database: 'Sales' }],
+          profiles: [{ id: 'p1', name: 'Production', serverOrigin: 'https://fm.example.com', database: 'Sales' }],
           activeProfileId: 'p1'
         }
       });

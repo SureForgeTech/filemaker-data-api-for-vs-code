@@ -1,3 +1,4 @@
+import { safeFileName } from '../utils/safeText';
 import * as vscode from 'vscode';
 
 import type { FMClient } from '../services/fmClient';
@@ -387,12 +388,4 @@ async function exportSingleQuery(query: SavedQuery): Promise<void> {
   );
 
   vscode.window.showInformationMessage(`Exported saved query "${query.name}".`);
-}
-
-function safeFileName(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)/g, '')
-    .slice(0, 60);
 }

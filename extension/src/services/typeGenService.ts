@@ -701,6 +701,14 @@ public async delete${suffix}(recordId: string): Promise<void> {
 }`;
 }
 
+function readmeName(value: string): string {
+  const shown = commentText(value);
+  let longest = 0;
+  for (const match of shown.matchAll(/`+/g)) longest = Math.max(longest, match[0].length);
+  const fence = '`'.repeat(longest + 1);
+  return `${fence} ${shown} ${fence}`;
+}
+
 function renderClientReadme(
   profile: ConnectionProfile,
   layouts: string[],
@@ -712,7 +720,7 @@ function renderClientReadme(
   return `<!-- ${GENERATED_MARKER} -->
 # FileMaker TypeScript Client
 
-Generated at ${generatedAt} for profile \`${commentText(profile.name)}\`.
+Generated at ${generatedAt} for profile ${readmeName(profile.name)}.
 
 ## Files
 
@@ -744,7 +752,7 @@ Replace the field name and search value above with a field on your layout and th
 
 Selected layouts:
 
-${layouts.map((layout) => `- ${commentText(layout)}`).join('\n')}
+${layouts.map((layout) => `- ${readmeName(layout)}`).join('\n')}
 
 Start request fields with \`Object.create(null)\` as above, especially when a field is named \`constructor\`, \`toString\` or \`hasOwnProperty\`. This keeps those field names separate from JavaScript's built-in object properties.
 

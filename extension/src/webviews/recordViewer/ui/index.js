@@ -385,7 +385,8 @@ function buildFieldTable(fieldData, fieldKeys) {
     const standard = typeof FieldStandards !== 'undefined';
     valueCell.className = standard ? 'fm-field-control viewer-value' : '';
     const valueControl = standard
-      ? FieldStandards.createStandardControl(document, fieldPresentation(field, fieldData[field]), toText(fieldData[field]), () => {}, true)
+      ? FieldStandards.createStandardControl(document, fieldPresentation(field, fieldData[field]), toText(fieldData[field]), () => {}, true,
+        state.profiles.find((profile) => profile.id === state.lastRecord?.profileId)?.serverOrigin)
       : document.createElement('span');
     if (standard) {
       valueControl.setAttribute('aria-label', field);

@@ -6,7 +6,7 @@ import { TROUBLESHOOTING_BASE_URL, docsUrlForCode, docsUrlForStatus, getFileMake
 import type { NetworkFailure } from './networkErrors';
 import { describeNetworkFailure, extractNetworkCode, extractNetworkMessage, targetOfUrl } from './networkErrors';
 import { proxyConnectionFailure } from './proxyConnectionFailure';
-import { plainTextPreview } from './plainText';
+import { errorMessageText, plainTextPreview } from './plainText';
 import { redactHeaders, redactString, redactValue } from './redact';
 
 interface FileMakerMessage {
@@ -406,7 +406,7 @@ function mergeOptions(error: NormalizedError, options: NormalizeErrorOptions | u
     endpoint: options?.endpoint ?? error.endpoint,
     status: options?.status ?? error.status,
     safeHeaders: options?.safeHeaders ?? error.safeHeaders,
-    message: redactString(error.message || options?.fallbackMessage || 'Unexpected error.')
+    message: errorMessageText(redactString(error.message || options?.fallbackMessage || 'Unexpected error.'))
   };
 }
 

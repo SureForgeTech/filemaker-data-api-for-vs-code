@@ -1,3 +1,4 @@
+import { safeFileName } from '../../utils/safeText';
 import * as vscode from 'vscode';
 
 import type { Logger } from '../../services/logger';
@@ -105,7 +106,7 @@ export class SchemaDiffPanel {
   private async exportDiffJson(): Promise<void> {
     const uri = await vscode.window.showSaveDialog({
       title: 'Export schema diff JSON',
-      defaultUri: vscode.Uri.file(`schema-diff-${this.diff.layout}.json`),
+      defaultUri: vscode.Uri.file(`schema-diff-${safeFileName(this.diff.layout)}.json`),
       filters: {
         JSON: ['json']
       }

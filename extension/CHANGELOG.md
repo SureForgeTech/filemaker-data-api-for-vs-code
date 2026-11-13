@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+- [SECURITY] Large downloads and uploads have bounded deadlines: downloads renew after progress; upload deadlines grow with body size, last at least the request timeout, and have a 30 minute ceiling; stalled transfers stop and trickling downloads time out.
+- [SECURITY] Batch update confirmation accepts saved server addresses that are not parseable URLs.
+- [SECURITY] Error notifications keep bracketed codes and file paths readable while breaking injected links.
+- [SECURITY] FM Web refreshes recognize the current shared container-link safety code without overwriting local edits.
+- [SECURITY] Suggested export filenames keep their original case and extension while removing unsafe path characters.
+- [SECURITY] Offline metadata cache folders ignore themselves in Git; schema snapshots remain available to commit.
+- [SECURITY] Error messages stay short and on one line, escape display markup, and remain inside code fences in copied error reports.
+- [SECURITY] Environment comparison exports keep hostile names inside their Markdown table cells.
+- [SECURITY] Record Editor and Record Viewer only open container links on the selected connection’s server address.
+- [SECURITY] Export suggestions use safe filenames while keeping exact layout and saved-query names in exported data.
+- [SECURITY] Release packaging installs dependencies without running their install scripts.
+- [SECURITY] Hostile portal notes, numeric cells, certificate names and AI error text no longer cause excessive regex backtracking; exported portal notes bound names and require safe counts.
+- [SECURITY] Direct and proxy FileMaker requests enforce a 64 MiB response limit; sign-in, sign-out, server discovery and other small requests also have a fixed time limit.
+- [FIX] Batch exports keep the configured record cap even when the server returns too many rows.
+- [SECURITY] Batch updates refuse files above filemaker.batch.maxRecords and show escaped layout and profile names with the server host before execution.
+- [SECURITY] Generated client README files display layout and profile names as code so hostile names cannot load remote Markdown images or links.
 - [SECURITY] FM Web preview recognizes unchanged template files on Windows and shows relative file names with forward slashes.
 - [SECURITY] FM Web preview cleans up private files after Windows stop failures and can start again after a preview exits.
 - [SECURITY] FM Web preview keeps old temporary folders while their owning VS Code process is still running in another window.

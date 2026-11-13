@@ -199,7 +199,7 @@ export function recordFieldRequired(field: RecordFieldMetadata): boolean {
 
 /** Convert only finite decimal text whose exact magnitude is in the safe integer range. */
 export function numericText(value: string): number | string {
-  const match = /^[-+]?(\d+\.?\d*|\.\d+)(?:[eE]([-+]?\d+))?$/.exec(value);
+  const match = /^[-+]?(\d+(?:\.\d*)?|\.\d+)(?:[eE]([-+]?\d+))?$/.exec(value);
   if (!match) return value;
   const number = Number(value);
   if (!Number.isFinite(number)) return value;

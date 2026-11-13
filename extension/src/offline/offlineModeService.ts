@@ -293,6 +293,11 @@ export class OfflineModeService {
     await assertSafeOutputFolder(dir, root);
     await mkdir(dir, { recursive: true });
     await assertSafeOutputFolder(dir, root);
+    try {
+      await writeFile(await this.confinedCacheFile('.gitignore'), '*\n!.gitignore\n', { encoding: 'utf8', flag: 'wx' });
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+    }
     return dir;
   }
 

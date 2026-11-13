@@ -3,7 +3,7 @@ import * as vscode from 'vscode';
 
 import { FMClientError } from '../../src/services/errors';
 import { normalizeError } from '../../src/utils/normalizeError';
-import { showErrorWithDetails, toUserErrorMessage } from '../../src/utils/errorUx';
+import { renderErrorReport, showErrorWithDetails, toUserErrorMessage } from '../../src/utils/errorUx';
 
 describe('showErrorWithDetails', () => {
   beforeEach(() => {
@@ -46,15 +46,75 @@ describe('showErrorWithDetails', () => {
       isAxiosError: true, message: 'Request failed', response: {
         status: 500, data: { messages: [{ code: '9999', message: 'A plain FileMaker message.' }] }
       }
-    }, expected: 'FileMaker API error (HTTP 500) [9999]: A plain FileMaker message.', secrets: [] }
-  ])('redacts $label on all normalized message surfaces', async ({ error, expected, secrets }) => {
+    }, expected: 'FileMaker API error (HTTP 500) [9999]: A plain FileMaker message.',
+    secrets: [] }
+  ])('redacts $label on all normalized message surfaces', async (testCase) => {
+    const { error, expected, secrets } = testCase;
     vi.mocked(vscode.window.showErrorMessage).mockResolvedValue(undefined);
     await showErrorWithDetails(error);
     const toast = vi.mocked(vscode.window.showErrorMessage).mock.calls[0]![0];
     expect(toast).toBe(expected);
     expect(normalizeError(error).message).toBe(expected);
-    expect(toUserErrorMessage(error, '')).toBe(expected);
+    expect(toUserErrorMessage(error, '')).toBe(toast);
     for (const secret of secrets) expect(toast).not.toContain(secret);
+  });
+
+  it.each(['Details…', 'Copy as Bug Report'])('contains hostile server text on the toast and %s surface', async (action) => {
+    const message = '[Re-enter your password](https://evil)\n```\n# Injected heading\n<img>';
+    const error = { isAxiosError: true, message: 'failed', response: {
+      status: 500, data: { messages: [{ code: '9999', message }] }
+    } };
+    vi.mocked(vscode.window.showErrorMessage).mockResolvedValue(action as never);
+    await showErrorWithDetails(error);
+    const toast = vi.mocked(vscode.window.showErrorMessage).mock.calls[0]![0];
+    expect(toast).not.toMatch(/[\r\n]/);
+    expect(toast).toContain('[Re-enter your password] (https://evil)');
+    expect(toast).not.toContain('](https://evil)');
+    expect(toast).toContain('```');
+    expect(toast).toContain('<img>');
+    expect(toUserErrorMessage(error)).toBe(toast);
+    const report = action === 'Details…'
+      ? (vi.mocked(vscode.workspace.openTextDocument).mock.calls[0]![0] as { content: string }).content
+      : vi.mocked(vscode.env.clipboard.writeText).mock.calls[0]![0];
+    expect(report).toContain('````\nFileMaker API error');
+    expect(report).toContain('\n````\n');
+    expect(report).not.toContain('\n# Injected heading');
+  });
+
+  it('keeps bracketed codes, Windows paths and angle brackets readable in plain text', () => {
+    const message = String.raw`[212] C:\Invoices\Report.jsonl <field>`;
+    expect(toUserErrorMessage(new Error(message))).toBe(message);
+    expect(toUserErrorMessage(new Error('[click](https://evil)'))).toBe('[click] (https://evil)');
+  });
+
+  it('keeps plain error text bounded after breaking many injected links', () => {
+    const toast = toUserErrorMessage(new Error('[x](https://evil)\n'.repeat(100_000)));
+    expect(toast.length).toBeLessThanOrEqual(1025);
+    expect(toast).not.toContain('](');
+    expect(toast).not.toMatch(/[\r\n]/);
+  });
+
+  it('still escapes markup in Markdown report codes', () => {
+    const report = renderErrorReport({ kind: 'server', message: 'failed', isRetryable: false,
+      code: '[click](https://evil)', networkCode: '<img>' });
+    expect(report).toContain(String.raw`**Code:** \[click\](https://evil)`);
+    expect(report).toContain(String.raw`**Network code:** \<img\>`);
+  });
+
+  it('uses fences longer than hostile backtick runs in report messages, details and stacks', () => {
+    const attack = '``````\n# Injected heading\n<img>';
+    const report = renderErrorReport({ kind: 'server', message: attack, isRetryable: false,
+      details: { message: attack }, stackTrace: attack });
+    expect(report.match(/^```````(?:json)?$/gm)).toHaveLength(6);
+  });
+
+  it('bounds diagnostic copies of long server messages in details and stacks', () => {
+    const message = 'x'.repeat(100_000);
+    const report = renderErrorReport({ kind: 'server', message, isRetryable: false,
+      details: { messages: [{ message }] }, stackTrace: message });
+    expect(report).not.toContain('x'.repeat(16_385));
+    expect(report).toContain('… (truncated)');
+    expect(report.length).toBeLessThan(40_000);
   });
 
   it('uses fallback message when error is not an Error', async () => {

@@ -12,7 +12,7 @@ import type { SchemaService } from '../../services/schemaService';
 import type { ConnectionProfile, EditRecordResult, FileMakerFieldMetadata, FileMakerRecord } from '../../types/fm';
 import { isProxyProfile } from '../../types/fm';
 import { extractPortalSpecs, sanitizeCreatePortalData, stripPortalPrefix, type CreatePortalData, type PortalRowSpec, MAX_PORTAL_ROWS_TOTAL } from '../../utils/createPortalRows';
-import { buildWebviewCsp, createNonce, profileImageSources } from '../common/csp';
+import { buildWebviewCsp, createNonce, profileImageSources, serverOrigin } from '../common/csp';
 import { guardDispatch, requestType } from '../common/dispatch';
 import { getStringField, toRecord } from '../common/messageValidation';
 import {
@@ -278,6 +278,7 @@ export class RecordEditorPanel {
         profiles: profiles.map((profile) => ({
           id: profile.id,
           name: profile.name,
+          serverOrigin: serverOrigin(profile.serverUrl),
           database: profile.database
         })),
         activeProfileId: this.profileStore.getActiveProfileId(),

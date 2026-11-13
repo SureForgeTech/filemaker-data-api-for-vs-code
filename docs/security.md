@@ -309,3 +309,39 @@ model or on the user. See also the [AI section of DATA_HANDLING.md](./DATA_HANDL
 ## Reporting security issues
 
 Do not open a public issue. Follow the [security policy](../SECURITY.md).
+
+## FileMaker request and batch budgets
+
+Every direct and proxy HTTP exchange is time-limited, and the limit depends on
+the kind of request. The base value is `filemaker.requestTimeoutMs` (15 seconds
+by default).
+
+- **Sign-in, sign-out, server discovery, metadata and ordinary requests** have a
+  wall-clock deadline. Receiving headers or dripping body bytes does not extend
+  it.
+- **Downloads and large reads** renew the deadline each time 64 KiB of body
+  arrives, so a healthy slow transfer finishes and a stalled or dripping one
+  stops.
+- **Uploads** have a wall-clock deadline for the whole exchange, including the
+  response wait. It grows with the body size at 32 KiB per second (including
+  multipart or proxy base64 overhead), lasts at least the request timeout, and
+  has a 30 minute ceiling. Stalled uploads stop at that deadline; socket activity
+  does not renew it. Connection setup, including DNS and proxy lookup, still
+  uses the base timeout.
+- **Every transfer** also has a 30 minute ceiling.
+
+Caller cancellation still stops any request. Session retirement uses at most
+three seconds.
+
+Responses are limited to 64 MiB after decompression per HTTP request. Smaller
+explicit limits used by AI tools still apply. Large exports can use smaller
+pages; a page or schema response over the limit must be reduced at the source.
+Uploads retain the existing `filemaker.containerUploadMaxBytes` limit (100 MiB
+by default, configurable up to 2 GiB); the transport allows up to 3 GiB outbound
+to accommodate multipart and proxy base64 overhead. The response limit does not
+reduce the container upload allowance. These are per-request budgets, not a
+total export-size limit.
+
+`filemaker.batch.maxRecords` (10,000 by default) caps both exports and update-file
+rows, including dry runs. Oversized update files are refused before any records
+are changed; split the file or deliberately raise the setting before retrying.

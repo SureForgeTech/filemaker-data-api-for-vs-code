@@ -1,3 +1,4 @@
+import { serverOrigin } from '@fmweb/shared/dist/field-standards';
 import { randomInt } from 'crypto';
 
 import type * as vscode from 'vscode';
@@ -38,17 +39,7 @@ export function buildWebviewCsp(webview: vscode.Webview, options: CspOptions): s
   ].join('; ');
 }
 
-/** The scheme and host of a server URL, without its path; nothing for a URL that is not http(s). */
-export function serverOrigin(serverUrl: string | undefined): string | undefined {
-  if (!serverUrl) return undefined;
-  try {
-    const url = new URL(serverUrl);
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') return undefined;
-    return `${url.protocol}//${url.host}`;
-  } catch {
-    return undefined;
-  }
-}
+export { serverOrigin };
 
 /**
  * The origins of the configured servers, so a container image can be shown in a webview. Only

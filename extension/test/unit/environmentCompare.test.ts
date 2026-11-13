@@ -70,6 +70,26 @@ describe('EnvironmentCompareService', () => {
     expect(invoices?.presence.prod).toBe(false);
   });
 
+  it('escapes every Markdown table cell without changing names used for matching', async () => {
+    const layout = 'x | y |\r\n\n# H\n[click](https://evil)';
+    const profiles = createProfiles().map((profile) => ({ ...profile, id: profile.id + '|[x]\n' }));
+    const fmClient = { listLayouts: vi.fn(async () => [layout]), getLayoutMetadata: vi.fn(async () => ({})) };
+    const schema = { getLayoutSchema: vi.fn(async () => ({ supported: true, metadata: {} })) };
+    const service = new EnvironmentCompareService(fmClient as never, schema as never, { debug: vi.fn(), warn: vi.fn() });
+    const result = await service.compareEnvironmentSet({ ...createSet(), profiles: profiles.map((p) => p.id) }, profiles,
+      { concurrency: 2, hashAlgorithm: 'sha256' });
+    expect(result.rows[0]?.layout).toBe(layout);
+    expect(schema.getLayoutSchema).toHaveBeenCalledWith(profiles[0], layout);
+    const report = service.toMarkdownReport(result);
+    const rows = report.split('\n').filter((line) => line.startsWith('|'));
+    expect(rows).toHaveLength(3);
+    expect(rows[2]?.match(/\|/g)).toHaveLength(5);
+    expect(rows[2]).toContain('x &#124; y &#124;');
+    expect(rows[2]).toContain('&#91;click&#93;');
+    expect(rows[2]).toContain('dev&#124;&#91;x&#93; ');
+    expect(report).not.toContain('\n# H');
+  });
+
   it('diffs one layout across environments using baseline fields', async () => {
     const profiles = createProfiles();
 

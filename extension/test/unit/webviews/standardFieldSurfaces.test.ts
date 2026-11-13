@@ -134,13 +134,35 @@ describe.skipIf(!JSDOM)('standard field presentation in browser webviews', () =>
 
   it.each(['recordEditor', 'recordViewer'] as const)('%s shows the container URL when its image cannot be shown', (surface) => {
     const page = loadPage(html(surface), read(`extension/src/webviews/${surface}/ui/index.js`));
+    page.send({ type: 'init', payload: { profiles: [{ ...profiles[0], serverOrigin: 'https://example.test' }], activeProfileId: 'p' } });
     const url = 'https://example.test/photo.png';
     const metadata = [{ name: 'Photo', type: 'container', result: 'container' }];
-    page.send({ type: 'recordLoaded', payload: { record: { recordId: '1', fieldData: { Photo: url } }, fields: metadata, presentationFields: metadata } });
+    page.send({ type: 'recordLoaded', payload: { profileId: 'p', record: { recordId: '1', fieldData: { Photo: url } }, fields: metadata, presentationFields: metadata } });
     expect(page.document.querySelectorAll('.fm-container img')[0]?.getAttribute('src')).toBe(url);
     // A blocked or missing image must not hide where the container lives.
     page.window.eval(`document.querySelector('.fm-container img').dispatchEvent(new Event('error'));`);
     expect(page.document.querySelectorAll('.fm-container')[0]?.textContent).toBe(url);
+  });
+
+  it.each(['recordEditor', 'recordViewer'] as const)('%s only links containers from the selected profile origin', (surface) => {
+    const page = loadPage(html(surface), read(`extension/src/webviews/${surface}/ui/index.js`));
+    page.send({ type: 'init', payload: { profiles: [
+      { ...profiles[0], serverOrigin: 'https://fm.example.test:8443' },
+      { id: 'other', name: 'Other', database: 'DB', serverOrigin: 'https://other.example.test' }
+    ], activeProfileId: 'p' } });
+    const metadata = [{ name: 'Photo', type: 'container', result: 'container' }];
+    for (const url of ['https://evil.test/a.png', 'https://other.example.test/a.png', 'http://fm.example.test:8443/a',
+      'https://fm.example.test/a', 'https://fm.example.test.evil.test:8443/a', 'https://fm.example.test:8443@evil.test/a']) {
+      page.send({ type: 'recordLoaded', payload: { profileId: 'p', layout: ' Layout ',
+        record: { recordId: '1', fieldData: { Photo: url } }, fields: metadata, presentationFields: metadata } });
+      expect(page.document.querySelectorAll('.fm-container a, .fm-container img').length, url).toBe(0);
+      expect(page.document.querySelectorAll('.fm-container')[0]?.textContent).toBe(url);
+    }
+    for (const url of ['https://fm.example.test:8443/a.png', 'https://fm.example.test:8443/document.pdf']) {
+      page.send({ type: 'recordLoaded', payload: { profileId: 'p', layout: ' Layout ',
+        record: { recordId: '1', fieldData: { Photo: url } }, fields: metadata, presentationFields: metadata } });
+      expect(page.document.querySelectorAll('.fm-container a')[0]?.getAttribute('href')).toBe(url);
+    }
   });
 
   it('Query Builder layout controls use layout order for field choices and result columns', () => {

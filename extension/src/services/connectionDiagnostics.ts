@@ -68,7 +68,7 @@ function alternativeNames(value: string): string[] {
 
 /** Use Node's DNS verifier and canonical IP SAN matching, respecting quoted SAN entries. */
 export function matchCertificateName(host: string, altNames: string, commonName?: string): { nameMatch: boolean; noNames: boolean } {
-  const noNames = !/DNS:|IP Address:/.test(altNames) && (!commonName || !/^[\w.*-]+(?:\.[\w*-]+)*$/.test(commonName));
+  const noNames = !/DNS:|IP Address:/.test(altNames) && (!commonName || !/^[\w.*-]+$/.test(commonName));
   const bareHost = host.replace(/^\[|\]$/g, '');
   let nameMatch = false;
   if (isIP(bareHost)) {
