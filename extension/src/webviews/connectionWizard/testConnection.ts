@@ -101,7 +101,9 @@ export async function handleTestConnection(ctx: WizardContext, data: WizardFormD
       );
     }
 
-    client = ctx.fmClient.createIsolatedClient(temporary);
+    // The extension hands the wizard a lazy client wrapper whose methods answer asynchronously, so
+    // this may be a promise; the real class returns the client directly.
+    client = await Promise.resolve(ctx.fmClient.createIsolatedClient(temporary));
     if (data.authMode === 'direct') {
       tempProfile.username = data.username?.trim();
       await temporary.setPassword(testId, secret);
