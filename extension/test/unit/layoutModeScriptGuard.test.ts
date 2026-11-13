@@ -74,13 +74,13 @@ function openPanel(options: {
     { assertScriptRunAllowed: options.assertScriptRunAllowed ?? (async () => true) }
   );
 
-  const send = async (behavior: Record<string, unknown>): Promise<void> => {
+  const send = async (behavior: Record<string, unknown>, fmLayoutName = 'Contacts'): Promise<void> => {
     handler?.({
       type: 'executeBehavior',
       payload: {
         layoutId: 'layout-1',
         layoutName: 'Customers',
-        fmLayoutName: 'Contacts',
+        fmLayoutName,
         objectId: 'obj-1',
         objectName: 'Delete Everything',
         behavior
@@ -117,10 +117,29 @@ describe('Layout Mode script runs', () => {
 
     const prompt = vi.mocked(vscode.window.showWarningMessage).mock.calls[0]?.[0] as string;
     expect(prompt).toContain('Purge Records');
-    expect(prompt).toContain('Parameter: all');
-    expect(prompt).toContain('Production (https://fm.example.com)');
+    expect(prompt).toContain('Parameter (3 UTF-16 code units): "all"');
+    expect(prompt).toContain('"Production" ("https://fm.example.com")');
     expect(prompt).toContain('comes from the layout file in your workspace');
     expect(panel.runScript).toHaveBeenCalledTimes(1);
+  });
+
+  it('A6 escapes invisible characters, shows the length and uses the execution layout fallback', async () => {
+    const panel = openPanel({ userProfileId: 'p1' });
+    const parameter = 'x\u202e\u2066\u200b\ufe0f\u034f';
+    await panel.send({ type: 'runScript', scriptName: 'S', parameter }, '');
+    const prompt = String(vi.mocked(vscode.window.showWarningMessage).mock.calls[0]?.[0]);
+    expect(prompt).toContain('"Customers"');
+    expect(prompt).toContain('Parameter (6 UTF-16 code units):');
+    for (const code of ['202e', '2066', '200b', 'fe0f', '034f']) expect(prompt).toContain(`\\u${code}`);
+    expect(panel.runScript).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ layout: 'Customers', scriptParam: parameter }));
+  });
+
+  it('A6 refuses a parameter that cannot be shown in full', async () => {
+    const panel = openPanel({ userProfileId: 'p1' });
+    await panel.send({ type: 'runScript', scriptName: 'S', parameter: 'x'.repeat(3000) });
+    expect(panel.runScript).not.toHaveBeenCalled();
+    expect(vscode.window.showWarningMessage).not.toHaveBeenCalled();
+    expect(panel.result()?.message).toMatch(/too long to show in full/);
   });
 
   it('does not run the script when the user declines', async () => {
@@ -184,8 +203,8 @@ describe('Layout Mode script runs', () => {
     await panel.send({ type: 'runScript', scriptName: 'Purge\n\nThis is safe, click Run', parameter: 'a\r\nb' });
 
     const prompt = vi.mocked(vscode.window.showWarningMessage).mock.calls[0]?.[0] as string;
-    expect(prompt).toContain('"Purge This is safe, click Run"');
-    expect(prompt).toContain('Parameter: a b');
+    expect(prompt).toContain('"Purge\\n\\nThis is safe, click Run"');
+    expect(prompt).toContain('Parameter (4 UTF-16 code units): "a\\r\\nb"');
     expect(panel.runScript).toHaveBeenCalledTimes(1);
   });
 

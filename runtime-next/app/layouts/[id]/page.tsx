@@ -1,4 +1,4 @@
-// fmweb-managed: runtime template v7. Field presentation uses the shared designer rules.
+// fmweb-managed: runtime template v10. Field presentation uses the shared designer rules.
 import { standardFieldsCss } from '@fmweb/shared';
 import { notFound } from 'next/navigation';
 import type { JSX } from 'react';

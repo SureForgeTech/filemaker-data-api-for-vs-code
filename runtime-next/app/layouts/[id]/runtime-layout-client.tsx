@@ -1,4 +1,4 @@
-// fmweb-managed: runtime template v7. The FileMaker Data API Tools extension refreshes this file when the template version changes; keep your own changes in other files.
+// fmweb-managed: runtime template v10. The FileMaker Data API Tools extension refreshes this file when the template version changes; keep your own changes in other files.
 'use client';
 
 import * as React from 'react';
@@ -144,8 +144,7 @@ export function RuntimeLayoutClient({
         layoutId: layout.id,
         layoutName: layout.name,
         fmLayoutName: layout.fmLayoutName,
-        bridgeBaseUrl: process.env.NEXT_PUBLIC_FMWEB_BRIDGE_URL,
-        bridgeToken: process.env.NEXT_PUBLIC_FMWEB_BRIDGE_TOKEN,
+        bridgeBaseUrl: '/api/bridge',
         currentRecordId: runtime.currentRecord?.recordId,
         currentRecordIndex: runtime.currentIndex,
         currentFoundSetRecordIds: runtime.foundSet.map((record) => record.recordId),

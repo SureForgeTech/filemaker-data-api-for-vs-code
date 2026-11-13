@@ -1,5 +1,6 @@
 import { createHash } from 'crypto';
 import { createRequire } from 'module';
+import type * as FsPromises from 'fs/promises';
 import { chmod, link, lstat, mkdtemp, mkdir, readdir, readFile, rm, stat, symlink, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import path from 'path';
@@ -8,6 +9,11 @@ import { pathToFileURL } from 'url';
 import nock from 'nock';
 import * as vscode from 'vscode';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('fs/promises', async (importOriginal) => {
+  const actual = await importOriginal<typeof FsPromises>();
+  return { ...actual, readFile: vi.fn(actual.readFile) };
+});
 
 import { standardFieldSize } from '@fmweb/shared/dist/field-standards';
 import { createBlankLayout } from '../../src/fmweb/layoutSchema';
@@ -20,7 +26,9 @@ import {
   SHIPPED_MARKED_HASHES,
   SHIPPED_SHARED_HASHES,
   decideManagedRefresh,
+  isExpectedPreviewDirectory,
   normalizedHash,
+  toPosixRelative,
   withoutMonorepoTooling,
   writeManagedFile
 } from '../../src/services/fmWebRuntimeGenerator';
@@ -52,6 +60,195 @@ describe('FM Web runtime template', () => {
       logger
     );
   }
+
+  it.each([
+    ['app\\layouts\\[id]\\page.tsx', 'app/layouts/[id]/page.tsx'],
+    ['shared/src\\index.ts', 'shared/src/index.ts'],
+    [' app / Exact field.ts ', ' app / Exact field.ts ']
+  ])('normalizes preview separators without changing names: %s', (input, expected) => {
+    expect(toPosixRelative(input)).toBe(expected);
+  });
+
+  it('compares directory prefixes across separators without matching sibling names', () => {
+    const expected = ['app/layouts/[id]/page.tsx', 'shared\\src\\index.ts'];
+    expect(isExpectedPreviewDirectory('app\\layouts', expected)).toBe(true);
+    expect(isExpectedPreviewDirectory('shared/src', expected)).toBe(true);
+    expect(isExpectedPreviewDirectory('app/layout', expected)).toBe(false);
+    expect(isExpectedPreviewDirectory('app/layouts/[id]/page.tsx', expected)).toBe(false);
+  });
+
+  it('uses forward-slash keys and comparisons when directory walks return Windows relative paths', async () => {
+    const relative = path.relative;
+    const windowsRelative = vi.spyOn(path, 'relative').mockImplementation((from, to) => relative(from, to).replace(/\//g, '\\'));
+    try {
+      const gen = generator();
+      const summary = await gen.generateRuntimeAppTemplate();
+      expect(summary.created).toContain('lib/runtime-data.ts');
+      expect(summary.created).toContain('shared/src/index.ts');
+      expect(summary.created.every((name) => !name.includes('\\'))).toBe(true);
+      const files = await gen.previewTemplateFiles();
+      expect(files.has('lib/runtime-data.ts')).toBe(true);
+      expect(files.has('shared/src/index.ts')).toBe(true);
+      expect([...files.keys()].every((name) => !name.includes('\\'))).toBe(true);
+      expect(await gen.inspectPreviewFiles()).toEqual([]);
+      await writeFile(path.join(gen.getGeneratedRuntimeRoot(), 'app', 'evil.ts'), 'attacker');
+      expect(await gen.inspectPreviewFiles()).toEqual(['app/evil.ts']);
+    } finally {
+      windowsRelative.mockRestore();
+    }
+  });
+
+  it('A5 lists repository execution inputs even with an unchanged package.json', async () => {
+    const gen = generator();
+    await gen.generateRuntimeAppTemplate();
+    const root = gen.getGeneratedRuntimeRoot();
+    for (const file of ['.npmrc', 'package-lock.json', 'yarn.lock', 'pnpm-lock.yaml', '.env.production', 'app/evil.ts']) {
+      await writeFile(path.join(root, file), 'attacker');
+    }
+    await mkdir(path.join(root, 'node_modules'));
+    await writeFile(path.join(root, 'next.config.ts'), 'attacker');
+    await writeFile(path.join(dir, '.npmrc'), 'script-shell=./evil.sh');
+    const files = await gen.inspectPreviewFiles();
+    for (const file of ['.npmrc', 'package-lock.json', 'yarn.lock', 'pnpm-lock.yaml', '.env.production', 'app/evil.ts', 'next.config.ts']) expect(files).toContain(file);
+    expect(files).not.toContain('node_modules');
+    expect(files).not.toContain('../.npmrc');
+    expect(await readFile(path.join(dir, '.npmrc'), 'utf8')).toBe('script-shell=./evil.sh');
+  });
+
+  it('omits dependencies and build output from inspection and preserves them during regeneration', async () => {
+    const gen = generator();
+    await gen.generateRuntimeAppTemplate();
+    const root = gen.getGeneratedRuntimeRoot();
+    for (const folder of ['node_modules', '.next']) {
+      await mkdir(path.join(root, folder));
+      await writeFile(path.join(root, folder, 'keep'), 'user build output');
+    }
+    await writeFile(path.join(root, 'user-file'), 'review me');
+    expect(await gen.inspectPreviewFiles()).toEqual(['user-file']);
+    await gen.removePreviewFiles(['user-file']);
+    await gen.generateRuntimeAppTemplate();
+    for (const folder of ['node_modules', '.next']) {
+      expect(await readFile(path.join(root, folder, 'keep'), 'utf8')).toBe('user build output');
+      vi.spyOn(gen, 'inspectPreviewFiles').mockResolvedValueOnce([folder]);
+      await expect(gen.removePreviewFiles([folder])).rejects.toThrow('Cannot remove dependency or build folders');
+    }
+  });
+
+  it('compares known file sizes before reading content, but still detects equal-size edits', async () => {
+    const gen = generator();
+    await gen.generateRuntimeAppTemplate();
+    const file = path.join(gen.getGeneratedRuntimeRoot(), '.gitignore');
+    const expected = '.env.local\n.env*.local\nnode_modules\n.next\n';
+    await writeFile(file, 'a much shorter edit');
+    vi.mocked(readFile).mockClear();
+    expect(await gen.inspectPreviewFiles()).toContain('.gitignore');
+    expect(vi.mocked(readFile).mock.calls.some(([target]) => target === file)).toBe(false);
+    await writeFile(file, 'x'.repeat(Buffer.byteLength(expected)));
+    vi.mocked(readFile).mockClear();
+    expect(await gen.inspectPreviewFiles()).toContain('.gitignore');
+    expect(vi.mocked(readFile).mock.calls.some(([target]) => target === file)).toBe(true);
+    await writeFile(file, expected);
+    expect(await gen.inspectPreviewFiles()).not.toContain('.gitignore');
+  });
+
+  it('recognizes the exact comment-only env marker after a new extension session', async () => {
+    const gen = generator();
+    await gen.generateRuntimeAppTemplate();
+    await gen.writeBridgeEnv('http://127.0.0.1:1234', 'mock-token');
+    expect(await generator().inspectPreviewFiles()).not.toContain('.env.local');
+    await writeFile(path.join(gen.getGeneratedRuntimeRoot(), '.env.local'), '# Preview credentials are passed only to the private server process.\nNODE_OPTIONS=--require=evil\n');
+    expect(await generator().inspectPreviewFiles()).toContain('.env.local');
+  });
+
+  it('refuses regeneration paths outside the runtime, even if inspection were to supply them', async () => {
+    const gen = generator();
+    await gen.generateRuntimeAppTemplate();
+    const npmrc = path.join(dir, '.npmrc');
+    await writeFile(npmrc, 'registry=https://private.invalid');
+    vi.spyOn(gen, 'inspectPreviewFiles').mockResolvedValue(['../.npmrc']);
+    await expect(gen.removePreviewFiles(['../.npmrc'])).rejects.toThrow('outside the generated runtime');
+    expect(await readFile(npmrc, 'utf8')).toBe('registry=https://private.invalid');
+  });
+
+  it.each(['', '\0', '../outside', '..\\outside', 'app/../keep.ts', 'app\\..\\keep.ts', 'app/keep..ts', '/outside', '\\outside', '\\\\server\\share', 'C:\\outside', 'C:/outside', 'C:outside', 'app/C:/outside', 'app\\C:outside'])('refuses unsafe regeneration names with either separator: %s', async (name) => {
+    const gen = generator();
+    const inspect = vi.spyOn(gen, 'inspectPreviewFiles').mockResolvedValue([name]);
+    await expect(gen.removePreviewFiles([name])).rejects.toThrow('outside the generated runtime');
+    expect(inspect).not.toHaveBeenCalled();
+  });
+
+  it.each(['app/node_modules/file', 'app\\node_modules\\file', 'app/.next/file', 'app\\.next\\file'])('refuses protected folder parts with either separator: %s', async (name) => {
+    const gen = generator();
+    const inspect = vi.spyOn(gen, 'inspectPreviewFiles').mockResolvedValue([name]);
+    await expect(gen.removePreviewFiles([name])).rejects.toThrow('Cannot remove dependency or build folders');
+    expect(inspect).not.toHaveBeenCalled();
+  });
+
+  it('normalizes confirmed Windows names for rescanning and deleting nested files', async () => {
+    const gen = generator();
+    await gen.generateRuntimeAppTemplate();
+    const file = path.join(gen.getGeneratedRuntimeRoot(), 'app', 'user-file.ts');
+    await writeFile(file, 'user file');
+    expect(await gen.inspectPreviewFiles()).toEqual(['app/user-file.ts']);
+    await expect(gen.removePreviewFiles(['app/changed.ts'])).rejects.toThrow('Preview files changed');
+    expect(await readFile(file, 'utf8')).toBe('user file');
+    await gen.removePreviewFiles(['app\\user-file.ts']);
+    await expect(lstat(file)).rejects.toHaveProperty('code', 'ENOENT');
+    expect(await gen.inspectPreviewFiles()).toEqual([]);
+  });
+
+  it('A8 never writes a browser-public token or preserves public env overrides', async () => {
+    const gen = generator();
+    await gen.generateRuntimeAppTemplate();
+    const root = gen.getGeneratedRuntimeRoot();
+    await writeFile(path.join(root, '.env.local'), 'NEXT_PUBLIC_FMWEB_BRIDGE_TOKEN=old-secret\nNEXT_PUBLIC_EVIL=bad\n');
+    const file = await gen.writeBridgeEnv('http://127.0.0.1:1234', 'private-canary');
+    const env = await readFile(file, 'utf8');
+    expect(env).not.toContain('NEXT_PUBLIC_');
+    expect(env).not.toContain('private-canary');
+    const client = await readFile(path.join(root, 'lib/runtime-data.ts'), 'utf8');
+    expect(client).not.toContain('NEXT_PUBLIC_FMWEB_BRIDGE_TOKEN');
+  });
+
+  it.each(['.env.local', '.env.development.local'])('T1 refuses a planted %s and excludes it from the private preview', async (name) => {
+    const gen = generator();
+    await gen.generateRuntimeAppTemplate();
+    await writeFile(path.join(gen.getGeneratedRuntimeRoot(), name), [
+      'FMWEB_BRIDGE_URL=http://127.0.0.1:9999/fm',
+      'FMWEB_BRIDGE_TOKEN=planted-token-canary',
+      'NEXT_PUBLIC_FMWEB_BRIDGE_URL=http://127.0.0.1:9999/fm',
+      'NEXT_PUBLIC_FMWEB_BRIDGE_TOKEN=planted-token-canary'
+    ].join('\n'));
+
+    expect(await gen.inspectPreviewFiles()).toContain(name);
+    const files = await gen.previewTemplateFiles();
+    expect([...files.keys()].some((file) => path.basename(file).startsWith('.env'))).toBe(false);
+    for (const bytes of files.values()) expect(bytes.toString()).not.toContain('planted-token-canary');
+    for (const file of ['lib/runtime-data.ts', 'lib/runtime-behavior.ts', 'lib/bridge-client.ts', 'app/layouts/[id]/runtime-layout-client.tsx', 'next.config.ts']) {
+      expect(files.has(file)).toBe(true);
+      expect(files.get(file)!.toString()).not.toMatch(/NEXT_PUBLIC_FMWEB_BRIDGE_TOKEN|process\.env\.(?:NEXT_PUBLIC_)?FMWEB_BRIDGE_(?:URL|TOKEN)|preview-security/);
+    }
+  });
+
+  it('A1 binds new and regenerated preview scripts to the exact loopback address and port', async () => {
+    const gen = generator();
+    await gen.generateRuntimeAppTemplate();
+    const file = path.join(gen.getGeneratedRuntimeRoot(), 'package.json');
+    const assertScripts = async () => {
+      const pkg = JSON.parse(await readFile(file, 'utf8'));
+      expect(pkg.scripts.dev).toBe('next dev --hostname 127.0.0.1 --port 3000');
+      expect(pkg.scripts.start).toBe('next start --hostname 127.0.0.1 --port 3000');
+      expect(MANAGED_TEMPLATE_FILES['package.json']).toContain(normalizedHash(await readFile(file)));
+    };
+    await assertScripts();
+    // The last shipped manifest, before loopback binding was added.
+    const previous = JSON.parse(await readFile(file, 'utf8'));
+    previous.scripts.dev = 'next dev';
+    delete previous.scripts.start;
+    await writeFile(file, `${JSON.stringify(previous, null, 2)}\n`);
+    expect((await gen.generateRuntimeAppTemplate()).updated).toContain('package.json');
+    await assertScripts();
+  });
 
   it('generated web layouts retain standard geometry and ship the shared view presentation', async () => {
     const layoutsDir = path.join(dir, 'layouts');
@@ -110,7 +307,7 @@ describe('FM Web runtime template', () => {
     // Regeneration must preserve local shared edits, just like managed runtime edits.
     await writeFile(path.join(shared, 'src/ui-renderer.tsx'), '// my change');
     const again = await gen.generateRuntimeAppTemplate();
-    expect(again.needsManualUpdate).toContain(path.join('shared', 'src/ui-renderer.tsx'));
+    expect(again.needsManualUpdate).toContain('shared/src/ui-renderer.tsx');
     expect(await readFile(path.join(shared, 'src/ui-renderer.tsx'), 'utf8')).toBe('// my change');
   });
 
@@ -132,10 +329,10 @@ describe('FM Web runtime template', () => {
     await mkdir(path.dirname(cssPath), { recursive: true });
     const legacy = await readFile(path.join(extensionDir, 'test/fixtures/legacy-runtime-styles.css.txt'));
     await writeFile(cssPath, legacy);
-    expect((await gen.generateRuntimeAppTemplate()).updated).toContain(path.join('app', 'styles.css'));
+    expect((await gen.generateRuntimeAppTemplate()).updated).toContain('app/styles.css');
     expect(await readFile(cssPath, 'utf8')).toContain('grid-template-columns: minmax(0, 1fr)');
     await writeFile(cssPath, `${legacy.toString()}\n/* my edit */\n`);
-    expect((await gen.generateRuntimeAppTemplate()).needsManualUpdate).toContain(path.join('app', 'styles.css'));
+    expect((await gen.generateRuntimeAppTemplate()).needsManualUpdate).toContain('app/styles.css');
     expect(await readFile(cssPath, 'utf8')).toContain('my edit');
     const outside = path.join(dir, 'outside-shared'); await mkdir(outside);
     const shared = path.join(gen.getGeneratedRuntimeRoot(), 'shared'); await rm(shared, { recursive: true }); await symlink(outside, shared);
@@ -158,13 +355,20 @@ describe('FM Web runtime template', () => {
     await expect(gen.generateLayoutPage(layout.id)).rejects.toThrow(/Skipped existing/);
     expect(await readFile(first.outputPath, 'utf8')).toBe('user page');
     expect(vscode.window.showWarningMessage).toHaveBeenCalledWith(expect.stringContaining(first.outputPath), { modal: true }, 'Overwrite', 'Skip existing');
+    await rm(first.outputPath);
+    const outside = path.join(dir, 'outside-layout.json');
+    await writeFile(outside, 'leave linked content alone');
+    await symlink(outside, first.outputPath);
+    await expect(gen.generateLayoutPage(layout.id)).rejects.toThrow(/Skipped existing/);
+    expect((await lstat(first.outputPath)).isSymbolicLink()).toBe(true);
+    expect(await readFile(outside, 'utf8')).toBe('leave linked content alone');
   });
 
   const bridgeClientPath = () => path.join(dir, 'runtime-next', 'lib', 'bridge-client.ts');
 
   it('generates the managed files with the current template version marker', async () => {
     const summary = await generator().generateRuntimeAppTemplate();
-    expect(summary.created).toContain(path.join('lib', 'bridge-client.ts'));
+    expect(summary.created).toContain('lib/bridge-client.ts');
     for (const file of ['lib/bridge-client.ts', 'lib/runtime-data.ts', 'lib/runtime-behavior.ts', 'app/layouts/[id]/runtime-layout-client.tsx']) {
       const first = (await readFile(path.join(dir, 'runtime-next', file), 'utf8')).split('\n', 1)[0];
       expect(first, file).toContain(`fmweb-managed: runtime template v${RUNTIME_TEMPLATE_VERSION}`);
@@ -176,7 +380,7 @@ describe('FM Web runtime template', () => {
     await expect(readFile(path.join(extensionDir, '..', 'runtime-next', 'eslint.config.mjs'), 'utf8')).resolves.toContain('@eslint/js');
     expect(summary.created).not.toContain('eslint.config.mjs');
     // Nor is the coverage report of the repository's own gates.
-    expect(summary.created.some((file) => file.split(path.sep)[0] === 'coverage')).toBe(false);
+    expect(summary.created.some((file) => file.split('/')[0] === 'coverage')).toBe(false);
   });
 
   it('never copies the repository lint config or coverage output into a generated app', async () => {
@@ -199,14 +403,21 @@ describe('FM Web runtime template', () => {
     await writeFile(path.join(shared, 'package.json'), `${JSON.stringify({ name: '@fmweb/shared', version: '0.1.0' }, null, 2)}\n`);
     await writeFile(path.join(shared, 'src', 'index.ts'), 'export {};\n');
 
-    const summary = await generator(path.join(fake, 'ext')).generateRuntimeAppTemplate();
+    await writeFile(path.join(template, '.npmrc'), 'script-shell=evil');
+    await writeFile(path.join(template, '.env.local'), 'NODE_OPTIONS=evil');
+    await writeFile(path.join(shared, 'src', '.npmrc'), 'script-shell=evil');
+    const gen = generator(path.join(fake, 'ext'));
+    const summary = await gen.generateRuntimeAppTemplate();
+    expect([...await gen.previewTemplateFiles()].some(([file]) => path.basename(file) === '.npmrc' || path.basename(file).startsWith('.env'))).toBe(false);
 
     expect(summary.created).toContain('package.json');
-    expect(summary.created).not.toContain(path.join('coverage', 'summary.json'));
+    expect(summary.created).not.toContain('coverage/summary.json');
     expect(summary.created).not.toContain('eslint.config.mjs');
     const generated = await readdir(path.join(dir, 'runtime-next'));
     expect(generated).not.toContain('coverage');
     expect(generated).not.toContain('eslint.config.mjs');
+    expect(generated).not.toContain('.npmrc');
+    expect(generated).not.toContain('.env.local');
   });
 
   it('refreshes an app generated by an older version: unmodified shipped copies and older markers', async () => {
@@ -219,7 +430,7 @@ describe('FM Web runtime template', () => {
     expect(legacy).not.toContain('X-FM-Bridge-Token');
 
     const first = await generator().generateRuntimeAppTemplate();
-    expect(first.updated).toContain(path.join('lib', 'bridge-client.ts'));
+    expect(first.updated).toContain('lib/bridge-client.ts');
     expect(first.needsManualUpdate).toEqual([]);
     expect(await readFile(bridgeClientPath(), 'utf8')).toContain('X-FM-Bridge-Token');
 
@@ -240,12 +451,12 @@ describe('FM Web runtime template', () => {
     // Windows-generated copies must be recognised too.
     await writeFile(page, legacy.toString('utf8').replace(/\n/g, '\r\n'));
     const first = await generator().generateRuntimeAppTemplate();
-    expect(first.updated).toContain(path.join('app', 'layouts', '[id]', 'page.tsx'));
+    expect(first.updated).toContain('app/layouts/[id]/page.tsx');
     expect(await readFile(page, 'utf8')).toBe(await readFile(path.join(extensionDir, '../runtime-next/app/layouts/[id]/page.tsx'), 'utf8'));
     const edited = Buffer.concat([legacy, Buffer.from('\n// my application change\n')]);
     await writeFile(page, edited);
     const second = await generator().generateRuntimeAppTemplate();
-    expect(second.needsManualUpdate).toContain(path.join('app', 'layouts', '[id]', 'page.tsx'));
+    expect(second.needsManualUpdate).toContain('app/layouts/[id]/page.tsx');
     expect(await readFile(page)).toEqual(edited);
 
     const outside = path.join(dir, 'original-page.tsx');
@@ -253,9 +464,9 @@ describe('FM Web runtime template', () => {
     await rm(page);
     await symlink(outside, page);
     const third = await generator().generateRuntimeAppTemplate();
-    expect(third.updated).not.toContain(path.join('app', 'layouts', '[id]', 'page.tsx'));
-    expect(third.skipped).toContain(path.join('app', 'layouts', '[id]', 'page.tsx'));
-    expect(third.needsManualUpdate).toContain(path.join('app', 'layouts', '[id]', 'page.tsx'));
+    expect(third.updated).not.toContain('app/layouts/[id]/page.tsx');
+    expect(third.skipped).toContain('app/layouts/[id]/page.tsx');
+    expect(third.needsManualUpdate).toContain('app/layouts/[id]/page.tsx');
     expect((await lstat(page)).isSymbolicLink()).toBe(true);
     expect(await readFile(outside)).toEqual(legacy);
   });
@@ -267,10 +478,10 @@ describe('FM Web runtime template', () => {
 
     const summary = await generator().generateRuntimeAppTemplate();
 
-    expect(summary.updated).not.toContain(path.join('lib', 'bridge-client.ts'));
-    expect(summary.needsManualUpdate).toEqual([path.join('lib', 'bridge-client.ts')]);
+    expect(summary.updated).not.toContain('lib/bridge-client.ts');
+    expect(summary.needsManualUpdate).toEqual(['lib/bridge-client.ts']);
     expect(await readFile(bridgeClientPath(), 'utf8')).toBe(edited);
-    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('edited'), { file: path.join('lib', 'bridge-client.ts') });
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('edited'), { file: 'lib/bridge-client.ts' });
   });
 
   describe('decideManagedRefresh', () => {
@@ -337,10 +548,11 @@ describe('FM Web runtime template', () => {
     const gen = generator();
     await gen.generateRuntimeAppTemplate();
     const generated = await readFile(path.join(gen.getGeneratedRuntimeRoot(), 'package.json'));
+    const current = normalizedHash(generated);
     expect(
       MANAGED_TEMPLATE_FILES['package.json'],
-      'package.json: add the hash of the generated copy (keep the older ones)'
-    ).toContain(normalizedHash(generated));
+      `package.json: add the hash of the generated copy (keep the older ones): ${current}`
+    ).toContain(current);
   });
 
   it('records every current shared source hash so future refreshes recognize this release', async () => {
@@ -363,10 +575,10 @@ describe('FM Web runtime template', () => {
 
     const summary = await generator().generateRuntimeAppTemplate();
 
-    expect(summary.needsManualUpdate).toEqual([path.join('lib', 'bridge-client.ts')]);
+    expect(summary.needsManualUpdate).toEqual(['lib/bridge-client.ts']);
     expect(summary.updated).toEqual([]);
     expect(await readFile(outside, 'utf8')).toBe('untouched');
-    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('symbolic link'), { file: path.join('lib', 'bridge-client.ts') });
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('symbolic link'), { file: 'lib/bridge-client.ts' });
   });
 
   it('a dangling link at a template file is not written through either', async () => {
@@ -522,7 +734,7 @@ describe('FM Web runtime template', () => {
 
     const summary = await generator().generateRuntimeAppTemplate();
 
-    expect(summary.needsManualUpdate).toEqual([path.join('lib', 'bridge-client.ts')]);
+    expect(summary.needsManualUpdate).toEqual(['lib/bridge-client.ts']);
     expect(await readFile(bridgeClientPath(), 'utf8')).toBe('// my own bridge client\nexport {};\n');
   });
 
@@ -549,14 +761,15 @@ describe('FM Web runtime template', () => {
     await symlink(outside, envPath);
 
     await expect(gen.writeBridgeEnv('http://127.0.0.1:1/fm', 'abc')).rejects.toThrow(/symbolic link/);
+    await expect(gen.clearBridgeEnv()).rejects.toThrow(/symbolic link/);
     expect(await readFile(outside, 'utf8')).toBe('untouched');
 
     await rm(envPath);
     await gen.writeBridgeEnv('http://127.0.0.1:1/fm', 'abc');
-    expect(await readFile(envPath, 'utf8')).toContain('NEXT_PUBLIC_FMWEB_BRIDGE_TOKEN=abc');
+    expect(await readFile(envPath, 'utf8')).not.toContain('abc');
   });
 
-  it('end to end: the generated bridge client, with the written env values, talks to the real bridge server', async () => {
+  it('the generated low-level client authenticates to the real bridge with a server-held token', async () => {
     const gen = generator();
     await gen.generateRuntimeAppTemplate();
 
@@ -571,21 +784,16 @@ describe('FM Web runtime template', () => {
     nock.enableNetConnect('127.0.0.1');
     const { baseUrl } = await server.ensureStarted();
     try {
-      const envPath = await gen.writeBridgeEnv(baseUrl, server.getSessionToken());
-      const env = Object.fromEntries(
-        (await readFile(envPath, 'utf8')).trim().split('\n').map((line) => line.split(/=(.*)/s).slice(0, 2))
-      ) as Record<string, string>;
-
       const generated = (await import(/* @vite-ignore */ pathToFileURL(bridgeClientPath()).href)) as {
         RuntimeBridgeClient: new (url?: string, fetchFn?: typeof fetch, token?: string) => {
           find(request: { layout: string; query: Array<Record<string, unknown>> }): Promise<{ data: unknown[] }>;
         };
       };
       const request = { layout: 'L', query: [{ A: '*' }] };
-      // The way the generated app builds its client from NEXT_PUBLIC_* env values.
-      const ok = new generated.RuntimeBridgeClient(env.NEXT_PUBLIC_FMWEB_BRIDGE_URL, undefined, env.NEXT_PUBLIC_FMWEB_BRIDGE_TOKEN);
+      // Low-level bridge authentication; browser requests now go through the server route.
+      const ok = new generated.RuntimeBridgeClient(baseUrl, (url, init) => fetch(url, { ...init, headers: { ...init?.headers, Origin: 'http://localhost:3000' } }), server.getSessionToken());
       expect((await ok.find(request)).data).toHaveLength(1);
-      await expect(new generated.RuntimeBridgeClient(env.NEXT_PUBLIC_FMWEB_BRIDGE_URL).find(request)).rejects.toThrow(
+      await expect(new generated.RuntimeBridgeClient(baseUrl, (url, init) => fetch(url, { ...init, headers: { ...init?.headers, Origin: 'http://localhost:3000' } })).find(request)).rejects.toThrow(
         /bridge session token/
       );
     } finally {

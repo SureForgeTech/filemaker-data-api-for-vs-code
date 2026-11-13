@@ -13,6 +13,14 @@ const profile: ConnectionProfile = {
 };
 
 describe('layout mode behavior execution', () => {
+  it.each(['javascript:alert(1)', 'data:text/html,evil', 'file:///etc/passwd', 'command:evil', '//evil.example'])('A4 refuses unsafe URL %s in Layout Mode too', async (url) => {
+    const result = await executeBehaviorBinding({
+      behavior: { type: 'openUrl', url }, objectName: 'B', layoutName: 'L', runScript: vi.fn()
+    });
+    expect(result).toMatchObject({ ok: false, action: 'openUrl', stub: true });
+    expect(result.message).toContain('Only http: and https:');
+  });
+
   it('returns stub result when runScript has no active profile', async () => {
     const runScript = vi.fn();
 

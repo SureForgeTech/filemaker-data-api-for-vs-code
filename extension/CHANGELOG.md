@@ -18,6 +18,26 @@
 - [FIX] Batch exports keep the configured record cap even when the server returns too many rows.
 - [SECURITY] Batch updates refuse files above filemaker.batch.maxRecords and show escaped layout and profile names with the server host before execution.
 - [SECURITY] Generated client README files display layout and profile names as code so hostile names cannot load remote Markdown images or links.
+- [SECURITY] FM Web preview recognizes unchanged template files on Windows and shows relative file names with forward slashes.
+- [SECURITY] FM Web preview cleans up private files after Windows stop failures and can start again after a preview exits.
+- [SECURITY] FM Web preview keeps old temporary folders while their owning VS Code process is still running in another window.
+- [SECURITY] FM Web preview warns and skips layouts with edited or linked generated files while starting the remaining layouts.
+- [SECURITY] FM Web preview leaves dependency and build folders out of inspection and regeneration, and checks file sizes before reading contents.
+- [SECURITY] FM Web preview hides the Windows console for dependency installation and the development server.
+- [SECURITY] AI approval dialogs show hidden Unicode characters as visible escapes, preserving supplementary characters exactly so the proposed names and values remain distinguishable.
+- [SECURITY] FM Web preview leaves workspace npm configuration and edited or added runtime files untouched, lists ignored runtime files, and runs a clean private template copy with install scripts disabled and empty npm config files. Deleting runtime files requires named confirmation in the explicit generation command.
+- [SECURITY] FM Web preview finds Node.js and npm on Windows without a shell and stops the whole preview process tree before removing its private files.
+- [SECURITY] FM Web preview recognizes its own comment-only env file after a VS Code restart without reporting it as unexpected.
+- [SECURITY] FM Web preview preserves proxy settings and extra CA certificates for installs on enterprise networks while continuing to exclude npm and Node injection settings.
+- [SECURITY] FM Web preview waits for private-file cleanup on shutdown with a time limit and removes only old temporary preview folders carrying its ownership marker.
+- [SECURITY] Layout Mode and preview script confirmations visibly escape hidden characters, show parameter lengths, and refuse values too long to show in full. Layout Mode shows the layout that will actually run.
+- [SECURITY] Plugin consent visibly escapes filenames containing newlines or hidden characters; approval hashes still use the original names and bytes.
+- [SECURITY] FM Web preview keeps the bridge token on the server. A single-use launch link grants a private session cookie; application requests reaching the preview proxy without it or with the wrong Host are refused. Next development endpoints, including HMR, are outside this cookie gate.
+
+- [SECURITY] FM Web preview listens only on 127.0.0.1:3000, and the bridge refuses missing origins and origins outside that preview port.
+- [SECURITY] FM Web preview script buttons ask for confirmation in VS Code with the exact script, escaped parameter and connection host. Oversized confirmation values are refused, and repeated prompts are throttled.
+- [SECURITY] Cancelling FM Web preview startup stops the bridge and removes its saved address and token without removing unrelated env settings.
+- [SECURITY] FM Web layout URL actions refuse schemes other than HTTP and HTTPS. Script and layout names and script parameters reach the preview bridge unchanged.
 - [SECURITY] Patch vulnerable glob matching in publishing and compatible development tools.
 
 - [SECURITY] Editing a profile preserves its legacy server password until secure storage confirms it is saved; stalled storage no longer blocks profile changes indefinitely.

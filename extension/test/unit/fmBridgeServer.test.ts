@@ -1,6 +1,7 @@
 import { Readable } from 'stream';
 import type { IncomingMessage, ServerResponse } from 'http';
-import { describe, expect, it, vi } from 'vitest';
+import * as vscode from 'vscode';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ConnectionProfile, FindRecordsResult, RunScriptResult } from '../../src/types/fm';
 import { FMClientError } from '../../src/services/errors';
@@ -23,6 +24,143 @@ const logger = {
 };
 
 describe('FmBridgeServer', () => {
+  beforeEach(() => {
+    vi.mocked(vscode.window.showWarningMessage).mockReset().mockResolvedValue('Run script' as never);
+  });
+
+  it.each([null, 'http://localhost:3001', 'http://127.0.0.1:3001', 'https://localhost:3000',
+    'http://localhost:3000/', 'http://user@localhost:3000', 'null'])('A1 refuses absent or non-preview origin %s even with a valid token', async (origin) => {
+    const client = createFmClientStub();
+    const server = new FmBridgeServer(createProfileStoreStub(), client, createFmWebProjectServiceStub(), logger);
+    const response = await invokeBridgeRequest(server, '/fm/getRecord', { origin, payload: { layout: 'L', recordId: '1' } });
+    expect(response).toMatchObject({ status: 403, json: { error: 'Origin is not allowed.' } });
+    expect(client.getRecord).not.toHaveBeenCalled();
+    expect(response.headers).not.toHaveProperty('access-control-allow-origin');
+  });
+
+  it.each(['http://localhost:3000', 'http://127.0.0.1:3000'])('A1 allows the exact preview origin %s', async (origin) => {
+    const client = createFmClientStub();
+    const server = new FmBridgeServer(createProfileStoreStub(), client, createFmWebProjectServiceStub(), logger);
+    const response = await invokeBridgeRequest(server, '/fm/getRecord', { origin, payload: { layout: 'L', recordId: '1' } });
+    expect(response.status).toBe(200);
+    expect(response.headers['access-control-allow-origin']).toBe(origin);
+    expect(client.getRecord).toHaveBeenCalledOnce();
+  });
+
+  it('A2 waits for a modal identifying the layout-file script, escaped parameter and connection before running', async () => {
+    let answer!: (value: never) => void;
+    vi.mocked(vscode.window.showWarningMessage).mockImplementationOnce(() => new Promise((resolve) => { answer = resolve; }));
+    const client = createFmClientStub();
+    const server = new FmBridgeServer(createProfileStoreStub(), client, createFmWebProjectServiceStub(), logger);
+    const payload = { layout: ' Layout ', scriptName: ' Script ', scriptParam: ' \n"Run"\t\u202e ' };
+    const pending = invokeBridgeRequest(server, '/fm/runScript', { payload });
+    await vi.waitFor(() => expect(vscode.window.showWarningMessage).toHaveBeenCalledOnce());
+    expect(client.runScript).not.toHaveBeenCalled();
+    const prompt = vi.mocked(vscode.window.showWarningMessage).mock.calls[0]!;
+    expect(prompt[0]).toContain('" Script "');
+    expect(prompt[0]).toContain('" Layout "');
+    expect(prompt[0]).toContain('Parameter (10 UTF-16 code units): " \\n\\"Run\\"\\t\\u202e "');
+    expect(prompt[0]).toContain('Connection: "Local Profile" ("example.com")');
+    expect(prompt[0]).toContain('came from a layout file');
+    expect(prompt.slice(1)).toEqual([{ modal: true }, 'Run script']);
+    answer('Run script' as never);
+    expect((await pending).status).toBe(200);
+    expect(client.runScript).toHaveBeenCalledWith(profile, { ...payload, recordId: undefined }, { signal: expect.any(AbortSignal) });
+  });
+
+  it('A6 escapes default-ignorable non-format characters at the bridge too', async () => {
+    const client = createFmClientStub();
+    const server = new FmBridgeServer(createProfileStoreStub(), client, createFmWebProjectServiceStub(), logger);
+    const scriptParam = 'x\ufe0f\u034f';
+    await invokeBridgeRequest(server, '/fm/runScript', { payload: { layout: 'L', scriptName: 'S', scriptParam } });
+    const prompt = String(vi.mocked(vscode.window.showWarningMessage).mock.calls[0]?.[0]);
+    expect(prompt).toContain('\\ufe0f\\u034f');
+    expect(prompt).toContain('Parameter (3 UTF-16 code units):');
+    expect(client.runScript).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ scriptParam }), expect.anything());
+  });
+
+  it('A2 refuses a declined script and leaves other routes unchanged', async () => {
+    vi.mocked(vscode.window.showWarningMessage).mockResolvedValueOnce(undefined as never);
+    const client = createFmClientStub();
+    const server = new FmBridgeServer(createProfileStoreStub(), client, createFmWebProjectServiceStub(), logger);
+    const response = await invokeBridgeRequest(server, '/fm/runScript', { payload: { layout: 'L', scriptName: 'S' } });
+    expect(response).toMatchObject({ status: 403, json: { code: 'SCRIPT_CANCELLED', error: expect.stringContaining('nothing was run') } });
+    expect(client.runScript).not.toHaveBeenCalled();
+    expect((await invokeBridgeRequest(server, '/fm/getRecord', { payload: { layout: 'L', recordId: '1' } })).status).toBe(200);
+    expect(vscode.window.showWarningMessage).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    { scriptName: 'S', scriptParam: 'x'.repeat(2047) },
+    { scriptName: 'S', scriptParam: '\n'.repeat(1024) },
+    { scriptName: 'S'.repeat(511), scriptParam: 'short' }
+  ])('A2 refuses values that cannot be displayed in full without a prompt or execution', async (values) => {
+    const client = createFmClientStub();
+    const server = new FmBridgeServer(createProfileStoreStub(), client, createFmWebProjectServiceStub(), logger);
+    const response = await invokeBridgeRequest(server, '/fm/runScript', { payload: { layout: 'L', ...values } });
+    expect(response).toMatchObject({ status: 400, json: { error: expect.stringContaining('too long to show in full') } });
+    expect(vscode.window.showWarningMessage).not.toHaveBeenCalled();
+    expect(client.runScript).not.toHaveBeenCalled();
+  });
+
+  it('A2 never queues script modals and waits 5 seconds after dismissal before asking again', async () => {
+    let answer!: (value: never) => void;
+    vi.mocked(vscode.window.showWarningMessage).mockImplementationOnce(() => new Promise((resolve) => { answer = resolve; }));
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(1_000_000);
+    try {
+      const client = createFmClientStub();
+      const server = new FmBridgeServer(createProfileStoreStub(), client, createFmWebProjectServiceStub(), logger);
+      const request = () => invokeBridgeRequest(server, '/fm/runScript', { payload: { layout: 'L', scriptName: 'S' } });
+      const first = request();
+      await vi.waitFor(() => expect(vscode.window.showWarningMessage).toHaveBeenCalledOnce());
+      clock.mockReturnValue(2_000_000);
+      expect((await request()).status).toBe(429);
+      answer(undefined as never);
+      expect((await first).status).toBe(403);
+      expect((await request()).status).toBe(429);
+      expect(vscode.window.showWarningMessage).toHaveBeenCalledOnce();
+      clock.mockReturnValue(2_005_000);
+      expect((await request()).status).toBe(200);
+      expect(vscode.window.showWarningMessage).toHaveBeenCalledTimes(2);
+      expect(client.runScript).toHaveBeenCalledOnce();
+    } finally {
+      clock.mockRestore();
+    }
+  });
+
+  it('A2 escapes Unicode format controls in a parameter without altering what runs', async () => {
+    const client = createFmClientStub();
+    const server = new FmBridgeServer(createProfileStoreStub(), client, createFmWebProjectServiceStub(), logger);
+    const scriptParam = '\u061c\u00ad\u{e0001}';
+    expect((await invokeBridgeRequest(server, '/fm/runScript', { payload: { layout: 'L', scriptName: 'S', scriptParam } })).status).toBe(200);
+    expect(vi.mocked(vscode.window.showWarningMessage).mock.calls[0]?.[0]).toContain('Parameter (4 UTF-16 code units): "\\u061c\\u00ad\\udb40\\udc01"');
+    expect(vi.mocked(client.runScript).mock.calls[0]?.[1].scriptParam).toBe(scriptParam);
+  });
+
+  it.each(['trust', 'session', 'profile'])('A2 refuses approval if %s changed while the modal was open', async (change) => {
+    const client = createFmClientStub();
+    const project = createFmWebProjectServiceStub();
+    const server = new FmBridgeServer(createProfileStoreStub(), client, project, logger);
+    vi.mocked(vscode.window.showWarningMessage).mockImplementationOnce(async () => {
+      if (change === 'trust') vi.spyOn(project, 'isWorkspaceTrusted').mockReturnValue(false);
+      if (change === 'profile') vi.mocked(project.readProjectConfig).mockResolvedValue({ activeProfileId: 'other' } as never);
+      if (change === 'session') (server as unknown as { sessionToken: string }).sessionToken = 'revoked';
+      return 'Run script' as never;
+    });
+    const result = await invokeBridgeRequest(server, '/fm/runScript', { payload: { layout: 'L', scriptName: 'S' } });
+    expect(result.status).toBe(403);
+    expect(client.runScript).not.toHaveBeenCalled();
+  });
+
+  it('A2 rechecks policy after confirmation before touching FileMaker', async () => {
+    const client = createFmClientStub();
+    const authorizeRoute = vi.fn().mockResolvedValueOnce(undefined).mockResolvedValue('Scripts now disabled.');
+    const server = new FmBridgeServer(createProfileStoreStub(), client, createFmWebProjectServiceStub(), logger, { authorizeRoute });
+    const response = await invokeBridgeRequest(server, '/fm/runScript', { payload: { layout: 'L', scriptName: 'S' } });
+    expect(response).toMatchObject({ status: 403, json: { error: 'Scripts now disabled.' } });
+    expect(client.runScript).not.toHaveBeenCalled();
+  });
+
   it.each([null, 'wrong'])('refuses a missing or wrong preview token before accessing FileMaker', async (token) => {
     const client = createFmClientStub();
     const server = new FmBridgeServer(createProfileStoreStub(), client, createFmWebProjectServiceStub(), logger);
@@ -311,14 +449,14 @@ async function invokeBridgeRequest(
   server: FmBridgeServer,
   route: string,
   input: {
-    origin?: string;
+    origin?: string | null;
     payload?: Record<string, unknown>;
     remoteAddress?: string;
     token?: string | null;
     method?: string;
   }
 ): Promise<{ status: number; body: string; json: unknown; headers: Record<string, string> }> {
-  const request = buildRequest(route, input.origin, input.payload, input.remoteAddress);
+  const request = buildRequest(route, input.origin === undefined ? 'http://localhost:3000' : input.origin ?? undefined, input.payload, input.remoteAddress);
   // These tests call the handler without starting the server, so give it a session token and
   // present it, as the preview app does. (Tests of a missing or wrong token use a real server.)
   (server as unknown as { sessionToken: string }).sessionToken = 'test-session-token';

@@ -80,7 +80,7 @@ export function withoutMonorepoTooling(pkg: PackageManifest): PackageManifest {
 }
 
 /** Bump together with the `fmweb-managed: runtime template vN` line in the managed files. */
-export const RUNTIME_TEMPLATE_VERSION = 7;
+export const RUNTIME_TEMPLATE_VERSION = 10;
 const MANAGED_MARKER = /^(?:\/\/|\/\*) fmweb-managed: runtime template v(\d+)/;
 
 /**
@@ -96,7 +96,10 @@ const MANAGED_MARKER = /^(?:\/\/|\/\*) fmweb-managed: runtime template v(\d+)/;
  * here. The hash of the raw template file in use is appended at runtime, so it does not.
  */
 export const MANAGED_TEMPLATE_FILES: Record<string, string[]> = {
-  'package.json': ['01f94b699e9d6c9939b2bb1a49028f028c7ba29e2f9f53bd2160318edbecb991', '6d184961fb6759b90115ff94d15dac9455b401917d2d1527b7d3b98531b67ee8', 'c170e5afd10b11e6a02c5914756407fce984f6d925766c0a68077cd0515af9b8', 'ccc47856df9562b307f16fcdcce8505b0ad72c8c3e5ec29ba66c906d79ea936e', 'f7a732254c8e9214fec1bb1871e10e46ad50e394e44097409be7ce89c53f31ce'],
+  'app/api/bridge/[route]/route.ts': [],
+  'lib/preview-security.ts': [],
+  'proxy.ts': [],
+  'package.json': ['01f94b699e9d6c9939b2bb1a49028f028c7ba29e2f9f53bd2160318edbecb991', '6d184961fb6759b90115ff94d15dac9455b401917d2d1527b7d3b98531b67ee8', 'c170e5afd10b11e6a02c5914756407fce984f6d925766c0a68077cd0515af9b8', 'd34857f30034d25a7e99534409b0c92311a77c73a1c3cf8ebef16cf5df6be258', 'ccc47856df9562b307f16fcdcce8505b0ad72c8c3e5ec29ba66c906d79ea936e', '9045c17af4565e76b46df29dbbed9c4a15d7747c5c2dc28ebf268fbf3543c9a5', 'f7a732254c8e9214fec1bb1871e10e46ad50e394e44097409be7ce89c53f31ce', '88151dafb5ffe032e8c1105614361126df43671cee33cc4ab45fca43767e23ff'],
   'vitest.config.ts': [
     // The raw template file, which is what an app generated before the shared alias was rewritten
     // carries. The raw file of the template in use is appended at runtime, not listed here.
@@ -131,12 +134,15 @@ export const MANAGED_TEMPLATE_FILES: Record<string, string[]> = {
  * one; the runtime-template test fails until you do.
  */
 export const SHIPPED_MARKED_HASHES: Record<string, string[]> = {
-  'app/styles.css': ['15d2d57725d731126dc25aa9b303089e38539ff8deb472cbbafb2818c3c5e668', 'bf07315f6023a7a419f8e926ed9f7d7c5351527705bd7acdb6a79cc306575e0c', '6cfbca26c1eefc8430cce0c58533650ef13d173ba46655462b651b0d0797c52a', '12d9335a7c1b4aea281d087e4abfa43e2db3f3a398d99839221b7447926c20e9'],
-  'app/layouts/[id]/page.tsx': ['4a7882e3638ccadf65d48b1fa7a16a14b98df4009671453ea82f4ce18159e895', '167da245a60540ea0f64900f31445424f4dbe6c025a525e7314088f4d0b8f3de', 'b1511cd97b2a9578d29c979e1f3cd4d824558af6b6a998019e1f119f607cdec5', 'dcec25cb4a48333db7d9dc07cea9b84008dbbd2de2fe0724b864268c81e261f6', '86c82b206e05ab63cb5568634195287ab8328b8cb26c014b3c0a3f6264110788'],
-  'lib/bridge-client.ts': ['e0253ec75ce1dd79cef212a05f12cc4db4570ffb5cc8f36fb3775f9ac72f323e', '4c1b977065ac9689fc4992c7139f685e16f6489240d1f195ebe4044c20e99b07', '7823748b4050231a7a8bfbc781181bab1aea425a5c5c6855b06a5d7f0918d1a9', 'e43af510f1160deb036a789425475d92f757c46caacc43cae613aeae898b2113', '1a2aad8b95024684b8b3949b3d06350b329dd2f5d0b4e07764bb5d88866c02c0', '73c3c93d26a832f8e3b7b603fe17d8745011954ca2bb8a9034609005d2ebbc0e'],
-  'lib/runtime-data.ts': ['22cad0412d5a831000a671fc210edde6e7eb6285ea49356981b4e80d9ab0d729', '17ef4bdd043cd5e61fc23bee9516acb66696f4775f53c347048277c32693de3b', 'da5854ee29102d44e966881ccdc2679afd1691d12eee0a1365803b86f0d6ff82', 'd0c19e1992bf77583343490fd7e163e582dcfec03f2deb4d9680cdb6b627e9b8', 'b2afe833d53d11acb2a0e17e8e3b8e9e0c7f6f929d24e0ddc503f7fea6fa1036', '2df2769b31c53c8432ad0ed84b8582933f169095ec3af0c9d3caa5a7ce456861'],
-  'lib/runtime-behavior.ts': ['8d74f0dc280c8a42e4e64e1b47a0df0d11f09beba8605808c5263a81a6f3b94d', '84f4d5c3c7c0f01e033d48476e419150ba1ed28fc28542c61f319613f8d59609', 'bac62b9460c693e064c4f0e516d6e2f382c7a22ed21548ae1a3a59e633dca2d1', '74a2c6f22d6d68e83e590c3f9e5d3c3772d0877db9d8d73f308598057ec5bbff', '8b70dafeeeb6444f885b34e67a6b09cce070334bffc2ca787bca60c2bf8f7809', 'd5d55cbf6d9b1c3354c52250a7c2f6225b671d64a7da3d8912ebce4254618468'],
-  'app/layouts/[id]/runtime-layout-client.tsx': ['6becf8abb393e1e501f75390540b0fbefec17c9ca77803fc4f9352157a67249e', '12d62d25e10b9a94af9e23f997c0bfc1f522c5d50906d67cc6b13a10de6748e5', '40c2f2e4b688c23049ecd70ae2d707766a079953e09134c3ddfd13e7fea09a5b', 'a0cb143cc37ecc41db012951881277e7bd5cfb413ae257ce5ce7909b40466d42', '8e4ee2d8871914d66669a2b17aa72502be87a08ec021ffc96dd84b8dfdd44a13', '3699982b4cafeee34798a1f389a70236b8fc44d280a06497a720376da8ed561b']
+  'app/api/bridge/[route]/route.ts': ['c2f3ca858ffded17c64b7ddddb301780551dcde878502424f7cc232a6c0a841c', 'db765508c791c008047769a0dad71e5e88d00c21cedf05bbcbc17da1a6801d94'],
+  'lib/preview-security.ts': ['cd60b381c09d46ab58d60f519de5e820b477a1241da99aa80b4a5775ad4af490', '3cca2b5fc2586f817ef36d42a93a368f54e03b2a9f12ba1b51296eee700b9dae'],
+  'proxy.ts': ['be100fb78c64e303d0834d1434ed2c5a61365ec12dc846112183f117844ea9fc', 'c17ffdba2a57be8ab6bc18d104b9ff24d8e76259dea12bb570f3fcc522bc0187'],
+  'app/styles.css': ['f08d4b9e03100a795f64e3bfa897e8edb44fb424e7a4430d8ea3036dbbf154fb', '515a2ed74bbbd879104c91713fa7c2f51ef6417c5fc82f728d6aac36384afbbf', '15d2d57725d731126dc25aa9b303089e38539ff8deb472cbbafb2818c3c5e668', 'bf07315f6023a7a419f8e926ed9f7d7c5351527705bd7acdb6a79cc306575e0c', '6cfbca26c1eefc8430cce0c58533650ef13d173ba46655462b651b0d0797c52a', '12d9335a7c1b4aea281d087e4abfa43e2db3f3a398d99839221b7447926c20e9', 'e7dec4a52e70cbfca91a3a8ffb2fa81426bf72d1bff8b33567218e99ad55ce58'],
+  'app/layouts/[id]/page.tsx': ['ac9a77157182f379fe19a1f4361d1f63ac0f7e1bb7fe2ea4c32ce323433c1c1a', 'd4613dfd1bf3dbe6978bc7819489e8c5e2267f369573be4ed10f708c2a25a0cf', '4a7882e3638ccadf65d48b1fa7a16a14b98df4009671453ea82f4ce18159e895', '167da245a60540ea0f64900f31445424f4dbe6c025a525e7314088f4d0b8f3de', 'b1511cd97b2a9578d29c979e1f3cd4d824558af6b6a998019e1f119f607cdec5', 'dcec25cb4a48333db7d9dc07cea9b84008dbbd2de2fe0724b864268c81e261f6', '86c82b206e05ab63cb5568634195287ab8328b8cb26c014b3c0a3f6264110788', 'a6ab9fcb8eb66ea812806b627549b0f07c36097fa5abe557c411fce9a2239fc3'],
+  'lib/bridge-client.ts': ['f50cc80b693be29cb4ec233106e5fa80edf284b5bdfff55b028a47aa31e458b9', 'a2ebcb93695117bf02db1038d72086d90f0854ffd7d4cd48329fb753e75be199', 'e0253ec75ce1dd79cef212a05f12cc4db4570ffb5cc8f36fb3775f9ac72f323e', '4c1b977065ac9689fc4992c7139f685e16f6489240d1f195ebe4044c20e99b07', '7823748b4050231a7a8bfbc781181bab1aea425a5c5c6855b06a5d7f0918d1a9', 'e43af510f1160deb036a789425475d92f757c46caacc43cae613aeae898b2113', '1a2aad8b95024684b8b3949b3d06350b329dd2f5d0b4e07764bb5d88866c02c0', '73c3c93d26a832f8e3b7b603fe17d8745011954ca2bb8a9034609005d2ebbc0e', 'f5e789fc679307d814c72243e5e48434936e51c1a06f9a0bae1ad8aa922af4ba'],
+  'lib/runtime-data.ts': ['cb82a6d6f7dfa2213a295123dd651d2faea490d521e68db14ad10eeb8b45b35f', 'bd45f5f8d769f559a7e01508dc89756e8c3ff6806bf11b66dc3498eb8717c3c4', '22cad0412d5a831000a671fc210edde6e7eb6285ea49356981b4e80d9ab0d729', '17ef4bdd043cd5e61fc23bee9516acb66696f4775f53c347048277c32693de3b', 'da5854ee29102d44e966881ccdc2679afd1691d12eee0a1365803b86f0d6ff82', 'd0c19e1992bf77583343490fd7e163e582dcfec03f2deb4d9680cdb6b627e9b8', 'b2afe833d53d11acb2a0e17e8e3b8e9e0c7f6f929d24e0ddc503f7fea6fa1036', '2df2769b31c53c8432ad0ed84b8582933f169095ec3af0c9d3caa5a7ce456861', '45b891dbc1eb3ae905d0280b2b7f5caf00307803014b001e18349dc14e99ba27'],
+  'lib/runtime-behavior.ts': ['b035ff6b259a4a09d5c4b61dc0851c915fc4d4ba81c6cf681800ccc56a033a60', '3cdbe1c7fc57125f449f90cfabff02dfb76dbdd9ffbcd426c3d52bcfc7bcbae0', '8d74f0dc280c8a42e4e64e1b47a0df0d11f09beba8605808c5263a81a6f3b94d', '84f4d5c3c7c0f01e033d48476e419150ba1ed28fc28542c61f319613f8d59609', 'bac62b9460c693e064c4f0e516d6e2f382c7a22ed21548ae1a3a59e633dca2d1', '74a2c6f22d6d68e83e590c3f9e5d3c3772d0877db9d8d73f308598057ec5bbff', '8b70dafeeeb6444f885b34e67a6b09cce070334bffc2ca787bca60c2bf8f7809', 'd5d55cbf6d9b1c3354c52250a7c2f6225b671d64a7da3d8912ebce4254618468', 'b987dec8f8c24a803085e898a9ce89067014cc0c519fcda27697bcd18b1622b4'],
+  'app/layouts/[id]/runtime-layout-client.tsx': ['af043b1732695714beff33ba56ad162cd3267191d90990bc856702c2a89aa234', 'd9c9bfe748179467d616281aee05c944bd2a78d6a260e3e3b9b2897bd8176f4a', '6becf8abb393e1e501f75390540b0fbefec17c9ca77803fc4f9352157a67249e', '12d62d25e10b9a94af9e23f997c0bfc1f522c5d50906d67cc6b13a10de6748e5', '40c2f2e4b688c23049ecd70ae2d707766a079953e09134c3ddfd13e7fea09a5b', 'a0cb143cc37ecc41db012951881277e7bd5cfb413ae257ce5ce7909b40466d42', '8e4ee2d8871914d66669a2b17aa72502be87a08ec021ffc96dd84b8dfdd44a13', '3699982b4cafeee34798a1f389a70236b8fc44d280a06497a720376da8ed561b', '1ba07edbce098c6d206bab7538fb453f9a5ab196a583716cbefa9e1001b90986']
 };
 
 /** Known shipped shared sources (including generated package.json). Keep old hashes when updating. */
@@ -232,12 +238,102 @@ export async function publishPreviewAvailability(
   return available;
 }
 
+const PREVIEW_ENV_MARKER = '# Preview credentials are passed only to the private server process.\n';
+
+/** Preview keys and displayed relative names always use forward slashes. */
+export function toPosixRelative(name: string): string {
+  return name.replace(/\\/g, '/');
+}
+
+export function isExpectedPreviewDirectory(name: string, expected: Iterable<string>): boolean {
+  const prefix = `${toPosixRelative(name)}/`;
+  return [...expected].some((file) => toPosixRelative(file).startsWith(prefix));
+}
+
 export class FmWebRuntimeGenerator {
   public constructor(
     private readonly context: vscode.ExtensionContext,
     private readonly fmWebProjectService: FmWebProjectService,
     private readonly logger: Pick<Logger, 'debug' | 'info' | 'warn' | 'error'>
   ) {}
+
+  /** Provenance for non-template files is held in this extension process, never in the repository. */
+  private readonly ownOutput = new Map<string, Buffer>();
+
+  /** Every executable input must match bytes shipped with the extension. */
+  public async previewTemplateFiles(): Promise<Map<string, Buffer>> {
+    const root = await this.resolveTemplateRoot();
+    if (!root) throw new RuntimeTemplateUnavailableError();
+    const files = new Map<string, Buffer>();
+    for (const name of await collectFiles(root, root)) {
+      let content = await readFile(path.join(root, name));
+      if (name === 'package.json') {
+        const pkg = JSON.parse(content.toString());
+        content = Buffer.from(`${JSON.stringify({ ...withoutMonorepoTooling(pkg), dependencies: { ...pkg.dependencies, '@fmweb/shared': 'file:./shared' } }, null, 2)}\n`);
+      } else if (name === 'vitest.config.ts') {
+        content = Buffer.from(content.toString().replace("'../shared/src/index.ts'", "'./shared/src/index.ts'"));
+      }
+      files.set(name, content);
+    }
+    const shared = path.join(root, '..', 'shared');
+    for (const name of ['package.json', ...(await collectFiles(path.join(shared, 'src'), path.join(shared, 'src'))).map((file) => `src/${file}`)]) {
+      let content = await readFile(path.join(shared, name));
+      if (name === 'package.json') content = Buffer.from(`${JSON.stringify({ ...withoutMonorepoTooling(JSON.parse(content.toString())), main: 'src/index.ts', types: 'src/index.ts', scripts: {} }, null, 2)}\n`);
+      files.set(`shared/${name}`, content);
+    }
+    return files;
+  }
+
+  public async inspectPreviewFiles(): Promise<string[]> {
+    this.assertWorkspaceTrusted();
+    const root = this.getGeneratedRuntimeRoot();
+    await this.assertSafeFolder(root);
+    const expected = await this.previewTemplateFiles();
+    for (const [name, bytes] of this.ownOutput) expected.set(name, bytes);
+    // Accept only the exact harmless comment left by an earlier extension session.
+    expected.set('.env.local', Buffer.from(PREVIEW_ENV_MARKER));
+    // This file only controls Git; accept the exact extension-generated ignore list across sessions.
+    expected.set('.gitignore', Buffer.from('.env.local\n.env*.local\nnode_modules\n.next\n'));
+    const bad: string[] = [];
+    const visit = async (dir: string): Promise<void> => {
+      for (const entry of await readdir(dir, { withFileTypes: true }).catch((error: NodeJS.ErrnoException) => {
+        if (error.code === 'ENOENT') return [];
+        throw error;
+      })) {
+        if (entry.name === 'node_modules' || entry.name === '.next') continue;
+        const full = path.join(dir, entry.name);
+        const name = toPosixRelative(path.relative(root, full));
+        const info = await lstat(full);
+        if (info.isDirectory() && isExpectedPreviewDirectory(name, expected.keys())) {
+          await visit(full);
+        } else if (!info.isFile() || !expected.has(name) || info.size !== expected.get(name)!.length || !(await readFile(full)).equals(expected.get(name)!)) {
+          bad.push(name);
+        }
+      }
+    };
+    await visit(root);
+    return bad.sort();
+  }
+
+  /** Called only after a modal names every deletion; rescan to avoid accepting a stale list. */
+  public async removePreviewFiles(files: string[]): Promise<void> {
+    const root = this.getGeneratedRuntimeRoot();
+    const names = files.map(toPosixRelative);
+    if (names.some((name) => !name || name.includes('..') || name.includes('\0') || name.startsWith('/') || /(?:^|\/)[a-z]:/i.test(name) || !path.resolve(root, name).startsWith(`${root}${path.sep}`))) {
+      throw new Error('Cannot remove files outside the generated runtime folder.');
+    }
+    if (names.some((name) => name.split('/').some((part) => part === 'node_modules' || part === '.next'))) {
+      throw new Error('Cannot remove dependency or build folders.');
+    }
+    const current = await this.inspectPreviewFiles();
+    if (JSON.stringify(current) !== JSON.stringify(names)) throw new Error('Preview files changed. Start again to review the new list.');
+    for (const name of names) {
+      const target = path.resolve(root, name);
+      await this.assertSafeFolder(path.dirname(target));
+      await rm(target, { recursive: true, force: true });
+      this.ownOutput.delete(name);
+    }
+  }
 
   public async generateRuntimeAppTemplate(): Promise<TemplateCopySummary> {
     this.assertWorkspaceTrusted();
@@ -264,7 +360,7 @@ export class FmWebRuntimeGenerator {
     for (const relativePath of templateFiles) {
       const sourcePath = path.join(templateRoot, relativePath);
       const outputPath = path.join(outputRoot, relativePath);
-      const managedKey = relativePath.split(path.sep).join('/');
+      const managedKey = relativePath;
       const sourceContent = await readFile(sourcePath);
       const content = relativePath === 'package.json'
         ? Buffer.from(`${JSON.stringify({
@@ -325,10 +421,10 @@ export class FmWebRuntimeGenerator {
     const sharedRoot = path.join(templateRoot, '..', 'shared');
     const sharedOutput = path.join(outputRoot, 'shared');
     // path-join disposition: the shared package folder and the names the template lists; the target is confined by assertSafeOutputFolder.
-    const sharedFiles = ['package.json', ...await collectFiles(path.join(sharedRoot, 'src'), path.join(sharedRoot, 'src')).then((files) => files.map((file) => path.join('src', file)))];
+    const sharedFiles = ['package.json', ...await collectFiles(path.join(sharedRoot, 'src'), path.join(sharedRoot, 'src')).then((files) => files.map((file) => `src/${file}`))];
     for (const file of sharedFiles) {
       const target = path.join(sharedOutput, file);
-      const reported = path.join('shared', file);
+      const reported = `shared/${file}`;
       let content = await readFile(path.join(sharedRoot, file));
       if (file === 'package.json') {
         const pkg = JSON.parse(content.toString('utf8'));
@@ -346,7 +442,7 @@ export class FmWebRuntimeGenerator {
       if (present) {
         const existingHash = present.isFile() ? normalizedHash(await readFile(target)) : undefined;
         const current = existingHash === normalizedHash(content);
-        if (!current && existingHash && SHIPPED_SHARED_HASHES[file.split(path.sep).join('/')]?.includes(existingHash)) {
+        if (!current && existingHash && SHIPPED_SHARED_HASHES[file]?.includes(existingHash)) {
           await writeManagedFile(target, content);
           updated.push(reported);
           continue;
@@ -426,6 +522,11 @@ export class FmWebRuntimeGenerator {
     const outputDir = this.getGeneratedLayoutsRoot();
     const outputPath = path.join(outputDir, `${layout.id}.layout.json`);
 
+    try {
+      if ((await lstat(outputPath)).isSymbolicLink()) throw new GenerationSkippedError(outputPath);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    }
     const skipped = await writeGeneratedFiles([{ path: outputPath, content: `${JSON.stringify({ $comment: GENERATED_MARKER, ...layout }, null, 2)}\n` }], this.fmWebProjectService.getWorkspaceRoot?.() ?? this.fmWebProjectService.getProjectRoot());
     if (skipped.length) throw new GenerationSkippedError(outputPath);
 
@@ -437,43 +538,40 @@ export class FmWebRuntimeGenerator {
     };
   }
 
-  /**
-   * Writes the bridge address and its per-session token into the generated runtime's
-   * `.env.local` so the preview app can reach the bridge (it refuses requests without the
-   * token). The file holds a secret: it is created owner-only and a `.gitignore` next to it
-   * keeps it out of git. Nothing here logs the token.
-   */
+  /** Remove the legacy public secret. Live credentials travel only in the server process environment. */
   public async writeBridgeEnv(baseUrl: string, token?: string): Promise<string> {
     this.assertWorkspaceTrusted();
     if (!SAFE_ENV_VALUE.test(baseUrl) || (token !== undefined && !SAFE_ENV_VALUE.test(token))) {
       throw new Error('The bridge address or token contains characters that cannot be written to an env file.');
     }
+    const root = this.getGeneratedRuntimeRoot();
+    await this.assertSafeFolder(root);
+    await mkdir(root, { recursive: true });
+    await this.ensureRuntimeGitignore(root);
+    const envPath = path.join(root, '.env.local');
+    await refuseSymlink(envPath);
+    const content = PREVIEW_ENV_MARKER;
+    await writeOwnerOnlyFile(envPath, content);
+    this.ownOutput.set('.env.local', Buffer.from(content));
+    return envPath;
+  }
 
+  /** Revoke the generated preview's saved bridge address and token without removing user env values. */
+  public async clearBridgeEnv(): Promise<void> {
     const runtimeRoot = this.getGeneratedRuntimeRoot();
     await this.assertSafeFolder(runtimeRoot);
-    await mkdir(runtimeRoot, { recursive: true });
-    await this.ensureRuntimeGitignore(runtimeRoot);
     const envPath = path.join(runtimeRoot, '.env.local');
-
-    const managed: Record<string, string | undefined> = {
-      NEXT_PUBLIC_FMWEB_BRIDGE_URL: baseUrl,
-      NEXT_PUBLIC_FMWEB_BRIDGE_TOKEN: token
-    };
-
     await refuseSymlink(envPath);
-    const existing = (await exists(envPath)) ? await readFile(envPath, 'utf8') : '';
-    const kept = existing
-      .split(/\r?\n/)
-      .filter((line) => line.length > 0 && !Object.keys(managed).some((key) => line.startsWith(`${key}=`)));
-    const lines = [
-      ...kept,
-      ...Object.entries(managed)
-        .filter((entry): entry is [string, string] => entry[1] !== undefined)
-        .map(([key, value]) => `${key}=${value}`)
-    ];
-
-    await writeOwnerOnlyFile(envPath, `${lines.join('\n')}\n`);
-    return envPath;
+    if (!(await exists(envPath))) return;
+    const existing = await readFile(envPath, 'utf8');
+    const kept = existing.split(/\r?\n/).filter((line) =>
+      !/^\s*(?:export\s+)?(?:NEXT_PUBLIC_)?FMWEB_BRIDGE_(?:URL|TOKEN)\s*=/.test(line) && !line.startsWith('# Preview credentials are passed only')
+    ).join('\n');
+    if (kept.trim().length === 0) {
+      await rm(envPath, { force: true });
+    } else {
+      await writeOwnerOnlyFile(envPath, kept);
+    }
   }
 
   private async ensureRuntimeGitignore(runtimeRoot: string): Promise<void> {
@@ -521,7 +619,7 @@ async function collectFiles(rootDir: string, currentDir: string): Promise<string
 
   for (const entry of entries) {
     // Never copy local env files (they can hold a bridge token) or build output.
-    if (entry.name === 'node_modules' || entry.name === '.next' || entry.name === '.vite' || entry.name.startsWith('.env')) {
+    if (entry.name === 'node_modules' || entry.name === '.next' || entry.name === '.vite' || entry.name === '.npmrc' || entry.name.startsWith('.env')) {
       continue;
     }
     // Coverage output of the repository's own gates: a report of a run that has nothing to do
@@ -547,7 +645,7 @@ async function collectFiles(rootDir: string, currentDir: string): Promise<string
       continue;
     }
 
-    result.push(path.relative(rootDir, fullPath));
+    result.push(toPosixRelative(path.relative(rootDir, fullPath)));
   }
 
   return result.sort((left, right) => left.localeCompare(right));

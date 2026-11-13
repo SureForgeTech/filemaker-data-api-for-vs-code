@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
@@ -37,6 +38,28 @@ import type { FileMakerPlugin } from '../../src/plugins/pluginTypes';
 describe('PluginRegistry', () => {
   beforeEach(() => {
     commandHandlers.clear();
+  });
+
+  it('A7 visibly escapes plugin filenames in the default consent without changing approval hashing', async () => {
+    const name = 'safe\n\u202e\u034f.js';
+    const update = vi.fn(async () => undefined);
+    const registry = new PluginRegistry({} as never, {} as never,
+      { getFeatureGuard: () => ({ allowed: true }) } as never,
+      { info: vi.fn(), warn: vi.fn(), error: vi.fn() }, {
+        getWorkspaceRoot: () => '/workspace', isWorkspaceTrusted: () => true,
+        readDir: async () => [name], listFiles: async () => [join('/workspace/.vscode/filemaker-plugins', name)],
+        readFileBytes: async () => Buffer.from('same bytes'),
+        approvalState: { get: (_key: string, fallback?: unknown) => fallback, update } as never,
+        importModule: async () => ({ default: { id: 'test', name: 'test', activate: async () => undefined } })
+      });
+    vi.mocked(vscode.window.showWarningMessage).mockResolvedValue('Run plugins' as never);
+    await registry.reload();
+    const prompt = String(vi.mocked(vscode.window.showWarningMessage).mock.calls.at(-1)?.[0]);
+    expect(prompt).toContain('safe\\n\\u202e\\u034f.js');
+    expect(prompt).not.toContain(name);
+    const expectedHash = createHash('sha256').update(name).update('\0').update('same bytes').update('\0').digest('hex');
+    expect(update).toHaveBeenCalledWith('filemakerDataApiTools.approvedWorkspacePlugins', { '/workspace|.vscode/filemaker-plugins': expectedHash });
+    registry.dispose();
   });
 
   it('loads internal plugins and registers plugin commands', async () => {

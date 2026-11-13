@@ -1,4 +1,4 @@
-// fmweb-managed: runtime template v7. The FileMaker Data API Tools extension refreshes this file when the template version changes; keep your own changes in other files.
+// fmweb-managed: runtime template v10. The FileMaker Data API Tools extension refreshes this file when the template version changes; keep your own changes in other files.
 import type { LayoutObject } from '@fmweb/shared';
 
 import { RuntimeBridgeClient } from './bridge-client';
@@ -83,7 +83,7 @@ export async function executeRuntimeBehaviorAction(
     } = {
       layout,
       scriptName,
-      scriptParam: normalizeOptionalString(behavior.parameter),
+      scriptParam: behavior.parameter,
       recordId: normalizeOptionalString(context.currentRecordId)
     };
 
@@ -169,6 +169,12 @@ export async function executeRuntimeBehaviorAction(
       };
     }
 
+    try {
+      if (!['http:', 'https:'].includes(new URL(url).protocol)) throw new Error('Unsupported URL scheme.');
+    } catch {
+      return { ok: false, action, stub: true, message: 'Only http: and https: URLs can be opened.' };
+    }
+
     context.openUrl(url);
     return {
       ok: true,
@@ -194,7 +200,7 @@ function normalizeOptionalString(value: string | undefined): string | undefined 
   }
 
   const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : undefined;
+  return trimmed.length > 0 ? value : undefined;
 }
 
 function formatError(error: unknown): string {
