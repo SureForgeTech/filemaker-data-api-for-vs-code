@@ -7,7 +7,15 @@ import { dirname, join, sep } from 'node:path';
 
 const root = realpathSync(new URL('..', import.meta.url));
 const require = createRequire(new URL('../extension/package.json', import.meta.url));
-const target = realpathSync(join(dirname(require.resolve('typedoc')), 'node-utils.js'));
+let entry;
+try {
+  entry = require.resolve('typedoc');
+} catch (error) {
+  if (error.code !== 'MODULE_NOT_FOUND') throw error;
+  console.log('TypeDoc development dependency is absent; no compatibility patch is needed');
+  process.exit(0);
+}
+const target = realpathSync(join(dirname(entry), 'node-utils.js'));
 if (!target.startsWith(root + sep) || !target.includes(sep + 'node_modules' + sep) || !lstatSync(target).isFile()) {
   throw new Error('Refusing to patch TypeDoc outside this project installation');
 }
@@ -16,7 +24,7 @@ const patchedHash = 'd58f25b6974c17e28f55ae4a52afb91b6402ec7aa2aba2c773a664129e6
 const hash = text => createHash('sha256').update(text).digest('hex');
 const source = readFileSync(target, 'utf8');
 if (![originalHash, patchedHash].includes(hash(source))) throw new Error('Unknown TypeDoc source; review the compatibility patch before updating');
-const typedocRequire = createRequire(require.resolve('typedoc'));
+const typedocRequire = createRequire(entry);
 if (typedocRequire('minimatch/package.json').version !== '11.0.8') throw new Error('Unexpected TypeDoc matcher; regenerate the dependency lock before installing');
 if (hash(source) !== patchedHash) {
   if (hash(source) !== originalHash) throw new Error('Unknown TypeDoc source; review the compatibility patch before updating');

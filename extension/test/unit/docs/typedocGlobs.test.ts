@@ -85,3 +85,18 @@ it('refuses an unrecognized TypeDoc dependency before changing its source', () =
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+it('leaves production installations without the TypeDoc development dependency alone', () => {
+  const root = mkdtempSync(join(tmpdir(), 'typedoc-production-'));
+  try {
+    mkdirSync(join(root, 'tools'), { recursive: true });
+    mkdirSync(join(root, 'extension'), { recursive: true });
+    writeFileSync(join(root, 'extension/package.json'), '{}');
+    cpSync(resolve(__dirname, '../../../../tools/patch-typedoc-glob.mjs'), join(root, 'tools/patch-typedoc-glob.mjs'));
+    const result = spawnSync(process.execPath, ['--no-global-search-paths', join(root, 'tools/patch-typedoc-glob.mjs')], { encoding: 'utf8' });
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.stdout).toContain('development dependency is absent');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
