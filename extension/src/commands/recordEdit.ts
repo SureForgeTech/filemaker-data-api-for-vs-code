@@ -42,7 +42,10 @@ export function registerRecordEditCommands(deps: RegisterRecordEditCommandsDeps)
         vscode.window.showInformationMessage('Record editing is disabled by settings.');
         return;
       }
-      if (!(await roleGuard.assertFeature('recordEdit', 'Open Record Editor'))) {
+      if (
+        !(await roleGuard.assertFeature('writeOperations', 'Open Record Editor')) ||
+        !(await roleGuard.assertFeature('recordEdit', 'Open Record Editor'))
+      ) {
         return;
       }
 
@@ -85,7 +88,10 @@ export function registerRecordEditCommands(deps: RegisterRecordEditCommandsDeps)
         vscode.window.showInformationMessage('Record editing is disabled by settings.');
         return;
       }
-      if (!(await roleGuard.assertFeature('recordEdit', 'Edit Record by ID'))) {
+      if (
+        !(await roleGuard.assertFeature('writeOperations', 'Edit Record by ID')) ||
+        !(await roleGuard.assertFeature('recordEdit', 'Edit Record by ID'))
+      ) {
         return;
       }
 
@@ -119,7 +125,10 @@ export function registerRecordEditCommands(deps: RegisterRecordEditCommandsDeps)
         vscode.window.showInformationMessage('Record editing is disabled by settings.');
         return;
       }
-      if (!(await roleGuard.assertFeature('recordEdit', 'Create Record'))) {
+      if (
+        !(await roleGuard.assertFeature('writeOperations', 'Create Record')) ||
+        !(await roleGuard.assertFeature('recordEdit', 'Create Record'))
+      ) {
         return;
       }
 
@@ -207,7 +216,10 @@ export function registerRecordEditCommands(deps: RegisterRecordEditCommandsDeps)
           vscode.window.showInformationMessage('Record editing is disabled by settings.');
           return false;
         }
-        if (!(await roleGuard.assertFeature('recordEdit', 'Upload to Container'))) {
+        if (
+          !(await roleGuard.assertFeature('writeOperations', 'Upload to Container')) ||
+          !(await roleGuard.assertFeature('recordEdit', 'Upload to Container'))
+        ) {
           return false;
         }
         if (!vscode.workspace.isTrusted) {

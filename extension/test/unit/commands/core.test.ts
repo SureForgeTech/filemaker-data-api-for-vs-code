@@ -134,6 +134,57 @@ describe('registerCoreCommands', () => {
     expect(deps.refreshExplorer).toHaveBeenCalledTimes(choice === 'Remove' ? 1 : 0);
   });
 
+  it('logs out while the profile and secrets still exist before removing them', async () => {
+    const deps = createMockDeps();
+    const profile = { id: 'p1', name: 'Development' };
+    Object.assign(deps.profileStore, { getProfile: vi.fn().mockResolvedValue(profile) });
+    vi.mocked(vscode.window.showWarningMessage).mockResolvedValueOnce('Remove' as never);
+    registerCoreCommands(deps);
+    const remove = vi.mocked(vscode.commands.registerCommand).mock.calls.find(([id]) => id === 'filemakerDataApiTools.removeConnectionProfile')![1];
+    await remove({ profileId: 'p1' });
+    const logout = (deps.fmClient as { deleteSession: ReturnType<typeof vi.fn> }).deleteSession;
+    const clear = (deps.secretStore as { clearProfileSecrets: ReturnType<typeof vi.fn> }).clearProfileSecrets;
+    const removeProfile = (deps.profileStore as { removeProfile: ReturnType<typeof vi.fn> }).removeProfile;
+    expect(logout).toHaveBeenCalledExactlyOnceWith(profile);
+    expect(logout.mock.invocationCallOrder[0]).toBeLessThan(clear.mock.invocationCallOrder[0]!);
+    expect(logout.mock.invocationCallOrder[0]).toBeLessThan(removeProfile.mock.invocationCallOrder[0]!);
+  });
+
+  it('warns once per remote HTTP profile per session on Connect, without blocking', async () => {
+    const deps = createMockDeps();
+    const getProfile = vi.fn().mockResolvedValue({ id: 'p1', name: 'Remote', authMode: 'direct', serverUrl: 'http://fm.example.test', database: 'Sales' });
+    Object.assign(deps.profileStore, { getProfile });
+    registerCoreCommands(deps);
+    const connect = vi.mocked(vscode.commands.registerCommand).mock.calls.find(([id]) => id === 'filemakerDataApiTools.connect')![1];
+    await connect({ profileId: 'p1' });
+    await connect({ profileId: 'p1' });
+    expect(vscode.window.showWarningMessage).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('unencrypted'));
+    getProfile.mockResolvedValue({ id: 'p2', name: 'Other', authMode: 'direct', serverUrl: 'http://other.example.test', database: 'Sales' });
+    await connect({ profileId: 'p2' });
+    expect(vscode.window.showWarningMessage).toHaveBeenCalledTimes(2);
+    expect((deps.fmClient as { createSession: ReturnType<typeof vi.fn> }).createSession).toHaveBeenCalledTimes(3);
+  });
+
+  it('warns about an HTTP proxy endpoint even if its FileMaker server URL is HTTPS', async () => {
+    const deps = createMockDeps();
+    Object.assign(deps.profileStore, { getProfile: vi.fn().mockResolvedValue({ id: 'p1', name: 'Proxy', authMode: 'proxy', serverUrl: 'https://fm.example.test', proxyEndpoint: 'http://proxy.example.test', database: 'Sales' }) });
+    registerCoreCommands(deps);
+    await vi.mocked(vscode.commands.registerCommand).mock.calls.find(([id]) => id === 'filemakerDataApiTools.connect')![1]({ profileId: 'p1' });
+    expect(vscode.window.showWarningMessage).toHaveBeenCalledWith(expect.stringContaining('unencrypted'));
+    expect((deps.fmClient as { createSession: ReturnType<typeof vi.fn> }).createSession).toHaveBeenCalled();
+  });
+
+  it.each(['https://fm.example.test', 'http://localhost:8080', 'http://127.0.0.1:8080', 'http://[::1]:8080'])(
+    'does not warn on Connect to %s', async (serverUrl) => {
+      const deps = createMockDeps();
+      Object.assign(deps.profileStore, { getProfile: vi.fn().mockResolvedValue({ id: 'p1', name: 'Safe', authMode: 'direct', serverUrl, database: 'Sales' }) });
+      registerCoreCommands(deps);
+      await vi.mocked(vscode.commands.registerCommand).mock.calls.find(([id]) => id === 'filemakerDataApiTools.connect')![1]({ profileId: 'p1' });
+      expect(vscode.window.showWarningMessage).not.toHaveBeenCalled();
+      expect((deps.fmClient as { createSession: ReturnType<typeof vi.fn> }).createSession).toHaveBeenCalled();
+    }
+  );
+
   it('offers to connect after trusting under override, without asking for a settings change', async () => {
     const deps = createMockDeps();
     const profile = { id: 'p1', name: 'LAN', authMode: 'direct' as const, serverUrl: 'https://192.0.2.1', database: 'Sales', username: 'tester' };

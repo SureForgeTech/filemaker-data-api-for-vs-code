@@ -45,6 +45,7 @@ function setup(editing = profile) {
     createSession: record('createSession'), deleteSession: record('deleteSession'),
     forgetProfile: record('forgetProfile')
   };
+  Object.assign(client, { createIsolatedClient: vi.fn(() => client) });
   const upsert = record('upsert');
   ConnectionWizardPanel.createOrShow(
     { extensionUri: vscode.Uri.file('/ext') } as never,
@@ -92,15 +93,15 @@ describe('connection wizard extraction characterization', () => {
     const h = setup();
     await h.fire({ type: 'testConnection', payload: form });
     expect(h.events).toEqual([
-      'testStarted', 'testProgress', 'setPassword', 'testProgress', 'product',
+      'testStarted', 'testProgress', 'testProgress', 'product',
       'testProgress', 'databases', 'testProgress', 'createSession', 'testProgress',
-      'deleteSession', 'testSuccess', 'deletePassword', 'deleteProxyApiKey',
-      'deleteSessionToken', 'forgetProfile'
+      'deleteSession', 'testSuccess', 'forgetProfile'
     ]);
-    const testId = h.secrets.setPassword.mock.calls[0]?.[0];
+    const testId = h.client.createSession.mock.calls[0]?.[0] && (h.client.createSession.mock.calls[0][0] as { id: string }).id;
     expect(testId).toMatch(/^test-connection-/);
     expect(h.client.createSession).toHaveBeenCalledWith(expect.objectContaining({ id: testId }), { userInitiated: true });
-    expect(h.secrets.deleteSessionToken).toHaveBeenCalledWith(testId);
+    expect(h.secrets.setPassword).not.toHaveBeenCalled();
+    expect(h.secrets.deleteSessionToken).not.toHaveBeenCalled();
     expect(h.posted.find((m) => m.type === 'testSuccess')?.message).toBe(
       'Connection successful. Session opened and closed cleanly. Server: FileMaker Server 21.'
     );

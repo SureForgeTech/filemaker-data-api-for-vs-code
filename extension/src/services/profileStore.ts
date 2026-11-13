@@ -1,4 +1,5 @@
-import type * as vscode from 'vscode';
+import * as vscode from 'vscode';
+import type { SecretStore } from './secretStore';
 
 import type { ConnectionProfile, SavedQuery } from '../types/fm';
 import { FMClientError } from './errors';
@@ -13,10 +14,13 @@ export class ProfileStore {
   private readonly changeListeners = new Set<() => void>();
 
   private observedState: string;
+  private migration: Promise<void> | undefined;
+  private readonly credentialWarnings = new Set<string>();
 
   public constructor(
     private readonly globalState: vscode.Memento,
-    private readonly workspaceState: vscode.Memento
+    private readonly workspaceState: vscode.Memento,
+    private readonly secrets?: Pick<SecretStore, 'getPassword' | 'setPassword'>
   ) {
     this.observedState = this.profileState();
   }
@@ -56,7 +60,57 @@ export class ProfileStore {
   }
 
   public async listProfiles(): Promise<ConnectionProfile[]> {
+    await this.migrateUrlCredentials();
     return this.listProfilesSync();
+  }
+
+  private async migrateUrlCredentials(): Promise<void> {
+    if (this.migration) return this.migration;
+    this.migration = this.removeUrlCredentials();
+    try {
+      await this.migration;
+    } finally {
+      this.migration = undefined;
+    }
+  }
+
+  private async removeUrlCredentials(): Promise<void> {
+    const raw = this.globalState.get<unknown>(PROFILES_KEY, []);
+    if (!Array.isArray(raw)) return;
+    let changed = false;
+    const profiles: unknown[] = [];
+    for (const value of raw) {
+      const normalized = normalizeProfile(value);
+      if (!normalized) { profiles.push(value); continue; }
+      const original = value as ConnectionProfile;
+      const url = new URL(original.serverUrl);
+      if (!url.username && !url.password) { profiles.push(value); continue; }
+      changed = true;
+      if (!this.credentialWarnings.has(normalized.id)) {
+        this.credentialWarnings.add(normalized.id);
+        void vscode.window.showWarningMessage(
+          'Removed credentials from a saved FileMaker server address. Re-enter or confirm the credential in Edit Connection Profile before connecting.'
+        );
+      }
+      // Never overwrite a separately saved password. An unusable URL password is discarded.
+      if (original.authMode === 'direct' && url.password && this.secrets) {
+        let password: string | undefined;
+        try { password = decodeURIComponent(url.password); } catch { /* ask the user to re-enter it */ }
+        try {
+          if (password !== undefined && await this.secrets.getPassword(normalized.id) === undefined) {
+            await this.secrets.setPassword(normalized.id, password);
+          }
+        } catch {
+          // Keep the profile usable and the address safe even when SecretStorage is unavailable.
+          // The warning above asks the user to re-enter the credential.
+        }
+      }
+      profiles.push(normalized);
+    }
+    if (changed) {
+      await this.globalState.update(PROFILES_KEY, profiles);
+      this.fireChange();
+    }
   }
 
   /** The stored profiles without waiting; a webview needs them before its first paint. */
@@ -151,7 +205,11 @@ function normalizeProfile(value: unknown): ConnectionProfile | undefined {
     // Reading is lenient about a user name or password in the address: a profile saved
     // that way before it was rejected must stay visible so it can be fixed, not vanish
     // (and be dropped for good the next time the list is written back).
-    return validateConnectionProfile(value as ConnectionProfile, { allowCredentialsInUrl: true });
+    const profile = validateConnectionProfile(value as ConnectionProfile, { allowCredentialsInUrl: true });
+    const url = new URL(profile.serverUrl);
+    url.username = '';
+    url.password = '';
+    return { ...profile, serverUrl: url.toString().replace(/\/+$/, '') };
   } catch {
     return undefined;
   }

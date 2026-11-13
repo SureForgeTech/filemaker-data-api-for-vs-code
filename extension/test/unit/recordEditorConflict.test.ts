@@ -67,9 +67,15 @@ function openEditor(editRecord: ReturnType<typeof vi.fn>, currentRecord = loaded
     logger as never
   );
 
-  const send = async (message: unknown): Promise<void> => {
+  const send = async (message: unknown, pendingSave = false): Promise<void> => {
+    const before = posted.length;
     handler?.(message);
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    if (pendingSave) {
+      await vi.waitFor(() => expect(editRecord).toHaveBeenCalledTimes(1));
+    } else {
+      // saveReceived is only an acknowledgement; policy reads and the save still have to finish.
+      await vi.waitFor(() => expect(posted.slice(before).some((reply) => reply.type !== 'saveReceived')).toBe(true));
+    }
   };
 
   return { send, posted, fmClient, getFields };
@@ -334,15 +340,14 @@ describe('Record Editor save conflicts', () => {
     const editor = openEditor(editRecord);
 
     await editor.send({ type: 'loadRecord', payload: target });
-    await editor.send({ type: 'saveRecord', payload: draft });
+    await editor.send({ type: 'saveRecord', payload: draft }, true);
     await editor.send({ type: 'loadRecord', payload: { ...target, recordId: '9' } });
 
     const error = editor.posted.filter((message) => message.type === 'error').pop() as { message: string };
     expect(error.message).toMatch(/save is in progress/);
 
     finishSave({ recordId: '7', modId: '4' });
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(editor.posted.map((message) => message.type)).toContain('recordSaved');
+    await vi.waitFor(() => expect(editor.posted.map((message) => message.type)).toContain('recordSaved'));
   });
 
   it('keeps checking saves against the previous record when a reload fails after reading it', async () => {

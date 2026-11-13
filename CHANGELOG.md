@@ -18,6 +18,10 @@ PR title prefix matches the highest-tier label added:
 
 ## Unreleased
 
+- [SECURITY] Record editing, creation and container uploads respect the enterprise write switch; open Record Editor and Script Runner panels recheck policy before writes. Write AI Context respects AI-off settings, enterprise policy and offline mode.
+- [SECURITY] Saved server addresses lose embedded credentials, preserving an existing saved password and asking you to confirm it. Test Connection keeps temporary credentials in memory, and removing a profile attempts to close its server session before clearing secrets.
+- [SECURITY] Logs mask more token formats, and Connect warns once per profile each session when a remote connection uses unencrypted HTTP.
+
 ### [BREAKING]
 
 - None.

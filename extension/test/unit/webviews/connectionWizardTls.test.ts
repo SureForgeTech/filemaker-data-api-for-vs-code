@@ -85,6 +85,7 @@ async function setup(editing?: Record<string, unknown>, client: Record<string, u
     forgetProfile: vi.fn(),
     ...client
   };
+  Object.assign(fmClient, { createIsolatedClient: vi.fn(() => fmClient) });
   ConnectionWizardPanel.createOrShow(
     { extensionUri: { fsPath: '/ext' }, extension: { id: 'x.y' } } as never,
     { upsertProfile, listProfiles: vi.fn(async () => []) } as never,

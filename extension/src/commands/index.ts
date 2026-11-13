@@ -16,7 +16,8 @@ import {
   parseFindJson,
   parseOptionalPositiveInteger,
   parseSortJson,
-  validateRecordId
+  validateRecordId,
+  isUnencryptedRemoteUrl
 } from '../utils/jsonValidate';
 import {
   openJsonDocument,
@@ -83,6 +84,8 @@ export function registerCoreCommands(deps: RegisterCoreCommandDeps): vscode.Disp
     onLayoutSelected
   } = deps;
 
+  const httpWarnings = new Set<string>();
+
   return [
     ...registerConnectionDiagnosticCommands(deps),
     vscode.commands.registerCommand('filemakerDataApiTools.addConnectionProfile', async () => {
@@ -138,6 +141,7 @@ export function registerCoreCommands(deps: RegisterCoreCommandDeps): vscode.Disp
           return;
         }
 
+        await fmClient.deleteSession(profile);
         await profileStore.removeProfile(profile.id);
         await savedQueriesStore.removeQueriesForProfile(profile.id);
         await secretStore.clearProfileSecrets(profile.id);
@@ -155,6 +159,14 @@ export function registerCoreCommands(deps: RegisterCoreCommandDeps): vscode.Disp
       const profile = await resolveProfileFromArg(arg, profileStore);
       if (!profile) {
         return;
+      }
+
+      const target = profile.authMode === 'proxy' ? profile.proxyEndpoint ?? profile.serverUrl : profile.serverUrl;
+      if (isUnencryptedRemoteUrl(target) && !httpWarnings.has(profile.id)) {
+        httpWarnings.add(profile.id);
+        void vscode.window.showWarningMessage(
+          'This connection uses remote http://. Your password, API key and session data travel unencrypted and could be read on the network. Use https:// when possible.'
+        );
       }
 
       const policy: BackoffPolicy = deps.getConnectBackoffPolicy?.() ?? {
