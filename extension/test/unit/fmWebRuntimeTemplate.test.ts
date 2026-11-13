@@ -1,5 +1,6 @@
 import { createHash } from 'crypto';
 import { createRequire } from 'module';
+import type * as FsPromises from 'fs/promises';
 import { chmod, link, lstat, mkdtemp, mkdir, readdir, readFile, rm, stat, symlink, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import path from 'path';
@@ -8,6 +9,11 @@ import { pathToFileURL } from 'url';
 import nock from 'nock';
 import * as vscode from 'vscode';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('fs/promises', async (importOriginal) => {
+  const actual = await importOriginal<typeof FsPromises>();
+  return { ...actual, readFile: vi.fn(actual.readFile) };
+});
 
 import { standardFieldSize } from '@fmweb/shared/dist/field-standards';
 import { createBlankLayout } from '../../src/fmweb/layoutSchema';
@@ -64,9 +70,46 @@ describe('FM Web runtime template', () => {
     await writeFile(path.join(root, 'next.config.ts'), 'attacker');
     await writeFile(path.join(dir, '.npmrc'), 'script-shell=./evil.sh');
     const files = await gen.inspectPreviewFiles();
-    for (const file of ['.npmrc', 'package-lock.json', 'yarn.lock', 'pnpm-lock.yaml', '.env.production', 'app/evil.ts', 'node_modules', 'next.config.ts']) expect(files).toContain(file);
+    for (const file of ['.npmrc', 'package-lock.json', 'yarn.lock', 'pnpm-lock.yaml', '.env.production', 'app/evil.ts', 'next.config.ts']) expect(files).toContain(file);
+    expect(files).not.toContain('node_modules');
     expect(files).not.toContain('../.npmrc');
     expect(await readFile(path.join(dir, '.npmrc'), 'utf8')).toBe('script-shell=./evil.sh');
+  });
+
+  it('omits dependencies and build output from inspection and preserves them during regeneration', async () => {
+    const gen = generator();
+    await gen.generateRuntimeAppTemplate();
+    const root = gen.getGeneratedRuntimeRoot();
+    for (const folder of ['node_modules', '.next']) {
+      await mkdir(path.join(root, folder));
+      await writeFile(path.join(root, folder, 'keep'), 'user build output');
+    }
+    await writeFile(path.join(root, 'user-file'), 'review me');
+    expect(await gen.inspectPreviewFiles()).toEqual(['user-file']);
+    await gen.removePreviewFiles(['user-file']);
+    await gen.generateRuntimeAppTemplate();
+    for (const folder of ['node_modules', '.next']) {
+      expect(await readFile(path.join(root, folder, 'keep'), 'utf8')).toBe('user build output');
+      vi.spyOn(gen, 'inspectPreviewFiles').mockResolvedValueOnce([folder]);
+      await expect(gen.removePreviewFiles([folder])).rejects.toThrow('Cannot remove dependency or build folders');
+    }
+  });
+
+  it('compares known file sizes before reading content, but still detects equal-size edits', async () => {
+    const gen = generator();
+    await gen.generateRuntimeAppTemplate();
+    const file = path.join(gen.getGeneratedRuntimeRoot(), '.gitignore');
+    const expected = '.env.local\n.env*.local\nnode_modules\n.next\n';
+    await writeFile(file, 'a much shorter edit');
+    vi.mocked(readFile).mockClear();
+    expect(await gen.inspectPreviewFiles()).toContain('.gitignore');
+    expect(vi.mocked(readFile).mock.calls.some(([target]) => target === file)).toBe(false);
+    await writeFile(file, 'x'.repeat(Buffer.byteLength(expected)));
+    vi.mocked(readFile).mockClear();
+    expect(await gen.inspectPreviewFiles()).toContain('.gitignore');
+    expect(vi.mocked(readFile).mock.calls.some(([target]) => target === file)).toBe(true);
+    await writeFile(file, expected);
+    expect(await gen.inspectPreviewFiles()).not.toContain('.gitignore');
   });
 
   it('recognizes the exact comment-only env marker after a new extension session', async () => {
@@ -246,6 +289,13 @@ describe('FM Web runtime template', () => {
     await expect(gen.generateLayoutPage(layout.id)).rejects.toThrow(/Skipped existing/);
     expect(await readFile(first.outputPath, 'utf8')).toBe('user page');
     expect(vscode.window.showWarningMessage).toHaveBeenCalledWith(expect.stringContaining(first.outputPath), { modal: true }, 'Overwrite', 'Skip existing');
+    await rm(first.outputPath);
+    const outside = path.join(dir, 'outside-layout.json');
+    await writeFile(outside, 'leave linked content alone');
+    await symlink(outside, first.outputPath);
+    await expect(gen.generateLayoutPage(layout.id)).rejects.toThrow(/Skipped existing/);
+    expect((await lstat(first.outputPath)).isSymbolicLink()).toBe(true);
+    expect(await readFile(outside, 'utf8')).toBe('leave linked content alone');
   });
 
   const bridgeClientPath = () => path.join(dir, 'runtime-next', 'lib', 'bridge-client.ts');

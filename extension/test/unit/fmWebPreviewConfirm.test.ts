@@ -1,11 +1,16 @@
 import * as vscode from 'vscode';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { mkdtemp, rm, writeFile } from 'fs/promises';
+import { tmpdir } from 'os';
+import path from 'path';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { registerFmWebProjectCommands } from '../../src/commands/fmWebProject';
+import { GenerationSkippedError } from '../../src/services/generatedFileWriter';
 
 const processStart = vi.hoisted(() => vi.fn(async () => undefined));
+const processDispose = vi.hoisted(() => vi.fn(async () => undefined));
 vi.mock('../../src/services/fmWebPreviewProcess', () => ({
-  FmWebPreviewProcess: class { start = processStart; dispose = vi.fn(async () => undefined); },
+  FmWebPreviewProcess: class { start = processStart; dispose = processDispose; },
   PREVIEW_INSTALL_DESCRIPTION: 'npm install --ignore-scripts',
   PREVIEW_DEV_DESCRIPTION: 'npm run dev --ignore-scripts -- --hostname 127.0.0.1 --port 3000'
 }));
@@ -18,8 +23,8 @@ function start() {
     removePreviewFiles: vi.fn(async () => undefined),
     previewTemplateFiles: vi.fn(async () => new Map()),
     generateRuntimeAppTemplate: vi.fn(async () => undefined),
-    listLayoutDefinitions: vi.fn(async () => []),
-    generateLayoutPage: vi.fn(async () => undefined),
+    listLayoutDefinitions: vi.fn(async (): Promise<Array<{ id: string; name: string }>> => []),
+    generateLayoutPage: vi.fn(async (): Promise<{ outputPath: string }> => ({ outputPath: '' })),
     writeBridgeEnv: vi.fn(async () => undefined),
     clearBridgeEnv: vi.fn(async () => undefined),
     getGeneratedRuntimeRoot: () => '/workspace/.fmweb/generated/runtime-next'
@@ -55,6 +60,8 @@ function start() {
 }
 
 describe('FM Web preview', () => {
+  let directory: string | undefined;
+  afterEach(async () => { if (directory) await rm(directory, { recursive: true, force: true }); directory = undefined; });
   beforeEach(() => {
     vi.clearAllMocks();
     (vscode.workspace as unknown as { isTrusted: boolean }).isTrusted = true;
@@ -107,6 +114,44 @@ describe('FM Web preview', () => {
 
     expect(generator.writeBridgeEnv).not.toHaveBeenCalled();
     expect(processStart).toHaveBeenCalledWith(expect.any(Map), expect.any(Map), 'http://127.0.0.1:1234', 'session-token');
+  });
+
+  it('warns once about a previous stop failure and still starts the next preview', async () => {
+    const { run } = start();
+    vi.mocked(vscode.window.showWarningMessage).mockResolvedValue('Run' as never);
+    await run();
+    processDispose.mockRejectedValueOnce(new Error('Could not stop the preview process tree.'));
+    await run();
+    expect(processStart).toHaveBeenCalledTimes(2);
+    expect(vscode.window.showErrorMessage).not.toHaveBeenCalled();
+    expect(vi.mocked(vscode.window.showWarningMessage).mock.calls.filter(([message]) => String(message).includes('Could not stop the previous preview'))).toHaveLength(1);
+  });
+
+  it('warns about skipped edited or linked layouts and launches with the remaining layouts', async () => {
+    const { run, generator } = start();
+    directory = await mkdtemp(path.join(tmpdir(), 'fmweb-preview-confirm-'));
+    const outputPath = path.join(directory, 'good.layout.json');
+    await writeFile(outputPath, '{"name":" Exact good layout "}');
+    generator.listLayoutDefinitions.mockResolvedValue([
+      { id: 'edited', name: ' Edited layout ' }, { id: 'good', name: ' Exact good layout ' }, { id: 'linked', name: ' Linked layout ' }
+    ]);
+    generator.generateLayoutPage.mockRejectedValueOnce(new GenerationSkippedError('edited.layout.json'))
+      .mockResolvedValueOnce({ outputPath }).mockRejectedValueOnce(new GenerationSkippedError('linked.layout.json'));
+    vi.mocked(vscode.window.showWarningMessage).mockResolvedValue('Run' as never);
+    await run();
+    expect(processStart).toHaveBeenCalledWith(expect.any(Map), new Map([['good.layout.json', Buffer.from('{"name":" Exact good layout "}')]]), expect.any(String), expect.any(String));
+    const warnings = vi.mocked(vscode.window.showWarningMessage).mock.calls.map(([message]) => String(message));
+    expect(warnings.some((message) => message.includes('skipped') && message.includes(' Edited layout ') && message.includes(' Linked layout '))).toBe(true);
+    expect(vscode.window.showErrorMessage).not.toHaveBeenCalled();
+  });
+
+  it('still reports unexpected layout-generation failures instead of silently skipping them', async () => {
+    const { run, generator } = start();
+    generator.listLayoutDefinitions.mockResolvedValue([{ id: 'bad', name: 'Bad' }]);
+    generator.generateLayoutPage.mockRejectedValueOnce(new Error('Invalid layout data'));
+    await run();
+    expect(processStart).not.toHaveBeenCalled();
+    expect(vscode.window.showErrorMessage).toHaveBeenCalled();
   });
 
   it('warns when an edited generated file could not be updated, so a silent failure is not left to the user', async () => {

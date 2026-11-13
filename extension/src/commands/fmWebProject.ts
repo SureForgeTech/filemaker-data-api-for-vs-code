@@ -8,6 +8,7 @@ import type { FMClient } from '../services/fmClient';
 import type { FmBridgeServer } from '../services/fmBridgeServer';
 import type { FmWebProjectService } from '../services/fmWebProjectService';
 import type { FmWebRuntimeGenerator } from '../services/fmWebRuntimeGenerator';
+import { GenerationSkippedError } from '../services/generatedFileWriter';
 import type { Logger } from '../services/logger';
 import type { ProfileStore } from '../services/profileStore';
 import type { SchemaService } from '../services/schemaService';
@@ -243,17 +244,26 @@ export function registerFmWebProjectCommands(
       if (previewStarting) return;
       previewStarting = true;
       try {
-        await preview?.dispose();
+        await preview?.dispose().catch(() => {
+          void vscode.window.showWarningMessage('Could not stop the previous preview process tree. Its temporary-file cleanup was attempted; starting a new preview.');
+        });
         preview = undefined;
         await fmBridgeServer.stop();
         const ignored = await fmWebRuntimeGenerator.inspectPreviewFiles();
         const listing = ignored.map((file) => displayText(file, Infinity)).join('\n');
         if (listing.length > 12000) throw new Error('Too many ignored runtime files to show safely in the preview confirmation.');
         const layouts = new Map<string, Buffer>();
+        const skippedLayouts: string[] = [];
         for (const layout of await fmWebRuntimeGenerator.listLayoutDefinitions()) {
-          const generated = await fmWebRuntimeGenerator.generateLayoutPage(layout.id);
-          layouts.set(path.basename(generated.outputPath), await readFile(generated.outputPath));
+          try {
+            const generated = await fmWebRuntimeGenerator.generateLayoutPage(layout.id);
+            layouts.set(path.basename(generated.outputPath), await readFile(generated.outputPath));
+          } catch (error) {
+            if (!(error instanceof GenerationSkippedError)) throw error;
+            skippedLayouts.push(displayText(layout.name, Infinity));
+          }
         }
+        if (skippedLayouts.length) void vscode.window.showWarningMessage(`These layouts were skipped in the preview because their generated files were edited or are symbolic links: ${skippedLayouts.join(', ')}. Your files were left untouched.`);
         const runtimeRoot = fmWebRuntimeGenerator.getGeneratedRuntimeRoot();
         const answer = await vscode.window.showWarningMessage(
           `Start the FM Web preview?\n\nA fresh private temporary copy of the shipped template will run these commands:\n${PREVIEW_INSTALL_DESCRIPTION}\n${PREVIEW_DEV_DESCRIPTION}\n\nBoth npm commands use pinned empty --userconfig and --globalconfig files, an explicit --prefix and private cache, and a cleared configuration environment. The dev script in the template package.json runs Next on 127.0.0.1:3000; pre/post scripts are disabled. Dependencies are downloaded from registry.npmjs.org. No install scripts run.\n\nThe runtime checked was:\n${displayText(runtimeRoot, Infinity)}\n\nWorkspace npm configuration and .env overrides are ignored. Your runtime files are left untouched.${ignored.length ? `\nThese edited or added files are ignored in the private preview:\n${listing}` : ''}\n\nThe extension opens your browser with a one-time private launch link.`,
@@ -267,7 +277,7 @@ export function registerFmWebProjectCommands(
         await preview.start(await fmWebRuntimeGenerator.previewTemplateFiles(), layouts, bridge.baseUrl, token);
         vscode.window.showInformationMessage('FM Web preview is ready in your browser. Restarting it invalidates the previous launch and session.');
       } catch (error) {
-        await preview?.dispose().catch(() => logger.warn('Private preview cleanup did not finish; it will be retried on shutdown.'));
+        await preview?.dispose().catch(() => logger.warn('Could not stop the private preview or finish its temporary-file cleanup.'));
         preview = undefined;
         await fmBridgeServer.stop();
         await showCommandError(error, {

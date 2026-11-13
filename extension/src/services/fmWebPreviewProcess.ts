@@ -73,7 +73,12 @@ export class FmWebPreviewProcess implements vscode.Disposable {
         const marker = path.join(directory, OWNER_FILE);
         const info = await lstat(marker);
         if (!info.isFile() || info.mtimeMs >= Date.now() - 86_400_000) continue;
-        if (await readFile(marker, 'utf8') !== OWNER_MARKER) continue;
+        const owner = await readFile(marker, 'utf8');
+        const pid = Number(owner.slice(OWNER_MARKER.length));
+        if (!Number.isSafeInteger(pid) || pid <= 0 || owner !== `${OWNER_MARKER}${pid}\n`) continue;
+        try { this.options.kill(pid, 0); continue; } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== 'ESRCH') continue;
+        }
         await bounded(rm(directory, { recursive: true, force: true }), 5000);
       } catch { /* Leave unrecognised or inaccessible directories alone. */ }
     }
@@ -102,7 +107,7 @@ export class FmWebPreviewProcess implements vscode.Disposable {
     const directory = await mkdtemp(path.join(this.options.tempRoot, 'fmweb-preview-'));
     this.directory = directory;
     await chmod(directory, 0o700);
-    await writeFile(path.join(directory, OWNER_FILE), OWNER_MARKER, { mode: 0o600, flag: 'wx' });
+    await writeFile(path.join(directory, OWNER_FILE), `${OWNER_MARKER}${process.pid}\n`, { mode: 0o600, flag: 'wx' });
     const root = path.join(directory, 'runtime-next');
     await mkdir(root, { mode: 0o700 });
     for (const [name, bytes] of files) {
@@ -129,7 +134,7 @@ export class FmWebPreviewProcess implements vscode.Disposable {
     const launch = randomBytes(32).toString('hex');
     const session = randomBytes(32).toString('hex');
     const child = this.options.spawn(npm, [...prefix, ...flags, 'run', 'dev', '--ignore-scripts', '--', '--hostname', '127.0.0.1', '--port', '3000'], {
-      cwd: root, shell: false, detached: this.options.platform !== 'win32',
+      cwd: root, shell: false, windowsHide: true, detached: this.options.platform !== 'win32',
       env: { ...env, FMWEB_BRIDGE_URL: bridgeUrl, FMWEB_BRIDGE_TOKEN: token,
         FMWEB_LAUNCH_CODE: launch, FMWEB_PREVIEW_SESSION: session,
         FMWEB_LAUNCH_EXPIRES: String(Date.now() + 120_000), FMWEB_LAUNCH_STATE: path.join(directory, 'launch-used') },
@@ -155,7 +160,7 @@ export class FmWebPreviewProcess implements vscode.Disposable {
 
   private install(command: string, args: string[], cwd: string, env: NodeJS.ProcessEnv): Promise<void> {
     return new Promise((resolve, reject) => {
-      const child = this.options.spawn(command, args, { cwd, env, shell: false, detached: this.options.platform !== 'win32', stdio: 'ignore' });
+      const child = this.options.spawn(command, args, { cwd, env, shell: false, windowsHide: true, detached: this.options.platform !== 'win32', stdio: 'ignore' });
       this.child = child;
       child.once('error', () => reject(new Error('Could not run npm install. Check that Node.js and npm are installed.')));
       child.once('exit', (code) => code === 0 ? resolve() : reject(new Error('Preview dependency installation failed. No install scripts were run.')));
@@ -173,33 +178,41 @@ export class FmWebPreviewProcess implements vscode.Disposable {
 
   private async stop(): Promise<void> {
     const child = this.child;
-    if (child?.pid) {
-      const exited = child.exitCode !== null || child.signalCode !== null
-        ? Promise.resolve() : new Promise<void>((resolve) => child.once('exit', () => resolve()));
-      if (this.options.platform === 'win32') {
-        // taskkill waits for the wrapper AND its descendants, including next dev.
-        const killer = this.options.spawn('taskkill', ['/PID', String(child.pid), '/T', '/F'], { shell: false, windowsHide: true, stdio: 'ignore' });
-        await bounded(new Promise<void>((resolve, reject) => {
-          killer.once('error', reject);
-          killer.once('exit', (code) => code === 0 ? resolve() : reject(new Error('Could not stop the preview process tree.')));
-        }), 5000);
-        await bounded(exited, 2000);
-      } else {
-        try { this.options.kill(-child.pid, 'SIGTERM'); } catch (error) {
-          if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error;
+    try {
+      if (child?.pid) {
+        const exited = child.exitCode !== null || child.signalCode !== null
+          ? Promise.resolve() : new Promise<void>((resolve) => child.once('exit', () => resolve()));
+        if (this.options.platform === 'win32') {
+          if (child.exitCode !== null || child.signalCode) return;
+          // taskkill waits for the wrapper AND its descendants, including next dev.
+          const killer = this.options.spawn('taskkill', ['/PID', String(child.pid), '/T', '/F'], { shell: false, windowsHide: true, stdio: 'ignore' });
+          const code = await bounded(new Promise<number>((resolve, reject) => {
+            killer.once('error', reject);
+            killer.once('exit', (code) => code === 0 || code === 128 ? resolve(code) : reject(new Error('Could not stop the preview process tree.')));
+          }), 5000);
+          if (code === 0) await bounded(exited, 2000);
+        } else {
+          try { this.options.kill(-child.pid, 'SIGTERM'); } catch (error) {
+            if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error;
+          }
+          try { await bounded(exited, 2000); } catch { /* Escalate below. */ }
+          // The npm wrapper can exit before its descendants; kill the remaining group too.
+          try { this.options.kill(-child.pid, 'SIGKILL'); } catch (error) {
+            if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error;
+          }
+          await bounded(exited, 2000);
         }
-        try { await bounded(exited, 2000); } catch { /* Escalate below. */ }
-        // The npm wrapper can exit before its descendants; kill the remaining group too.
-        try { this.options.kill(-child.pid, 'SIGKILL'); } catch (error) {
-          if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error;
-        }
-        await bounded(exited, 2000);
+      }
+    } finally {
+      this.child = undefined;
+      try {
+        // Cancellation during setup must finish before deletion, and must never start npm.
+        await bounded(this.starting?.catch(() => undefined) ?? Promise.resolve(), 5000);
+      } finally {
+        try {
+          if (this.directory) await bounded(rm(this.directory, { recursive: true, force: true }), 5000);
+        } finally { activePreviews.delete(this); }
       }
     }
-    this.child = undefined;
-    // Cancellation during setup must finish before deletion, and must never start npm.
-    await bounded(this.starting?.catch(() => undefined) ?? Promise.resolve(), 5000);
-    if (this.directory) await bounded(rm(this.directory, { recursive: true, force: true }), 5000);
-    activePreviews.delete(this);
   }
 }

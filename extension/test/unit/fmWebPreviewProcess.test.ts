@@ -21,14 +21,16 @@ const calls: Array<{ command: string; args: string[]; options: Record<string, un
 let directory: string;
 let signalExit: boolean;
 let actualRm: typeof rm;
+let taskkillExit: number;
+let installExit: number;
 const kill = vi.fn((pid: number) => {
   const child = calls.find((call) => call.child.pid === -pid)?.child;
   if (signalExit && child) exit(child);
   return true as const;
 });
-function exit(child: MockChild) {
-  Object.assign(child, { exitCode: 0 });
-  child.emit('exit', 0);
+function exit(child: MockChild, code = 0) {
+  Object.assign(child, { exitCode: code });
+  child.emit('exit', code);
 }
 function preview(platform: NodeJS.Platform = 'linux', sourceEnv: NodeJS.ProcessEnv = {}) {
   return new FmWebPreviewProcess({ platform, spawn, kill, tempRoot: directory, sourceEnv });
@@ -42,15 +44,17 @@ beforeEach(async () => {
   vi.clearAllMocks();
   vi.mocked(rm).mockImplementation(actualRm);
   signalExit = true;
+  taskkillExit = 0;
+  installExit = 0;
   vi.mocked(spawn).mockImplementation(((command: string, args: string[], options: Record<string, unknown>) => {
     const child = Object.assign(new EventEmitter(), { pid: 100 + calls.length, exitCode: null, signalCode: null, stdout: new EventEmitter(), stderr: new EventEmitter() }) as MockChild;
     calls.push({ command, args, options, child });
     queueMicrotask(() => {
       if (command === 'taskkill') {
         const target = calls.find((call) => call.child.pid === Number(args[1]))?.child;
-        if (target) exit(target);
-        exit(child);
-      } else if (args.includes('install')) exit(child);
+        if (target && taskkillExit === 0) exit(target);
+        exit(child, taskkillExit);
+      } else if (args.includes('install')) exit(child, installExit);
       else child.stdout.emit('data', Buffer.from('✓ Ready in 100ms'));
     });
     return child;
@@ -145,7 +149,7 @@ describe('private preview process', () => {
     for (const call of calls) {
       expect(call.command).toBe(path.join(bin, 'node.exe'));
       expect(call.args[0]).toBe(cli);
-      expect(call.options).toMatchObject({ shell: false, detached: false });
+      expect(call.options).toMatchObject({ shell: false, detached: false, windowsHide: true });
     }
     const root = path.dirname(calls[0]!.options.cwd as string);
     await process.dispose();
@@ -172,6 +176,57 @@ describe('private preview process', () => {
     killer.emit('exit', 0);
     await stopped;
     await expect(lstat(root)).rejects.toHaveProperty('code', 'ENOENT');
+  });
+
+  async function windowsPreview() {
+    const bin = path.join(directory, 'node-bin');
+    await mkdir(path.join(bin, 'node_modules', 'npm', 'bin'), { recursive: true });
+    await writeFile(path.join(bin, 'node_modules', 'npm', 'bin', 'npm-cli.js'), '// npm');
+    await writeFile(path.join(bin, 'node.exe'), 'node');
+    return preview('win32', { PATH: bin });
+  }
+
+  it.each(['exit', 'signal', 'install failure'])('cleans up an already stopped Windows child (%s) without taskkill', async (reason) => {
+    const process = await windowsPreview();
+    if (reason === 'install failure') {
+      installExit = 1;
+      await expect(start(process)).rejects.toThrow('installation failed');
+    } else {
+      await start(process);
+      const child = calls[1]!.child;
+      if (reason === 'signal') Object.assign(child, { signalCode: 'SIGTERM' });
+      else exit(child, 1);
+    }
+    const root = path.dirname(calls[0]!.options.cwd as string);
+    taskkillExit = 128;
+    await process.dispose();
+    expect(calls.some((call) => call.command === 'taskkill')).toBe(false);
+    await expect(lstat(root)).rejects.toHaveProperty('code', 'ENOENT');
+  });
+
+  it('accepts Windows taskkill process-not-found (128) and removes the private files', async () => {
+    const process = await windowsPreview();
+    await start(process);
+    taskkillExit = 128;
+    const root = path.dirname(calls[0]!.options.cwd as string);
+    await process.dispose();
+    expect(calls.at(-1)?.command).toBe('taskkill');
+    await expect(lstat(root)).rejects.toHaveProperty('code', 'ENOENT');
+  });
+
+  it('surfaces another taskkill failure once while still removing files and unregistering the preview', async () => {
+    const process = await windowsPreview();
+    await start(process);
+    taskkillExit = 5;
+    const root = path.dirname(calls[0]!.options.cwd as string);
+    await expect(process.dispose()).rejects.toThrow('Could not stop the preview process tree');
+    await expect(lstat(root)).rejects.toHaveProperty('code', 'ENOENT');
+    const count = calls.length;
+    const removals = vi.mocked(rm).mock.calls.length;
+    await stopFmWebPreviews();
+    expect(rm).toHaveBeenCalledTimes(removals);
+    await expect(process.dispose()).resolves.toBeUndefined();
+    expect(calls).toHaveLength(count);
   });
 
   it('cancelling during install stops its group, waits for exit, and never launches dev', async () => {
@@ -239,13 +294,38 @@ describe('private preview process', () => {
       const folder = path.join(directory, name);
       await mkdir(folder);
       const marker = path.join(folder, '.fmweb-preview-owner');
-      await writeFile(marker, name.endsWith('unowned') ? 'someone else' : 'filemaker-data-api-for-vs-code preview v1\n');
+      await writeFile(marker, name.endsWith('unowned') ? 'someone else' : 'filemaker-data-api-for-vs-code preview v1\n54321\n');
       if (!name.endsWith('recent')) await utimes(marker, new Date(0), new Date(0));
     }
     await symlink(path.join(directory, 'unrelated-old'), path.join(directory, 'fmweb-preview-linked'), 'junction');
+    kill.mockImplementationOnce(() => { throw Object.assign(new Error('dead'), { code: 'ESRCH' }); });
     const process = preview();
     await start(process);
     expect(await readdir(directory)).not.toContain('fmweb-preview-old');
     for (const name of [...names.slice(1), 'fmweb-preview-linked']) expect(await readdir(directory)).toContain(name);
+  });
+
+  it('keeps old previews owned by another live or inaccessible host, and rejects inexact markers', async () => {
+    const markers = [
+      'filemaker-data-api-for-vs-code preview v1\n54321\n',
+      'filemaker-data-api-for-vs-code preview v1\n54322\n',
+      'filemaker-data-api-for-vs-code preview v1\n',
+      'filemaker-data-api-for-vs-code preview v1\n54321\nextra',
+      'filemaker-data-api-for-vs-code preview v1\n-1\n'
+    ];
+    for (const [index, content] of markers.entries()) {
+      const folder = path.join(directory, `fmweb-preview-owner-${index}`);
+      await mkdir(folder);
+      const marker = path.join(folder, '.fmweb-preview-owner');
+      await writeFile(marker, content);
+      await utimes(marker, new Date(0), new Date(0));
+    }
+    kill.mockImplementationOnce(() => true).mockImplementationOnce(() => { throw Object.assign(new Error('denied'), { code: 'EPERM' }); });
+    const process = preview();
+    await start(process);
+    for (const index of markers.keys()) expect(await readdir(directory)).toContain(`fmweb-preview-owner-${index}`);
+    expect(kill).toHaveBeenCalledTimes(2);
+    const ownerFile = path.join(path.dirname(calls[0]!.options.cwd as string), '.fmweb-preview-owner');
+    expect(await readFile(ownerFile, 'utf8')).toBe(`filemaker-data-api-for-vs-code preview v1\n${globalThis.process.pid}\n`);
   });
 });

@@ -290,12 +290,13 @@ export class FmWebRuntimeGenerator {
         if (error.code === 'ENOENT') return [];
         throw error;
       })) {
+        if (entry.name === 'node_modules' || entry.name === '.next') continue;
         const full = path.join(dir, entry.name);
         const name = path.relative(root, full);
         const info = await lstat(full);
         if (info.isDirectory() && [...expected.keys()].some((file) => file.startsWith(`${name}${path.sep}`))) {
           await visit(full);
-        } else if (!info.isFile() || !expected.has(name) || !(await readFile(full)).equals(expected.get(name)!)) {
+        } else if (!info.isFile() || !expected.has(name) || info.size !== expected.get(name)!.length || !(await readFile(full)).equals(expected.get(name)!)) {
           bad.push(name);
         }
       }
@@ -309,6 +310,9 @@ export class FmWebRuntimeGenerator {
     const root = this.getGeneratedRuntimeRoot();
     if (files.some((name) => !path.resolve(root, name).startsWith(`${root}${path.sep}`))) {
       throw new Error('Cannot remove files outside the generated runtime folder.');
+    }
+    if (files.some((name) => name.split(path.sep).some((part) => part === 'node_modules' || part === '.next'))) {
+      throw new Error('Cannot remove dependency or build folders.');
     }
     const current = await this.inspectPreviewFiles();
     if (JSON.stringify(current) !== JSON.stringify(files)) throw new Error('Preview files changed. Start again to review the new list.');
@@ -507,6 +511,11 @@ export class FmWebRuntimeGenerator {
     const outputDir = this.getGeneratedLayoutsRoot();
     const outputPath = path.join(outputDir, `${layout.id}.layout.json`);
 
+    try {
+      if ((await lstat(outputPath)).isSymbolicLink()) throw new GenerationSkippedError(outputPath);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    }
     const skipped = await writeGeneratedFiles([{ path: outputPath, content: `${JSON.stringify({ $comment: GENERATED_MARKER, ...layout }, null, 2)}\n` }], this.fmWebProjectService.getWorkspaceRoot?.() ?? this.fmWebProjectService.getProjectRoot());
     if (skipped.length) throw new GenerationSkippedError(outputPath);
 

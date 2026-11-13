@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- [SECURITY] FM Web preview cleans up private files after Windows stop failures and can start again after a preview exits.
+- [SECURITY] FM Web preview keeps old temporary folders while their owning VS Code process is still running in another window.
+- [SECURITY] FM Web preview warns and skips layouts with edited or linked generated files while starting the remaining layouts.
+- [SECURITY] FM Web preview leaves dependency and build folders out of inspection and regeneration, and checks file sizes before reading contents.
+- [SECURITY] FM Web preview hides the Windows console for dependency installation and the development server.
 - [SECURITY] AI approval dialogs show hidden Unicode characters as visible escapes, preserving supplementary characters exactly so the proposed names and values remain distinguishable.
 - [SECURITY] FM Web preview leaves workspace npm configuration and edited or added runtime files untouched, lists ignored runtime files, and runs a clean private template copy with install scripts disabled and empty npm config files. Deleting runtime files requires named confirmation in the explicit generation command.
 - [SECURITY] FM Web preview finds Node.js and npm on Windows without a shell and stops the whole preview process tree before removing its private files.
