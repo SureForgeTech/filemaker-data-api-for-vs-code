@@ -44,6 +44,20 @@ afterEach(async () => {
 });
 
 describe('batch policy', () => {
+  it.each(['offline', 'recordEdit', 'writeOperations', 'batchUpdate', 'editSwitch'])('allows explicit and default dry runs under %s without writes', async (restriction) => {
+    const { client, service } = setup();
+    if (restriction === 'offline') settings['offline.mode'] = true;
+    else if (restriction === 'editSwitch') settings['features.recordEdit.enabled'] = false;
+    else denied = restriction as EnterpriseFeatureId;
+    for (const options of [{ dryRun: true }, undefined]) {
+      const result = await service.batchUpdate(profile, ' Layout ', entries, options);
+      expect(result).toMatchObject({ dryRun: true, total: 3, attempted: 0 });
+    }
+    expect(client.editRecord).not.toHaveBeenCalled();
+    expect(client.findRecords).not.toHaveBeenCalled();
+    if (restriction === 'offline') expect(client.getLayoutMetadata).not.toHaveBeenCalled();
+  });
+
   it.each(['features.recordEdit.enabled', 'features.batch.enabled', 'offline.mode'])('refuses service updates under %s', async (key) => {
     const { client, service } = setup();
     settings[key] = key === 'offline.mode';

@@ -117,7 +117,7 @@ describe('FileMaker: Write AI Context', () => {
   const defaultName = `${distinctFileName('Dev Server', 'Dev_Server', 'connection')}.md`;
   const defaultFile = () => join(storage, 'ai-context', defaultName);
 
-  it.each(['ai.enabled', 'features.ai.enabled', 'offline.mode', 'enterprise.ai'])(
+  it.each(['features.ai.enabled', 'offline.mode', 'enterprise.ai'])(
     'refuses before reading schema or writing files when %s disables AI', async (switchName) => {
       ws.getConfiguration = vi.fn(() => ({
         get: (_key: string, fallback?: unknown) => fallback,
@@ -136,6 +136,19 @@ describe('FileMaker: Write AI Context', () => {
       expect(vscode.commands.executeCommand).toHaveBeenCalledWith('workbench.action.openSettings', 'filemaker.ai');
     }
   );
+
+  it('reaches the profile picker with the default ai.enabled false', async () => {
+    ws.getConfiguration = vi.fn(() => ({
+      get: (_key: string, fallback?: unknown) => fallback,
+      inspect: (key: string) => key === 'ai.enabled' ? { defaultValue: false } : undefined
+    }));
+    vi.mocked(vscode.window.showQuickPick).mockResolvedValueOnce(undefined);
+    await run();
+    expect(vscode.window.showQuickPick).toHaveBeenCalledWith(
+      expect.arrayContaining([expect.objectContaining({ profile })]), expect.any(Object)
+    );
+    expect(vscode.window.showInformationMessage).not.toHaveBeenCalled();
+  });
 
   it('registers the command', async () => {
     await run();

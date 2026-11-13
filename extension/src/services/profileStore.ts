@@ -77,36 +77,44 @@ export class ProfileStore {
   private async removeUrlCredentials(): Promise<void> {
     const raw = this.globalState.get<unknown>(PROFILES_KEY, []);
     if (!Array.isArray(raw)) return;
-    let changed = false;
-    const profiles: unknown[] = [];
+    const migrated = new Map<string, ConnectionProfile>();
     for (const value of raw) {
       const normalized = normalizeProfile(value);
-      if (!normalized) { profiles.push(value); continue; }
+      if (!normalized) continue;
       const original = value as ConnectionProfile;
+      const snapshot = JSON.stringify(value);
       const url = new URL(original.serverUrl);
-      if (!url.username && !url.password) { profiles.push(value); continue; }
-      changed = true;
+      if (!url.username && !url.password) continue;
       if (!this.credentialWarnings.has(normalized.id)) {
         this.credentialWarnings.add(normalized.id);
         void vscode.window.showWarningMessage(
-          'Removed credentials from a saved FileMaker server address. Re-enter or confirm the credential in Edit Connection Profile before connecting.'
+          'A saved FileMaker server address contains credentials. Re-enter or confirm the credential in Edit Connection Profile before connecting.'
         );
       }
-      // Never overwrite a separately saved password. An unusable URL password is discarded.
-      if (original.authMode === 'direct' && url.password && this.secrets) {
-        let password: string | undefined;
-        try { password = decodeURIComponent(url.password); } catch { /* ask the user to re-enter it */ }
+      // Never overwrite a separately saved password or discard one we could not save.
+      if (original.authMode === 'direct' && url.password) {
+        if (!this.secrets) continue;
         try {
-          if (password !== undefined && await this.secrets.getPassword(normalized.id) === undefined) {
-            await this.secrets.setPassword(normalized.id, password);
+          if (await this.secrets.getPassword(normalized.id) === undefined) {
+            await this.secrets.setPassword(normalized.id, decodeURIComponent(url.password));
           }
         } catch {
-          // Keep the profile usable and the address safe even when SecretStorage is unavailable.
-          // The warning above asks the user to re-enter the credential.
+          // Leave persisted credentials intact so migration can be retried.
+          continue;
         }
       }
-      profiles.push(normalized);
+      migrated.set(snapshot, normalized);
     }
+    // Secret storage yields to other profile writers. Only replace unchanged profiles.
+    const current = this.globalState.get<unknown>(PROFILES_KEY, []);
+    if (!Array.isArray(current)) return;
+    let changed = false;
+    const profiles = current.map((value) => {
+      const normalized = migrated.get(JSON.stringify(value));
+      if (!normalized) return value;
+      changed = true;
+      return normalized;
+    });
     if (changed) {
       await this.globalState.update(PROFILES_KEY, profiles);
       this.fireChange();

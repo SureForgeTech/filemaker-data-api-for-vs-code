@@ -30,15 +30,44 @@ describe('legacy profile URL credential hygiene', () => {
     expect(JSON.stringify(vi.mocked(vscode.window.showWarningMessage).mock.calls)).not.toContain('url%20password');
   });
 
-  it('keeps a sanitized profile visible when the secret store is unavailable', async () => {
+  it.each(['missing', 'read failure', 'write failure'])('retains persisted credentials on %s and warns once', async (failure) => {
     const global = new InMemoryMemento();
     await global.update(key, [profile]);
-    const unavailable = { getPassword: vi.fn().mockRejectedValue(new Error('unavailable')), setPassword: vi.fn() };
-    const store = new ProfileStore(global as never, new InMemoryMemento() as never, unavailable);
+    const unavailable = {
+      getPassword: failure === 'read failure' ? vi.fn().mockRejectedValue(new Error('unavailable')) : vi.fn().mockResolvedValue(undefined),
+      setPassword: vi.fn().mockRejectedValue(new Error('unavailable'))
+    };
+    const store = new ProfileStore(global as never, new InMemoryMemento() as never, failure === 'missing' ? undefined : unavailable);
     expect((await store.listProfiles())[0]?.serverUrl).toBe('https://fm.example.test');
-    expect(global.get<Array<{ serverUrl: string }>>(key)?.[0]?.serverUrl).toBe('https://fm.example.test');
-    expect(unavailable.setPassword).not.toHaveBeenCalled();
-    expect(vscode.window.showWarningMessage).toHaveBeenCalledWith(expect.stringContaining('Re-enter or confirm'));
+    expect(global.get(key)).toEqual([profile]);
+    await store.listProfiles();
+    expect(vscode.window.showWarningMessage).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('Re-enter or confirm'));
+    if (failure !== 'missing') {
+      unavailable.getPassword.mockResolvedValue(undefined);
+      unavailable.setPassword.mockResolvedValue(undefined);
+      await new ProfileStore(global as never, new InMemoryMemento() as never, unavailable).listProfiles();
+      expect(global.get<Array<{ serverUrl: string }>>(key)?.[0]?.serverUrl).toBe('https://fm.example.test');
+    }
+  });
+
+  it.each(['edit', 'replace', 'remove'])('preserves concurrent additions and a profile %s during secret storage', async (change) => {
+    const global = new InMemoryMemento();
+    const other = { ...profile, id: 'other', serverUrl: 'https://other.example.test' };
+    const added = { ...other, id: 'added' };
+    const edited = { ...profile, name: 'Edited', ...(change === 'replace' ? { serverUrl: 'https://new.example.test' } : {}) };
+    await global.update(key, [profile, other]);
+    let release!: () => void;
+    const pendingWrite = new Promise<void>((resolve) => { release = resolve; });
+    const secrets = { getPassword: vi.fn().mockResolvedValue(undefined), setPassword: vi.fn(() => pendingWrite) };
+    const store = new ProfileStore(global as never, new InMemoryMemento() as never, secrets);
+    const migration = store.listProfiles();
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(secrets.setPassword).toHaveBeenCalledOnce();
+    const current = [...(change === 'remove' ? [] : [edited]), other, added];
+    await global.update(key, current);
+    release();
+    await migration;
+    expect(global.get(key)).toEqual(current);
   });
 
   it('does not put a URL password into the proxy key or overwrite a proxy credential', async () => {

@@ -30,6 +30,30 @@ function createTestService(workspaceRoot: string, isWorkspaceTrusted = () => tru
 }
 
 describe('offline cache key consistency', () => {
+  it.each(['sha256', 'sha512', 'legacy'])('verifies %s caches after the algorithm setting changes and still rejects edits', async (algorithm) => {
+    const root = await mkdtemp(join(tmpdir(), 'fm-cache-algorithm-'));
+    const profile = { id: 'p', name: 'Test', serverUrl: 'https://example.test', database: 'DB', authMode: 'direct' as const };
+    const metadata = { fieldMetaData: [{ name: ' Field ' }] };
+    try {
+      const writer = createTestService(root, () => true, algorithm === 'legacy' ? 'sha256' : algorithm);
+      await writer.cacheLayoutMetadata(profile, ' Layout ', metadata);
+      const [entry] = await writer.listCacheEntries();
+      const path = join(root, '.vscode/filemaker/offline-metadata', entry!.fileName);
+      const payload = JSON.parse(await readFile(path, 'utf8'));
+      if (algorithm === 'legacy') {
+        delete payload.hashAlgorithm;
+        await writeFile(path, JSON.stringify(payload));
+      }
+      const reader = createTestService(root, () => true, algorithm === 'sha512' ? 'sha256' : 'sha512');
+      expect(await reader.getCachedLayoutMetadata(profile, ' Layout ')).toMatchObject({ metadata });
+      payload.metadata.fieldMetaData[0].name = 'Altered';
+      await writeFile(path, JSON.stringify(payload));
+      expect(await reader.getCachedLayoutMetadata(profile, ' Layout ')).toBeUndefined();
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('does not resolve or read workspace cache paths before trust is granted', async () => {
     const getWorkspaceRoot = vi.fn().mockReturnValue('/workspace');
     const service = new OfflineModeService({ warn: vi.fn() }, {

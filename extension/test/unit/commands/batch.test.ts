@@ -74,32 +74,47 @@ describe('batch commands', () => {
     expect(jobRunner.startJob).not.toHaveBeenCalled();
   });
 
-  it('enforces the batch update role guard before choosing a source', async () => {
-    const { roleGuard, profiles, jobRunner } = setup();
+  it('enforces the batch update role guard before executing updates', async () => {
+    const { roleGuard, jobRunner } = setup();
     roleGuard.assertFeature.mockResolvedValue(false);
+    updateInputs(false);
     await command('batchUpdateFromFile')(arg);
     expect(roleGuard.assertFeature).toHaveBeenCalledWith('batchUpdate', 'Batch update from CSV/JSON');
-    expect(profiles.getProfile).not.toHaveBeenCalled();
-    expect(vscode.window.showOpenDialog).not.toHaveBeenCalled();
+    expect(vscode.window.showWarningMessage).not.toHaveBeenCalled();
     expect(jobRunner.startJob).not.toHaveBeenCalled();
   });
 
   it('refuses batch updates when record editing is switched off', async () => {
     const { settings, jobRunner } = setup();
     settings.isRecordEditEnabled.mockReturnValue(false);
+    updateInputs(false);
     await command('batchUpdateFromFile')(arg);
     expect(vscode.window.showInformationMessage).toHaveBeenCalledWith(expect.stringContaining('Record editing is disabled'));
-    expect(vscode.window.showOpenDialog).not.toHaveBeenCalled();
+    expect(vscode.window.showWarningMessage).not.toHaveBeenCalled();
     expect(jobRunner.startJob).not.toHaveBeenCalled();
   });
 
-  it.each(['recordEdit', 'writeOperations'])('enforces %s before choosing a batch source', async (feature) => {
+  it.each(['recordEdit', 'writeOperations'])('enforces %s before executing updates', async (feature) => {
     const { roleGuard, jobRunner } = setup();
     roleGuard.assertFeature.mockImplementation(async (requested: string) => requested !== feature);
+    updateInputs(false);
     await command('batchUpdateFromFile')(arg);
     expect(roleGuard.assertFeature).toHaveBeenCalledWith(feature, 'Batch update from CSV/JSON');
-    expect(vscode.window.showOpenDialog).not.toHaveBeenCalled();
+    expect(vscode.window.showWarningMessage).not.toHaveBeenCalled();
     expect(jobRunner.startJob).not.toHaveBeenCalled();
+  });
+
+  it.each(['batchUpdate', 'recordEdit', 'writeOperations', 'editSwitch'])('allows a dry-run preview under %s restrictions', async (restriction) => {
+    const { settings, roleGuard, tasks, batchService } = setup();
+    settings.isRecordEditEnabled.mockReturnValue(restriction !== 'editSwitch');
+    roleGuard.assertFeature.mockImplementation(async (feature: string) => feature !== restriction);
+    updateInputs(true);
+    await command('batchUpdateFromFile')(arg);
+    expect(tasks).toHaveLength(1);
+    const context = { log: vi.fn() };
+    await tasks[0]!(context as never);
+    expect(batchService.batchUpdate).toHaveBeenCalledWith(profile, layout, entries, { dryRun: true, concurrency: 3 }, context);
+    expect(roleGuard.assertFeature).not.toHaveBeenCalled();
   });
 
   it.each(['batchExportFind', 'batchUpdateFromFile'])('%s stops on missing profile or cancelled layout selection', async (name) => {

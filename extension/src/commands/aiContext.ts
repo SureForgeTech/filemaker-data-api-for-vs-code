@@ -78,13 +78,11 @@ async function writeAiContext(deps: RegisterAiContextCommandsDeps): Promise<void
   const guard = policy.getFeatureGuard('ai');
   const reason = !isFeatureEnabled(configuration, 'features.ai.enabled')
     ? 'AI is disabled by filemaker.features.ai.enabled.'
-    : !readAiSettings(configuration).enabled
-      ? 'AI is off. Enable the user setting filemaker.ai.enabled to write AI context.'
-      : !guard.allowed
-        ? guard.reason ?? 'AI is disabled by enterprise policy.'
-        : isOfflineModeOn(configuration)
-          ? 'Offline mode is enabled; writing AI context is unavailable.'
-          : undefined;
+    : !guard.allowed
+      ? guard.reason ?? 'AI is disabled by enterprise policy.'
+      : isOfflineModeOn(configuration)
+        ? 'Offline mode is enabled; writing AI context is unavailable.'
+        : undefined;
   if (reason) {
     const choice = await vscode.window.showInformationMessage(reason, 'Open Settings');
     if (choice === 'Open Settings') {

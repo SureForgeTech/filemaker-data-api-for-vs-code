@@ -64,10 +64,10 @@ export class BatchService {
     this.circuitBreakerRegistry = options?.circuitBreakerRegistry;
   }
 
-  private getBatchRefusal(write: boolean): string | undefined {
+  private getBatchRefusal(write: boolean, dryRun = false): string | undefined {
     if (!vscode.workspace.isTrusted) return 'Batch operations are disabled in an untrusted workspace.';
     const configuration = vscode.workspace.getConfiguration('filemaker');
-    if (isOfflineModeOn(configuration)) return 'Offline mode is enabled; batch operations are disabled.';
+    if (!dryRun && isOfflineModeOn(configuration)) return 'Offline mode is enabled; batch operations are disabled.';
     if (!isFeatureEnabled(configuration, 'features.batch.enabled')) return 'Batch operations are disabled by settings.';
     if (write) {
       if (!isFeatureEnabled(configuration, 'features.recordEdit.enabled')) return 'Record editing is disabled by settings. Batch update is unavailable.';
@@ -79,8 +79,8 @@ export class BatchService {
     return undefined;
   }
 
-  private assertBatchAllowed(write: boolean): void {
-    const reason = this.getBatchRefusal(write);
+  private assertBatchAllowed(write: boolean, dryRun = false): void {
+    const reason = this.getBatchRefusal(write, dryRun);
     if (reason) throw new BatchPolicyError(reason);
   }
 
@@ -253,15 +253,19 @@ export class BatchService {
     options?: Partial<BatchUpdateOptions>,
     job?: JobContext
   ): Promise<BatchUpdateResult> {
-    this.assertBatchAllowed(true);
     const dryRun = options?.dryRun ?? this.getDryRunDefault();
+    this.assertBatchAllowed(!dryRun, dryRun);
     const configuredConcurrency = clampConcurrency(options?.concurrency ?? this.getConcurrency());
     const performanceMode = this.getPerformanceMode();
     const maxConcurrency = performanceMode === 'high-scale' ? Math.max(2, configuredConcurrency) : configuredConcurrency;
     const total = entries.length;
 
     let csvFields: ReturnType<typeof extractFieldsFromMetadata> = [];
-    try { csvFields = extractFieldsFromMetadata(await this.fmClient.getLayoutMetadata(profile, layout)); }
+    try {
+      if (!isOfflineModeOn(vscode.workspace.getConfiguration('filemaker'))) {
+        csvFields = extractFieldsFromMetadata(await this.fmClient.getLayoutMetadata(profile, layout));
+      }
+    }
     catch { job?.log('warn', 'Layout metadata unavailable. Read-only columns cannot be identified; CSV values will be sent as strings.'); }
     if (!csvFields.length) job?.log('warn', 'No field types available. CSV values will be sent as strings.');
     if (csvFields.some((field) => /^(recordId|modId)$/i.test(field.name)) && entries.some((entry) => entry.sourceFormat === 'csv' && (entry.csvRecordColumn ?? 'recordId') === 'recordId')) {
