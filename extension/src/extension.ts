@@ -6,6 +6,7 @@ import { registerBatchCommands } from './commands/batch';
 import { registerCircuitBreakerCommands } from './commands/circuitBreaker';
 import { registerDiagnosticsCommands } from './commands/diagnostics';
 import { registerEnterpriseCommands } from './commands/enterprise';
+import { stopFmWebPreviews } from './services/fmWebPreviewProcess';
 import { registerFmWebProjectCommands } from './commands/fmWebProject';
 import { registerCoreCommands } from './commands';
 import { registerHistoryCommands } from './commands/history';
@@ -986,11 +987,12 @@ async function maybeOpenFirstRunWalkthrough(
 /** The TLS agent module once it has been loaded (it is loaded with the first request), so shutdown can close its sockets. */
 let tlsAgentModule: { disposeTlsAgents: () => void } | undefined;
 
-export function deactivate(): void {
+export async function deactivate(): Promise<void> {
   try {
     tlsAgentModule?.disposeTlsAgents();
   } catch {
     // shutting down: nothing to report to
   }
   tlsAgentModule = undefined;
+  await stopFmWebPreviews();
 }

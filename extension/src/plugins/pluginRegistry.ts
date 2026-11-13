@@ -1,3 +1,4 @@
+import { displayText } from '../ai/aiText';
 import { createHash } from 'crypto';
 import { readdir, readFile } from 'fs/promises';
 import { join, relative } from 'path';
@@ -77,7 +78,7 @@ export class PluginRegistry implements vscode.Disposable {
       options?.askConsent ??
       (async ({ fileNames, workspaceRoot }) => {
         const answer = await vscode.window.showWarningMessage(
-          `Run the plugins in this workspace?\n\n${fileNames.join(', ')}\n\nin ${workspaceRoot}/${WORKSPACE_PLUGIN_RELATIVE_DIR}\n\nA plugin runs with the same access as this extension: your saved FileMaker connections and sessions. Every file in that folder is checked, but anything a plugin loads from outside it is not. Only run plugins you trust.`,
+          `Run the plugins in this workspace?\n\n${fileNames.map((name) => displayText(name, Infinity)).join(', ')}\n\nin ${displayText(`${workspaceRoot}/${WORKSPACE_PLUGIN_RELATIVE_DIR}`, Infinity)}\n\nA plugin runs with the same access as this extension: your saved FileMaker connections and sessions. Every file in that folder is checked, but anything a plugin loads from outside it is not. Only run plugins you trust.`,
           { modal: true },
           'Run plugins'
         );

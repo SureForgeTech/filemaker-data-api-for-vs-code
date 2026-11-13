@@ -182,6 +182,37 @@ describe('runtime behavior actions', () => {
     expect(showDialog).toHaveBeenCalledWith('confirm-delete', 'record=1');
   });
 
+  it.each(['javascript:alert(1)', 'JaVaScRiPt:alert(1)', 'java\nscript:alert(1)', 'data:text/html,evil',
+    'file:///etc/passwd', 'command:workbench.action.closeWindow', 'ftp://example.com', '//example.com', '/relative', 'not a URL'])('A4 refuses hostile or non-HTTP URL %s', async (url) => {
+    const openUrl = vi.fn();
+    const result = await executeRuntimeBehaviorAction(buttonObject({ type: 'openUrl', url }), {
+      layoutName: 'L', openUrl, navigateToLayout: vi.fn(), showDialog: vi.fn()
+    });
+    expect(result).toMatchObject({ ok: false, action: 'openUrl', stub: true });
+    expect(result.message).toContain('Only http: and https:');
+    expect(openUrl).not.toHaveBeenCalled();
+  });
+
+  it.each(['http://example.com/a', 'HTTPS://example.com/a'])('A4 allows HTTP URLs %s', async (url) => {
+    const openUrl = vi.fn();
+    const result = await executeRuntimeBehaviorAction(buttonObject({ type: 'openUrl', url }), {
+      layoutName: 'L', openUrl, navigateToLayout: vi.fn(), showDialog: vi.fn()
+    });
+    expect(result).toMatchObject({ ok: true, stub: false });
+    expect(openUrl).toHaveBeenCalledExactlyOnceWith(url);
+  });
+
+  it('A2 sends exact script/layout names and parameters to the confirmation boundary', async () => {
+    const fetchFn = vi.fn(async () => ({ ok: true, status: 200, text: async () => '{}' })) as unknown as typeof fetch;
+    await executeRuntimeBehaviorAction(buttonObject({ type: 'runScript', scriptName: ' Script ', parameter: ' \n ' }), {
+      layoutName: 'Layout', fmLayoutName: ' Exact Layout ', bridgeBaseUrl: 'http://127.0.0.1:9876/fm',
+      openUrl: vi.fn(), navigateToLayout: vi.fn(), showDialog: vi.fn(), fetchFn
+    });
+    expect(JSON.parse(vi.mocked(fetchFn).mock.calls[0]![1]!.body as string)).toEqual({
+      layout: ' Exact Layout ', scriptName: ' Script ', scriptParam: ' \n '
+    });
+  });
+
   it('normalizes bridge URL values', () => {
     expect(normalizeBridgeBaseUrl(undefined)).toBeUndefined();
     expect(normalizeBridgeBaseUrl('   ')).toBeUndefined();

@@ -13,6 +13,20 @@ describe('displayText', () => {
     expect(text).not.toMatch(/[\u2028\u2029\u202e\u200b]/);
   });
 
+  it('escapes supplementary hidden characters as UTF-16 pairs without losing the exact text', () => {
+    const input = ' 🦊中é e\u0301 \ud800\udfff ';
+    const text = displayText(input);
+    expect(text).toBe('" 🦊中é e\u0301 \\ud800\\udfff "');
+    expect(JSON.parse(text)).toBe(input);
+  });
+
+  it('visibly escapes default-ignorable characters, including supplementary variation selectors', () => {
+    const input = ' A\u034f\u3164\ufe0f\u{e0100} ';
+    const text = displayText(input);
+    expect(text).toBe('" A\\u034f\\u3164\\ufe0f\\udb40\\udd00 "');
+    expect(JSON.parse(text)).toBe(input);
+  });
+
   it('cuts to the limit and marks the cut outside the quotes', () => {
     expect(displayText('x'.repeat(500), 10)).toBe(`"${'x'.repeat(10)}"…(+490 more characters)`);
   });

@@ -47,6 +47,7 @@ it.each(['.fmweb', '.fmweb/generated', '.fmweb/generated/runtime-next', '.fmweb/
   // The env writer never traverses app; all other ancestors protect the secret too.
   if (!folder.endsWith('/app')) {
     await expect(gen.writeBridgeEnv('http://127.0.0.1:123/fm', 'private')).rejects.toThrow(/symlink|outside/);
+    await expect(gen.clearBridgeEnv()).rejects.toThrow(/symlink|outside/);
     expect(await readdir(outside)).toEqual([]);
   }
 });
@@ -73,7 +74,7 @@ it('allows project, template and env generation through a linked workspace', asy
     const gen = runtime(alias);
     expect((await gen.generateRuntimeAppTemplate()).created.length).toBeGreaterThan(10);
     const env = await gen.writeBridgeEnv('http://127.0.0.1:123/fm', 'private');
-    expect(await readFile(env, 'utf8')).toContain('NEXT_PUBLIC_FMWEB_BRIDGE_TOKEN=private');
+    expect(await readFile(env, 'utf8')).not.toContain('NEXT_PUBLIC_');
   } finally { await rm(alias); }
 });
 
@@ -181,7 +182,7 @@ it('refreshes untouched older shared files and test config, but names and preser
   expect(normalizedHash(oldPkg)).toBe('6d184961fb6759b90115ff94d15dac9455b401917d2d1527b7d3b98531b67ee8');
   await writeFile(path.join(output, 'package.json'), oldPkg);
   const result = await gen.generateRuntimeAppTemplate();
-  expect(result.updated).toContain(path.join('shared', 'src/record-edit.ts'));
+  expect(result.updated).toContain('shared/src/record-edit.ts');
   expect(result.updated).toContain('vitest.config.ts');
   expect(result.updated).toContain('package.json');
   // A shipped copy is refreshed, not reported as edited.
@@ -192,7 +193,7 @@ it('refreshes untouched older shared files and test config, but names and preser
   const editedConfig = `${oldConfig}\n// my test settings\n`;
   await writeFile(path.join(output, 'vitest.config.ts'), editedConfig);
   const again = await gen.generateRuntimeAppTemplate();
-  expect(again.needsManualUpdate).toContain(path.join('shared', 'src/record-edit.ts'));
+  expect(again.needsManualUpdate).toContain('shared/src/record-edit.ts');
   expect(again.needsManualUpdate).toContain('vitest.config.ts');
   expect(await readFile(file, 'utf8')).toBe(edited);
   expect(await readFile(path.join(output, 'vitest.config.ts'), 'utf8')).toBe(editedConfig);

@@ -503,9 +503,25 @@ describe('extension lazy FM runtime loading', () => {
     disposeSubscriptions(context);
   });
 
+  it('deactivation waits for private preview cleanup', async () => {
+    const previews = await import('../../src/services/fmWebPreviewProcess');
+    let release!: () => void;
+    const cleanup = new Promise<void>((resolve) => { release = resolve; });
+    const stop = vi.spyOn(previews, 'stopFmWebPreviews').mockReturnValueOnce(cleanup);
+    const { deactivate } = await import('../../src/extension');
+    let finished = false;
+    const shutdown = deactivate().then(() => { finished = true; });
+    expect(stop).toHaveBeenCalledOnce();
+    await Promise.resolve();
+    expect(finished).toBe(false);
+    release();
+    await shutdown;
+    expect(finished).toBe(true);
+  });
+
   it('deactivate closes the sockets of every cached TLS agent (once the TLS module has been loaded), and is harmless before', async () => {
     const { activate, deactivate } = await import('../../src/extension');
-    expect(() => deactivate()).not.toThrow(); // nothing loaded yet
+    await deactivate(); // nothing loaded yet
 
     const context = createActivationContext();
     await activate(context);
@@ -514,11 +530,11 @@ describe('extension lazy FM runtime loading', () => {
     const agent = createHttpsAgentForProfile({ pinnedCertSha256: 'ef'.repeat(32) });
     const destroy = vi.spyOn(agent, 'destroy');
 
-    deactivate();
+    await deactivate();
     disposeSubscriptions(context);
 
     expect(destroy).toHaveBeenCalledTimes(1);
-    expect(() => deactivate()).not.toThrow();
+    await deactivate();
   });
 });
 

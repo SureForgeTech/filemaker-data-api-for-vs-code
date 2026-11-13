@@ -3,23 +3,16 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-// The data hook and the layout page read their settings from Next.js `process.env.NEXT_PUBLIC_*`
-// references, which Next replaces at build time only when written out literally, so they cannot
-// be exercised by calling them here. These checks pin the wiring in the source instead.
+// Client code uses only the authenticated same-origin proxy.
 const read = (...parts: string[]): string => readFileSync(path.resolve(__dirname, '..', ...parts), 'utf8');
 
 describe('bridge token wiring', () => {
-  it('useRuntimeDataController gives the client the URL and the token', () => {
-    const source = read('lib', 'runtime-data.ts');
-    const call = /new RuntimeBridgeClient\(([\s\S]*?)\)\s*,\s*\[\]/.exec(source)?.[1] ?? '';
-    expect(call).toContain('process.env.NEXT_PUBLIC_FMWEB_BRIDGE_URL');
-    expect(call).toContain('process.env.NEXT_PUBLIC_FMWEB_BRIDGE_TOKEN');
-    expect(call.indexOf('BRIDGE_URL')).toBeLessThan(call.indexOf('BRIDGE_TOKEN'));
-  });
-
-  it('the layout page passes the token to behavior actions', () => {
-    const source = read('app', 'layouts', '[id]', 'runtime-layout-client.tsx');
-    expect(source).toMatch(/bridgeToken:\s*process\.env\.NEXT_PUBLIC_FMWEB_BRIDGE_TOKEN/);
+  it('keeps the token and server environment out of the data hook and layout client', () => {
+    for (const file of [['lib', 'runtime-data.ts'], ['app', 'layouts', '[id]', 'runtime-layout-client.tsx']]) {
+      const source = read(...file);
+      expect(source).toContain("'/api/bridge'");
+      expect(source).not.toMatch(/process\.env|bridgeToken:/);
+    }
   });
 
   it('runtime-behavior hands the token to the client', () => {

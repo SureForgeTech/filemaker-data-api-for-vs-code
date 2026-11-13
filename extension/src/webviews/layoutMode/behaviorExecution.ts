@@ -148,6 +148,12 @@ export async function executeBehaviorBinding(
       };
     }
 
+    try {
+      if (!['http:', 'https:'].includes(new URL(url).protocol)) throw new Error('Unsupported URL scheme.');
+    } catch {
+      return { ok: false, action, stub: true, message: 'Only http: and https: URLs can be opened.' };
+    }
+
     return {
       ok: true,
       action,
