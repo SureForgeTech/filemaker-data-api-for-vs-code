@@ -276,7 +276,7 @@ The [FileMaker failure-mode catalogue](../../docs/FILEMAKER_FAILURE_MODES.md) ha
 - "The server did not return Data API JSON (...; HTTP n, content type)".
 - "The server redirected the request".
 - HTTP 429, 502, 503 or 504.
-- **Request timed out**, or **maxContentLength size of 67108864 exceeded** in error details.
+- **request timed out (after N s)** (uploads omit the seconds), or a failed-action notice with the oversize limit text in **Details**, under **Stack trace (redacted)**.
 
 ### Likely cause
 
@@ -294,11 +294,11 @@ The [FileMaker failure-mode catalogue](../../docs/FILEMAKER_FAILURE_MODES.md) ha
 1. Check the Server URL, the scheme (`https://`) and the port, and that the FileMaker Data API is enabled (Admin Console > Connectors).
 2. Check the spelling of the host name, the VPN and the DNS.
 3. Open the Server URL in a browser to see what answers, and check the base path and the version.
-4. For a timeout, ask whether a firewall is dropping traffic. **Request timed out** names `filemaker.requestTimeoutMs` (default 15000). Small requests have a fixed deadline; downloads renew it with progress, and upload deadlines grow with file size, up to 30 minutes. Stalled transfers stop. Raising the setting helps a slow server but cannot raise the 30 minute ceiling. After a create, edit, delete, upload or script timeout, check whether it was applied before retrying.
+4. For a timeout, ask whether a firewall is dropping traffic. **request timed out (after N s)** (uploads omit the seconds) names `filemaker.requestTimeoutMs` (default 15000). Other requests (scripts, writes, layout metadata, sign-in, sign-out and discovery) have the fixed base deadline from `filemaker.requestTimeoutMs` (default 15000 ms, maximum 120000 ms (2 minutes)). Only record GET and find reads (including proxy `getRecord`/`findRecords`) renew their deadline after each 64 KiB; stalled or trickling reads stop. Upload deadlines grow with file size, up to 30 minutes. Stalled transfers stop. Raising the setting helps a slow server but cannot raise the 30 minute ceiling. After a create, edit, delete, upload or script timeout, check whether it was applied before retrying.
 5. For HTTP 429 the extension reads `Retry-After`: wait, and avoid large exports at busy times. For 502, 503 and 504, try again shortly and ask the administrator to check the Admin Console.
 6. For a dropped connection, try again; after a change, check whether it was applied first. If it keeps happening, ask the administrator.
-7. Error details containing **maxContentLength size of 67108864 exceeded** mean a response crossed the 64 MiB cap after decompression. Reduce records per page or the response at the source. Increasing the timeout does not raise this cap. HTTP 413 instead means a server or gateway request-size limit: send a smaller file or fewer records.
-8. Connect warns once per profile per session before using a remote `http://` address. Use HTTPS; continuing sends credentials and data without encryption.
+7. For an oversized response, the notice names the failed action (for example, “Failed to load records”); **maxContentLength size of 67108864 exceeded** is in **Details**, under **Stack trace (redacted)**, with no HTTP status. The response crossed the 64 MiB cap after decompression. Reduce records per page or the response at the source. Increasing the timeout does not raise this cap. HTTP 413 instead means a server or gateway request-size limit: send a smaller file or fewer records.
+8. Connect shows a non-blocking warning with no buttons; connecting continues regardless. It appears once per profile per session and only for non-loopback `http://` addresses. Loopback addresses are exempt. Use HTTPS so credentials and data are encrypted in transit.
 
 ## A find returns nothing
 
@@ -434,7 +434,7 @@ The [FileMaker failure-mode catalogue](../../docs/FILEMAKER_FAILURE_MODES.md) ha
 2. Fix the access, then run the job again for the records that were not attempted.
 3. The failed rows are listed with their reason and their record ID, and the job carried on with the rest.
 
-Executing an update also needs `filemaker.features.recordEdit.enabled` and permission for batch, record and write operations. The job rechecks policy and offline mode before each row, and stops with a reason if they change. Dry runs remain available offline or with writes disabled; offline previews make no server request. Files above `filemaker.batch.maxRecords` are refused, including dry runs: split the file or deliberately raise the cap.
+Executing an update also needs `filemaker.features.recordEdit.enabled` and permission for batch, record and write operations. The job rechecks policy and offline mode before each row, and stops with a reason if they change. Dry runs remain available offline or with writes disabled; offline previews make no server request. Dry runs still require `filemaker.features.batch.enabled` and a trusted folder. Files above `filemaker.batch.maxRecords` are refused, including dry runs: split the file or deliberately raise the cap.
 
 ## Commands are greyed out or missing
 
@@ -564,11 +564,11 @@ Executing an update also needs `filemaker.features.recordEdit.enabled` and permi
 
 ### Likely cause
 
-- Node.js and npm are not both available on VS Code's PATH, port 3000 is occupied, or dependencies cannot be downloaded. The Marketplace package does not include the preview template.
+- On Windows, the preview searches absolute PATH entries for `node.exe` and `node_modules\npm\bin\npm-cli.js` (the standard Node.js installer layout); these can be in separate entries. A version manager such as nvm-windows works only if its PATH entries expose both files in those locations; a non-standard npm location may produce **Could not find Node.js and npm on PATH**. On macOS and Linux, the preview runs `npm` from PATH. Port 3000 may be occupied, or dependencies cannot be downloaded. The Marketplace package does not include the preview template.
 
 ### Fix steps
 
-1. Use the source checkout for the preview. Install Node.js with npm and restart VS Code so it sees PATH.
+1. Use the source checkout for the preview. Use the standard Node.js installer layout (or expose both required files through absolute PATH entries) and restart VS Code so it sees PATH.
 2. Stop the service using `127.0.0.1:3000`; the preview will not open another service as its own.
 3. Check proxy and extra certificate environment settings if the install fails. Workspace npm configuration and `.env` overrides are ignored, and no install scripts run. The start dialog lists edited or added runtime files it will ignore; it leaves them alone. See [FM Web reference](./FM_WEB.md) for the clean private copy, named regeneration confirmation and cancellation cleanup.
 

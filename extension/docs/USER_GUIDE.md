@@ -252,7 +252,7 @@ Most changes improve safety:
 - Untrusted folders cannot supply enterprise policy, offline schema caches or environment comparisons. Caches are checksum-checked before use in trusted folders.
 - Snippet authorization, schema hashing and bridge limit settings are User-only; workspace values are ignored. **Write AI Context** works with AI tools off, while still following the feature and enterprise AI rules and offline mode.
 - Server responses are limited to 64 MiB. Upload deadlines grow with file size, up to 30 minutes; stalled transfers stop. Error text, suggested file names and confirmations display untrusted names safely, and record panels open container links only on the connection's server.
-- Offline metadata cache folders ignore themselves in Git; schema snapshots remain available to commit.
+- Offline metadata cache folders ignore their own contents in Git using `*` and `!.gitignore`; the `.gitignore` itself stays visible and can be committed; schema snapshots remain available to commit.
 - The source-checkout FM Web preview uses a clean private temporary copy, loopback-only access, a single-use launch link and a private session cookie. It asks before starting and before scripts, and leaves your npm configuration and edited runtime files alone. Regeneration deletes files only after a named confirmation. Windows startup and cancellation are improved.
 
 No command or setting was removed or renamed. Read [Upgrading from 1.8.0 to 1.9.0](../UPGRADE.md#upgrading-from-180-to-190) for the prompts, exact setting keys and rollback steps.
@@ -357,7 +357,7 @@ When editing a profile, **••••••• (saved)** in the password box me
 
 Changing the host or port clears the trusted certificate in the wizard and shows a notice. Review the certificate for the new address before trusting it.
 
-Server addresses with a user name or password inside them (`https://user:pass@host`) are rejected. Old saved addresses are cleaned up only after any embedded password is safely stored, preserving a password already saved separately. A warning asks you to re-enter or confirm the credential in **Edit Connection Profile**. If secure storage is unavailable, the old entry stays for a later attempt so the password is not lost. Removing a profile closes its server session before local secrets are deleted.
+Server addresses with a user name or password inside them (`https://user:pass@host`) are rejected. Old saved addresses are cleaned up only after any embedded password is safely stored, preserving a password already saved separately. A warning asks you to re-enter or confirm the credential in **Edit Connection Profile**. If secure storage is unavailable, the old entry stays for a later attempt so the password is not lost. Removing a profile attempts to close its server session before local secrets are deleted.
 
 ### Certificates
 
@@ -645,7 +645,7 @@ A record your account cannot change because of a record-level access rule (error
 
 Updates run with `filemaker.batch.concurrency` requests at a time (default 4, maximum 10). There is no undo. The modification ID check protects newer edits when their exported IDs are kept. Keep an export from before the update for reference; restoring old values is another update, with the same checks and field limits.
 
-Executing batch updates needs both `filemaker.features.batch.enabled` and `filemaker.features.recordEdit.enabled`, workspace trust and enterprise permission for `batchUpdate`, `recordEdit` and `writeOperations`. The job rechecks policy and offline mode before every row and stops with a reason if further writes are blocked. Dry runs still write nothing and remain available with writes disabled or offline mode on; an offline dry run does not contact the server.
+Executing batch updates needs both `filemaker.features.batch.enabled` and `filemaker.features.recordEdit.enabled`, workspace trust and enterprise permission for `batchUpdate`, `recordEdit` and `writeOperations`. The job rechecks policy and offline mode before every row and stops with a reason if further writes are blocked. Dry runs still write nothing and remain available with writes disabled or offline mode on; an offline dry run does not contact the server. Dry runs still require `filemaker.features.batch.enabled` and a trusted folder.
 
 ---
 
@@ -852,7 +852,7 @@ Confirmations you will see:
 
 The app listens only on `127.0.0.1:3000`. VS Code opens a single-use launch link, valid for two minutes, which becomes a private HttpOnly session cookie. Keep the link private. Restarting invalidates the old launch and session. Pages and the server-side bridge route require the cookie; Next.js development endpoints such as live reload are outside that check. A busy port prevents startup. The bridge token stays in the private server process, never in browser JavaScript or a saved `.env.local`.
 
-On Windows the preview finds Node.js and npm on PATH, hides console windows and stops its process tree and removes private files on cancellation. If it cannot find them, install Node.js with npm and restart VS Code. Proxy and extra certificate environment settings pass through; your npm configuration stays unchanged. Record changes and script runs follow your own limits:
+On Windows, the preview searches absolute PATH entries for `node.exe` and `node_modules\npm\bin\npm-cli.js` (the standard Node.js installer layout); these can be in separate entries. A version manager such as nvm-windows works only if its PATH entries expose both files in those locations; a non-standard npm location may produce **Could not find Node.js and npm on PATH**. On macOS and Linux, the preview runs `npm` from PATH. On Windows it hides console windows, stops its process tree and removes private files on cancellation. If it cannot find them, install Node.js with npm and restart VS Code. Proxy and extra certificate environment settings pass through; your npm configuration stays unchanged. Record changes and script runs follow your own limits:
 
 - Record changes (edit, create, delete) are refused in offline mode, when `filemaker.features.recordEdit.enabled` is off, and when the enterprise role or `disabledFeatures` disallow `writeOperations` or `recordEdit`.
 - Script runs are refused in offline mode, when `filemaker.features.scriptRunner.enabled` is off, and when the enterprise role or `disabledFeatures` disallow `scriptRunner`.
@@ -1087,7 +1087,7 @@ Open Settings (`Cmd+,` / `Ctrl+,`) and search for `filemaker`; make sure the **U
 
 | Setting | Default | Badge | What it does |
 | --- | --- | --- | --- |
-| `filemaker.requestTimeoutMs` | `15000` | Per workspace | Base request timeout in milliseconds. Fixed for small requests and connection setup; downloads renew on progress, upload deadlines grow with size. Transfers stop after at most 30 minutes; raising this does not raise the 64 MiB response cap. |
+| `filemaker.requestTimeoutMs` | `15000` | Per workspace | Base request timeout in milliseconds; maximum 120000 ms (2 minutes). Fixed for other requests and connection setup; only record GET and find reads renew after each 64 KiB. Upload deadlines grow with size. Transfers stop after at most 30 minutes; settings cannot raise that ceiling or the 64 MiB response cap. |
 | `filemaker.defaultApiBasePath` | `"/fmi/data"` | Per workspace | API path used when a profile does not set one. |
 | `filemaker.defaultApiVersionPath` | `"vLatest"` | Per workspace | Data API version segment used when a profile does not set one. |
 | `filemaker.connect.maxRetries` | `3` | Per workspace | Retries of a failed sign-in on network or server errors. 0 turns retry off. |
@@ -1228,7 +1228,7 @@ Connection errors name the step that failed and what to do. The most common firs
 - The server certificate is refused: [certificate errors](./TROUBLESHOOTING.md#certificate-errors-the-server-certificate-is-not-trusted), [a revoked, expired or replaced certificate](./TROUBLESHOOTING.md#the-certificate-was-revoked-expired-or-replaced), [the custom CA file cannot be read](./TROUBLESHOOTING.md#the-custom-ca-file-cannot-be-read) and [an old TLS version](./TROUBLESHOOTING.md#the-server-offers-only-an-old-tls-version).
 - A proxy is in the way: [a proxy or a CORS rule is in the way](./TROUBLESHOOTING.md#a-proxy-or-a-cors-rule-is-in-the-way).
 - The server cannot be reached: [the server cannot be reached or times out](./TROUBLESHOOTING.md#the-server-cannot-be-reached-or-times-out).
-- **Request timed out** says to raise `filemaker.requestTimeoutMs` for a slow server. Downloads need continuing progress; upload deadlines grow with size, up to 30 minutes. A timed-out change may already have been applied: check before retrying. Error details containing **maxContentLength size of 67108864 exceeded** mean a response crossed the 64 MiB cap; reduce page size or the response at the source. HTTP 413 is a server or gateway request limit; send less.
+- **request timed out (after N s)** (uploads omit the seconds) says to raise `filemaker.requestTimeoutMs` for a slow server. Only record GET and find reads (including proxy `getRecord`/`findRecords`) renew their deadline after each 64 KiB; stalled or trickling reads stop. Other requests (scripts, writes, layout metadata, sign-in, sign-out and discovery) have the fixed base deadline from `filemaker.requestTimeoutMs` (default 15000 ms, maximum 120000 ms (2 minutes)). Upload deadlines grow with size, up to 30 minutes. The 30 minute transfer ceiling cannot be raised from settings. A timed-out change may already have been applied: check before retrying. For an oversized response, the notice names the failed action (for example, “Failed to load records”); **maxContentLength size of 67108864 exceeded** is in **Details**, under **Stack trace (redacted)**, with no HTTP status. The response crossed the 64 MiB cap; reduce page size or the response at the source. HTTP 413 is a server or gateway request limit; send less.
 - A source-checkout preview that will not start on Windows may say **Could not find Node.js and npm on PATH**. Install Node.js with npm, restart VS Code and ensure port 3000 is free; see [FM Web reference](./FM_WEB.md).
 - The request was refused: [HTTP 403: the request was refused](./TROUBLESHOOTING.md#http-403-the-request-was-refused).
 

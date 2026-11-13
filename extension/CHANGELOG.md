@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- [SECURITY] Clarify that the remote HTTP warning does not pause connection and exempts loopback addresses.
+- [SECURITY] Explain that oversized-response limit text is in Details under the redacted stack trace, while the notice names the failed action.
+- [SECURITY] Explain how to regenerate the FM Web preview with 1.8.0 after rolling back.
+- [SECURITY] Correct timeout wording and explain that uploads omit elapsed seconds.
+- [SECURITY] Clarify which record reads renew deadlines and the two minute maximum base timeout setting.
+- [SECURITY] Clarify that offline cache folders ignore their own contents in Git while their ignore file and schema snapshots can be committed.
+- [SECURITY] Explain username-only cleanup, direct-auth URL password migration and warnings for retained saved addresses.
+- [SECURITY] Clarify that removing a profile attempts to close the server session.
+- [SECURITY] Explain that batch dry runs still need batch operations enabled, workspace trust and the row cap.
+- [SECURITY] Document the Windows Node.js and npm file layout needed to start the FM Web preview.
+- [SECURITY] Update the release guidance for the local v1.8.0 tag and the reported GitHub release assets.
+- [SECURITY] Clarify that stale preview cleanup checks both an age over one day and the owning extension-host process id.
+- [SECURITY] Document the preview script prompt cooldown and the bounded Windows stop operation.
+
 ## 1.9.0
 
 _Release notes prepared 2026-11-13._
@@ -14,28 +28,31 @@ Version 1.9.0 is mainly a security and safety release. Batch updates now follow 
 
 **Changes you may notice**
 
-- Batch update follows the same write rules as other changes. It is refused when record editing is switched off by your settings or your administrator, it checks those rules and offline mode again before every row and stops with a plain reason if they change, and it refuses files with more rows than `filemaker.batch.maxRecords`. Dry runs still work because they write nothing. The confirmation names the layout, the profile and the server, with hidden characters shown.
+- Batch update follows the same write rules as other changes. It is refused when record editing is switched off by your settings or your administrator, it checks those rules and offline mode again before every row and stops with a plain reason if they change, and it refuses files with more rows than `filemaker.batch.maxRecords`. Dry runs still work because they write nothing. Dry runs still require `filemaker.features.batch.enabled` and a trusted folder. The confirmation names the layout, the profile and the server, with hidden characters shown.
 - Trust Server Certificate and Set AI Access now respect locked profiles and the write rules, so like other changes they are unavailable in offline mode.
-- Saved server addresses that still contain a user name or password are cleaned up. The password moves to secure storage first, and the address changes only after that worked; if secure storage is unavailable the old entry is kept and nothing is lost. Test Connection keeps its temporary password in memory only, and removing a profile closes its server session first.
+- Saved server addresses that still contain a user name or password are cleaned up. The password moves to secure storage first, and the address changes only after that worked; if secure storage is unavailable the old entry is kept and nothing is lost. Test Connection keeps its temporary password in memory only, and removing a profile attempts to close its server session first.
 - Connect warns once per profile in each session when a remote server is reached over plain `http://`. Log files mask more kinds of tokens.
 - In a folder you have not trusted, a project can no longer set enterprise rules with `.vscode/filemaker.config.json`, an offline schema cache is not used, and environment and layout comparison are unavailable until you trust the folder. A cache is also checked against its stored checksum before it is used.
 - Three settings that a downloaded project could otherwise set can now only be set in your User settings: the snippet authorization default, the schema hash algorithm and the bridge request limits.
 - Write AI Context works without turning on the AI tools setting. It still respects `filemaker.features.ai.enabled`, the enterprise AI policy and offline mode.
-- Every response from a server is limited to 64 MiB. Sign-in, sign-out, server discovery and other small requests have a fixed time limit, downloads keep going while data keeps arriving, and an upload gets a deadline that grows with the size of the file (at least the request timeout, at most 30 minutes). Stalled transfers stop.
+- Every response from a server is limited to 64 MiB. Only record GET and find reads (including proxy `getRecord`/`findRecords`) renew their deadline after each 64 KiB; stalled or trickling reads stop. Other requests (scripts, writes, layout metadata, sign-in, sign-out and discovery) have the fixed base deadline from `filemaker.requestTimeoutMs` (default 15000 ms, maximum 120000 ms (2 minutes)). An upload gets a deadline that grows with the size of the file (at least the request timeout, at most 30 minutes). The 30 minute transfer ceiling cannot be raised from settings. Stalled transfers stop.
 - Error messages are shown on one line, shortened, with injected links broken, while bracketed codes and file paths stay readable. Copied error reports keep server text inside code blocks.
 - Record Editor and Record Viewer open container links only when they point at the connection's own server.
 - Suggested file names in save dialogs keep their case and extension with unsafe characters removed; exported data keeps the exact layout and query names.
-- Offline metadata cache folders now ignore themselves in Git. Schema snapshots are not ignored, so they can still be committed.
+- Offline metadata cache folders now ignore their own contents in Git. The `.gitignore` itself stays visible and can be committed. Schema snapshots are not ignored, so they can still be committed.
 - Environment comparison reports and generated client README files show layout and profile names safely, so a hostile name cannot add links, images or table rows.
 - AI approval dialogs, Layout Mode and preview script confirmations, and plugin consent show hidden characters as visible escapes, and refuse values too long to show in full.
 
 **FM Web preview**
 
+- Only one script prompt can be open at a time, with a cooldown of 5 seconds after it closes.
+- On Windows, stopping uses `taskkill` with a 5 second limit; restarting shows a warning if stopping the previous preview fails.
+
 - Only you can use the preview. It listens on `127.0.0.1:3000` only, the connection to FileMaker stays on the preview server behind a single-use launch link, and requests without the matching private cookie are refused. Next.js development endpoints, such as live reload, are outside that check.
 - VS Code asks before the preview installs or starts, and before any script runs from a layout or a preview button, showing the exact script, its escaped parameter and the connection host. Cancelling stops the preview and removes its saved address and token.
 - The preview runs from a clean private copy with install scripts turned off. Your npm configuration and any edited or added runtime files are left alone and listed as ignored. Only the explicit generation command deletes files, and only after you confirm them by name.
 - On Windows the preview finds Node.js and npm, stops everything it started when you cancel, removes its private files, and no longer flashes a console window. Proxy and extra certificate settings pass through, so installs work on company networks.
-- Old temporary preview folders are removed only when their VS Code window has closed. A layout with an edited or linked generated file is skipped with a warning instead of stopping the preview.
+- Old marked temporary preview folders are removed only when older than one day and their owning extension-host process no longer exists (checked by process id). A layout with an edited or linked generated file is skipped with a warning instead of stopping the preview.
 - Layout link actions open only `http` and `https` addresses, and script names and parameters reach the preview connection exactly as written.
 
 **Fixes**

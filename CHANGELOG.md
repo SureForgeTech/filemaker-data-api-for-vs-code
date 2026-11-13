@@ -36,7 +36,19 @@ PR title prefix matches the highest-tier label added:
 
 ### [SECURITY]
 
-- None.
+- Clarify that the remote HTTP warning does not pause connection and exempts loopback addresses.
+- Explain that oversized-response limit text is in Details under the redacted stack trace, while the notice names the failed action.
+- Explain how to regenerate the FM Web preview with 1.8.0 after rolling back.
+- Correct timeout wording and explain that uploads omit elapsed seconds.
+- Clarify which record reads renew deadlines and the two minute maximum base timeout setting.
+- Clarify that offline cache folders ignore their own contents in Git while their ignore file and schema snapshots can be committed.
+- Explain username-only cleanup, direct-auth URL password migration and warnings for retained saved addresses.
+- Clarify that removing a profile attempts to close the server session.
+- Explain that batch dry runs still need batch operations enabled, workspace trust and the row cap.
+- Document the Windows Node.js and npm file layout needed to start the FM Web preview.
+- Update the release guidance for the local v1.8.0 tag and the reported GitHub release assets.
+- Clarify that stale preview cleanup checks both an age over one day and the owning extension-host process id.
+- Document the preview script prompt cooldown and the bounded Windows stop operation.
 
 ## 1.9.0 (2026-11-13)
 
@@ -61,19 +73,19 @@ PR title prefix matches the highest-tier label added:
 ### [SECURITY]
 
 - Remove the vulnerable documentation matcher while preserving API documentation generation.
-- Large downloads and uploads have bounded deadlines: downloads renew after progress; upload deadlines grow with body size, last at least the request timeout, and have a 30 minute ceiling; stalled transfers stop and trickling downloads time out.
+- Only record GET and find reads (including proxy `getRecord`/`findRecords`) renew their deadline after each 64 KiB; upload deadlines grow with body size, last at least the request timeout, and have a 30 minute ceiling; stalled transfers stop and trickling reads time out. The 30 minute transfer ceiling cannot be raised from settings.
 - Batch update confirmation accepts saved server addresses that are not parseable URLs.
 - Error notifications keep bracketed codes and file paths readable while breaking injected links.
 - FM Web refreshes recognize the current shared container-link safety code without overwriting local edits.
 - Suggested export filenames keep their original case and extension while removing unsafe path characters.
-- Offline metadata cache folders ignore themselves in Git; schema snapshots remain available to commit.
+- Offline metadata cache folders ignore their own contents in Git; the `.gitignore` itself stays visible and can be committed; schema snapshots remain available to commit.
 - Error messages stay short and on one line, escape display markup, and remain inside code fences in copied error reports.
 - Environment comparison exports keep hostile names inside their Markdown table cells.
 - Record Editor and Record Viewer only open container links on the selected connection’s server address.
 - Export suggestions use safe filenames while keeping exact layout and saved-query names in exported data.
 - Release packaging installs dependencies without running their install scripts.
 - Hostile portal notes, numeric cells, certificate names and AI error text no longer cause excessive regex backtracking; exported portal notes bound names and require safe counts.
-- Direct and proxy FileMaker requests enforce a 64 MiB response limit; sign-in, sign-out, server discovery and other small requests also have a fixed time limit.
+- Direct and proxy FileMaker requests enforce a 64 MiB response limit; other requests (scripts, writes, layout metadata, sign-in, sign-out and discovery) have the fixed base deadline from `filemaker.requestTimeoutMs` (default 15000 ms, maximum 120000 ms (2 minutes)).
 - Batch updates refuse files above filemaker.batch.maxRecords and show escaped layout and profile names with the server host before execution.
 - Generated client README files display layout and profile names as code so hostile names cannot load remote Markdown images or links.
 - FM Web preview recognizes unchanged template files on Windows and shows relative file names with forward slashes.
@@ -82,7 +94,7 @@ PR title prefix matches the highest-tier label added:
 - Legacy offline schema caches without a recorded hash algorithm accept the configured algorithm and still reject altered content.
 - Migrating a password from a saved server address preserves a password saved during the migration.
 - Trust Server Certificate and Set AI Access are unavailable in offline mode, like other write actions.
-- Batch dry runs remain available when writes are disabled or offline mode is on; offline previews do not contact the server.
+- Batch dry runs remain available when writes are disabled or offline mode is on; offline previews do not contact the server. Dry runs still require `filemaker.features.batch.enabled` and a trusted folder.
 - Offline schema caches keep working after the hash algorithm setting changes, while altered content is still rejected.
 - Removing credentials from saved server addresses preserves profiles added or edited during the migration.
 - Saved server addresses keep their password for a later migration attempt if secure password storage fails.
@@ -107,7 +119,7 @@ PR title prefix matches the highest-tier label added:
 - FM Web preview finds Node.js and npm on Windows without a shell and stops the whole preview process tree before removing its private files.
 - FM Web preview recognizes its own comment-only env file after a VS Code restart without reporting it as unexpected.
 - FM Web preview preserves proxy settings and extra CA certificates for installs on enterprise networks while continuing to exclude npm and Node injection settings.
-- FM Web preview waits for private-file cleanup on shutdown with a time limit and removes only old temporary preview folders carrying its ownership marker.
+- FM Web preview waits for private-file cleanup on shutdown with a time limit. Old marked temporary preview folders are removed only when older than one day and their owning extension-host process no longer exists (checked by process id).
 - Layout Mode and preview script confirmations visibly escape hidden characters, show parameter lengths, and refuse values too long to show in full. Layout Mode shows the layout that will actually run.
 - Plugin consent visibly escapes filenames containing newlines or hidden characters; approval hashes still use the original names and bytes.
 - FM Web preview keeps the bridge token on the server. A single-use launch link grants a private session cookie; application requests reaching the preview proxy without it or with the wrong Host are refused. Next development endpoints, including HMR, are outside this cookie gate.

@@ -34,9 +34,10 @@ Old saved server addresses containing a user name or password are cleaned only
 after any password has been saved securely; an existing saved password is kept.
 A warning asks the user to re-enter or confirm the credential in Edit Connection
 Profile. If storage is unavailable, the original entry remains for a later attempt.
+A user name with no password is also removed. A URL password moves only for direct-auth profiles; a proxy-mode entry with a URL password is left as it was. The warning appears whenever an address contains credentials, even if the stored value is kept.
 New credential-bearing addresses are refused. Test Connection keeps the temporary
 password or proxy API key and session token in memory only, closes its throwaway
-session and never changes the saved profile's secrets. Removing a profile closes
+session and never changes the saved profile's secrets. Removing a profile attempts to close
 its server session before deleting local credentials. Connect warns once per
 profile per session before using a remote plain `http://` address.
 
@@ -211,8 +212,7 @@ layout JSON, with a fresh dependency tree and private npm cache. Temporary folde
 use the `fmweb-preview-` prefix and a `.fmweb-preview-owner` marker naming the owning
 extension-host process. Cleanup stops the process tree and removes the private
 folder; stale marked folders older than a day are removed only after the owning
-process no longer exists. Active windows' folders are left alone. On Windows,
-Node.js and npm are resolved from PATH, no command shell or console window opens,
+process no longer exists. Active windows' folders are left alone. On Windows, the preview searches absolute PATH entries for `node.exe` and `node_modules\npm\bin\npm-cli.js` (the standard Node.js installer layout); these can be in separate entries. A version manager such as nvm-windows works only if its PATH entries expose both files in those locations; a non-standard npm location may produce **Could not find Node.js and npm on PATH**. On macOS and Linux, the preview runs `npm` from PATH. No command shell or console window opens,
 and cancellation stops the process tree too.
 
 `npm install --ignore-scripts` uses the public npm registry, empty pinned user
@@ -267,11 +267,11 @@ only HTTP and HTTPS; runtime tabs use `noopener,noreferrer`.
 - Executing batch updates needs record editing enabled and enterprise permission
   for batch, record and write operations; policy and offline mode are checked
   again before each row. Dry runs still write nothing and work with writes
-  disabled or offline mode on; an offline dry run does not contact the server.
+  disabled or offline mode on; an offline dry run does not contact the server. Dry runs still require `filemaker.features.batch.enabled` and a trusted folder.
   Trust Server Certificate and Set AI Access follow locked-profile and write
   rules and are unavailable offline.
-- Offline metadata cache folders write a self-ignoring `.gitignore`; schema
-  snapshots are not ignored and remain available to commit.
+- Offline metadata cache folders ignore their own contents in Git using `*` and `!.gitignore`;
+  the `.gitignore` itself stays visible and can be committed. Schema snapshots are not ignored and remain available to commit.
 
 ## Confirmations
 
@@ -361,13 +361,13 @@ Do not open a public issue. Follow the [security policy](../SECURITY.md).
 
 Every direct and proxy HTTP exchange is time-limited, and the limit depends on
 the kind of request. The base value is `filemaker.requestTimeoutMs` (15 seconds
-by default).
+by default, maximum 120000 ms (2 minutes)); the 30 minute ceiling cannot be raised
+from settings.
 
-- **Sign-in, sign-out, server discovery, metadata and ordinary requests** have a
+- **Other requests: scripts, writes, layout metadata, sign-in, sign-out and discovery** have a
   wall-clock deadline. Receiving headers or dripping body bytes does not extend
   it.
-- **Downloads and large reads** renew the deadline each time 64 KiB of body
-  arrives, so a healthy slow transfer finishes and a stalled or dripping one
+- Only record GET and find reads (including proxy `getRecord`/`findRecords`) renew the deadline after each 64 KiB of body arrives, so a healthy slow transfer finishes and a stalled or dripping one
   stops.
 - **Uploads** have a wall-clock deadline for the whole exchange, including the
   response wait. It grows with the body size at 32 KiB per second (including
@@ -393,8 +393,7 @@ total export-size limit.
 rows, including dry runs. Oversized update files are refused before any records
 are changed; split the file or deliberately raise the setting before retrying.
 
-Timeouts say “Request timed out” and name `filemaker.requestTimeoutMs`; after a
-change, they warn that it may have been applied. An oversized response can show
-“maxContentLength size of 67108864 exceeded”; reducing page size or the response
-at the source is needed, not a larger timeout. HTTP 413 is the server or gateway's
+Timeouts say “request timed out (after N s)” after the action and name `filemaker.requestTimeoutMs`; uploads omit the seconds. After a
+change, they warn that it may have been applied. For an oversized response, the notice names the failed action (for example, “Failed to load records”); **maxContentLength size of 67108864 exceeded** is in **Details**, under **Stack trace (redacted)**, with no HTTP status. Reduce page size or the response
+at the source; a larger timeout does not raise the cap. HTTP 413 is the server or gateway's
 request-size limit, separate from this response cap.
