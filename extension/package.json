@@ -83,7 +83,12 @@
         "filemaker.batch.dryRunDefault",
         "filemaker.offline.mode",
         "filemaker.features.ai.enabled",
-        "filemaker.typegen.outputDir"
+        "filemaker.typegen.outputDir",
+        "filemaker.snippets.includeAuthByDefault",
+        "filemaker.schema.hashAlgorithm",
+        "filemaker.fmWeb.bridge.rateLimitPerSecond",
+        "filemaker.fmWeb.bridge.rateLimitBurst",
+        "filemaker.fmWeb.bridge.requestBudget"
       ]
     }
   },
@@ -1197,10 +1202,11 @@
             "order": 1
           },
           "filemaker.snippets.includeAuthByDefault": {
+            "scope": "application",
             "type": "boolean",
             "default": false,
-            "description": "Per workspace. Whether copied requests (curl, fetch(), .http, Postman, TypeScript) show an Authorization header with a variable to fill in (for example $FM_TOKEN) instead of <REDACTED>. A real session token, password or API key is never written, whatever this is set to.",
-            "markdownDescription": "**Per workspace.** Whether copied requests (curl, fetch(), `.http`, Postman, TypeScript) show an `Authorization` header with a variable to fill in (for example `$FM_TOKEN`) instead of `<REDACTED>`. A real session token, password or API key is never written, whatever this is set to.",
+            "description": "User settings only. Whether copied requests (curl, fetch(), .http, Postman, TypeScript) show an Authorization header with a variable to fill in (for example $FM_TOKEN) instead of <REDACTED>. A real session token, password or API key is never written, whatever this is set to.",
+            "markdownDescription": "**User settings only.** Whether copied requests (curl, fetch(), `.http`, Postman, TypeScript) show an `Authorization` header with a variable to fill in (for example `$FM_TOKEN`) instead of `<REDACTED>`. A real session token, password or API key is never written, whatever this is set to.",
             "order": 2
           }
         }
@@ -1348,10 +1354,11 @@
             "order": 4
           },
           "filemaker.schema.hashAlgorithm": {
+            "scope": "application",
             "type": "string",
             "default": "sha256",
-            "description": "Per workspace. Hash algorithm used for schema metadata fingerprinting.",
-            "markdownDescription": "**Per workspace.** Hash algorithm used for schema metadata fingerprinting.",
+            "description": "User settings only. Hash algorithm used for schema metadata fingerprinting.",
+            "markdownDescription": "**User settings only.** Hash algorithm used for schema metadata fingerprinting.",
             "order": 5
           }
         }
@@ -1376,30 +1383,33 @@
         "order": 5,
         "properties": {
           "filemaker.fmWeb.bridge.rateLimitPerSecond": {
+            "scope": "application",
             "type": "number",
             "default": 20,
             "minimum": 1,
             "maximum": 1000,
-            "description": "Per workspace. Sustained requests-per-second cap on the local FM bridge server. Throttled requests get HTTP 429 with Retry-After. Default 20.",
-            "markdownDescription": "**Per workspace.** Sustained requests-per-second cap on the local FM bridge server. Throttled requests get HTTP 429 with Retry-After. Default 20.",
+            "description": "User settings only. Sustained requests-per-second cap on the local FM bridge server. Throttled requests get HTTP 429 with Retry-After. Default 20.",
+            "markdownDescription": "**User settings only.** Sustained requests-per-second cap on the local FM bridge server. Throttled requests get HTTP 429 with Retry-After. Default 20.",
             "order": 0
           },
           "filemaker.fmWeb.bridge.rateLimitBurst": {
+            "scope": "application",
             "type": "number",
             "default": 60,
             "minimum": 1,
             "maximum": 10000,
-            "description": "Per workspace. Burst capacity for the bridge token bucket — max requests permitted in a single instant. Default 60.",
-            "markdownDescription": "**Per workspace.** Burst capacity for the bridge token bucket — max requests permitted in a single instant. Default 60.",
+            "description": "User settings only. Burst capacity for the bridge token bucket — max requests permitted in a single instant. Default 60.",
+            "markdownDescription": "**User settings only.** Burst capacity for the bridge token bucket — max requests permitted in a single instant. Default 60.",
             "order": 1
           },
           "filemaker.fmWeb.bridge.requestBudget": {
+            "scope": "application",
             "type": "number",
             "default": 10000,
             "minimum": 100,
             "maximum": 10000000,
-            "description": "Per workspace. Hard cap on total bridge requests per session token. After exhaustion, restart the bridge to reset. Default 10000.",
-            "markdownDescription": "**Per workspace.** Hard cap on total bridge requests per session token. After exhaustion, restart the bridge to reset. Default 10000.",
+            "description": "User settings only. Hard cap on total bridge requests per session token. After exhaustion, restart the bridge to reset. Default 10000.",
+            "markdownDescription": "**User settings only.** Hard cap on total bridge requests per session token. After exhaustion, restart the bridge to reset. Default 10000.",
             "order": 2
           }
         }

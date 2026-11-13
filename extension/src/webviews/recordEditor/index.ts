@@ -2,6 +2,7 @@ import { NUL_TEXT_WARNING, nulTextFields, removeNulText } from '../../utils/nulT
 import { designerLayoutMetadata } from '../../fmweb/fieldMetadata';
 import * as vscode from 'vscode';
 
+import { RoleGuard } from '../../enterprise/roleGuard';
 import { isRecordModifiedConflict } from '../../services/errors';
 import type { FMClient } from '../../services/fmClient';
 import type { Logger } from '../../services/logger';
@@ -204,6 +205,9 @@ export class RecordEditorPanel {
     if (requestKey && this.requestsInFlight.has(requestKey)) return;
     if (requestKey) this.requestsInFlight.add(requestKey);
     try {
+      if ((incoming.type === 'saveRecord' || incoming.type === 'createRecord') && !(await this.allowWrite())) {
+        return;
+      }
       switch (incoming.type) {
         case 'ready':
           await this.sendInit();
@@ -241,6 +245,28 @@ export class RecordEditorPanel {
     } finally {
       if (requestKey) this.requestsInFlight.delete(requestKey);
     }
+  }
+
+  private async allowWrite(): Promise<boolean> {
+    const configuration = vscode.workspace.getConfiguration('filemaker');
+    if (!isFeatureEnabled(configuration, 'features.recordEdit.enabled')) {
+      await this.postError(RECORD_EDIT_DISABLED_MESSAGE);
+      return false;
+    }
+    if (isOfflineModeOn(configuration)) {
+      await this.postError('Offline mode is enabled; record writes are disabled.');
+      return false;
+    }
+    const policy = new RoleGuard(this.logger);
+    await policy.refresh();
+    for (const feature of ['writeOperations', 'recordEdit'] as const) {
+      const guard = policy.getFeatureGuard(feature);
+      if (!guard.allowed) {
+        await this.postError(`Record writes are unavailable. ${guard.reason ?? 'Restricted by policy.'}`);
+        return false;
+      }
+    }
+    return true;
   }
 
   private async sendInit(): Promise<void> {
@@ -418,6 +444,8 @@ export class RecordEditorPanel {
       });
       return;
     }
+
+    if (!(await this.allowWrite())) return;
 
     // The dialog above is a gap in which another save could have started.
     if (this.saving) {
@@ -687,6 +715,8 @@ export class RecordEditorPanel {
       await this.panel.webview.postMessage({ type: 'saveCancelled' });
       return;
     }
+
+    if (!(await this.allowWrite())) return;
 
     this.saving = true;
     try {

@@ -47,7 +47,7 @@ describe('FileMaker: Write AI Context', () => {
     inspected = {};
     ws.getConfiguration = vi.fn(() => ({
       get: vi.fn((_key: string, fallback?: unknown) => fallback),
-      inspect: vi.fn(() => inspected)
+      inspect: vi.fn((key: string) => key === 'ai.enabled' ? { globalValue: true } : key === 'ai.hiddenFields' || key === 'ai.contextPath' ? inspected : undefined)
     }));
 
     layoutPicks = ['People'];
@@ -116,6 +116,39 @@ describe('FileMaker: Write AI Context', () => {
 
   const defaultName = `${distinctFileName('Dev Server', 'Dev_Server', 'connection')}.md`;
   const defaultFile = () => join(storage, 'ai-context', defaultName);
+
+  it.each(['features.ai.enabled', 'offline.mode', 'enterprise.ai'])(
+    'refuses before reading schema or writing files when %s disables AI', async (switchName) => {
+      ws.getConfiguration = vi.fn(() => ({
+        get: (_key: string, fallback?: unknown) => fallback,
+        inspect: (key: string) => ({ globalValue: key === 'ai.enabled' ? switchName !== 'ai.enabled' : key === switchName ? key === 'offline.mode' : undefined })
+      }));
+      if (switchName === 'enterprise.ai') {
+        await mkdir(join(workspace, '.vscode'));
+        await writeFile(join(workspace, '.vscode/filemaker.config.json'), JSON.stringify({ disabledFeatures: ['ai'] }));
+      }
+      infoChoices = ['Open Settings'];
+      await run();
+      expect(fmClient.listLayouts).not.toHaveBeenCalled();
+      expect(schemaService.getLayoutSchema).not.toHaveBeenCalled();
+      expect(await readdir(storage)).toEqual([]);
+      expect(vscode.window.showInformationMessage).toHaveBeenCalledWith(expect.stringMatching(/AI|Offline|disabled/), 'Open Settings');
+      expect(vscode.commands.executeCommand).toHaveBeenCalledWith('workbench.action.openSettings', 'filemaker.ai');
+    }
+  );
+
+  it('reaches the profile picker with the default ai.enabled false', async () => {
+    ws.getConfiguration = vi.fn(() => ({
+      get: (_key: string, fallback?: unknown) => fallback,
+      inspect: (key: string) => key === 'ai.enabled' ? { defaultValue: false } : undefined
+    }));
+    vi.mocked(vscode.window.showQuickPick).mockResolvedValueOnce(undefined);
+    await run();
+    expect(vscode.window.showQuickPick).toHaveBeenCalledWith(
+      expect.arrayContaining([expect.objectContaining({ profile })]), expect.any(Object)
+    );
+    expect(vscode.window.showInformationMessage).not.toHaveBeenCalled();
+  });
 
   it('registers the command', async () => {
     await run();
@@ -405,7 +438,7 @@ describe('FileMaker: Write AI Context', () => {
     it.each(['SSN', 'SSN, Password'])('a bare string still hides the whole field name %s', async (name) => {
       vi.mocked(vscode.workspace.getConfiguration).mockReturnValue({
         get: (_key: string, fallback?: unknown) => fallback,
-        inspect: (key: string) => key === 'ai.hiddenFields' ? { globalValue: name } : undefined
+        inspect: (key: string) => key === 'ai.enabled' ? { globalValue: true } : key === 'ai.hiddenFields' ? { globalValue: name } : undefined
       } as never);
       fields(name, 'Name', 'Password');
       await run();

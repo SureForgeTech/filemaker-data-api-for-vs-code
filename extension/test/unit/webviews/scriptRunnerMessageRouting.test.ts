@@ -64,6 +64,8 @@ function open() {
   const send = async (message: unknown): Promise<void> => {
     handler?.(message);
     await new Promise((resolve) => setTimeout(resolve, 0));
+    const runner = (ScriptRunnerPanel as unknown as { currentPanel: { requestInFlight: boolean } }).currentPanel;
+    await vi.waitFor(() => expect(runner.requestInFlight).toBe(false));
   };
 
   const copied = (): string => String(vi.mocked(vscode.env.clipboard.writeText).mock.calls.at(-1)?.[0]);
