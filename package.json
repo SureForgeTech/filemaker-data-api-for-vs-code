@@ -33,6 +33,18 @@
     "yaml": "2.9.1"
   },
   "overrides": {
-    "postcss": "^8.5.10"
+    "postcss": "^8.5.10",
+    "@eslint/config-array": {
+      "minimatch": "11.0.8"
+    },
+    "@typescript-eslint/typescript-estree": {
+      "minimatch": "11.0.8"
+    },
+    "@vscode/vsce": {
+      "minimatch": "11.0.8"
+    },
+    "eslint": {
+      "minimatch": "11.0.8"
+    }
   }
 }
