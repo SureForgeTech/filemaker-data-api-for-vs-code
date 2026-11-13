@@ -4,6 +4,7 @@ import * as vscode from 'vscode';
 import { notifyAboutLegacyTlsProfiles, profilesSkippingCertificateChecks } from '../../src/services/legacyTlsNotice';
 import type { ConnectionProfile } from '../../src/types/fm';
 import { InMemoryMemento } from './mocks';
+import { ProfileStore } from '../../src/services/profileStore';
 
 const review = vi.hoisted(() => ({ decision: undefined as unknown }));
 vi.mock('../../src/services/certificateTrust', async (importOriginal) => {
@@ -59,5 +60,28 @@ describe('one-time notice about profiles that skip all certificate checks', () =
 
     expect(upsertProfile).not.toHaveBeenCalled();
     expect(vscode.window.showWarningMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it('converts legacy TLS without losing a legacy password when secret storage fails', async () => {
+    const global = new InMemoryMemento();
+    const raw = profile('legacy', { allowSelfSigned: true, serverUrl: 'https://user:fixture-password@fm.example.test' });
+    await global.update('filemakerDataApiTools.profiles', [raw]);
+    const store = new ProfileStore(global as never, new InMemoryMemento() as never, {
+      getPassword: async () => undefined,
+      setPassword: async () => { throw new Error('unavailable'); }
+    });
+    const onChanged = vi.fn();
+    review.decision = { sha256: 'cd'.repeat(32), allowExpired: false };
+    vi.mocked(vscode.window.showWarningMessage).mockResolvedValue('Convert to pinned certificate' as never);
+
+    await notifyAboutLegacyTlsProfiles(store, global as never, onChanged);
+
+    expect(global.get('filemakerDataApiTools.profiles')).toEqual([
+      expect.objectContaining({ serverUrl: raw.serverUrl, allowSelfSigned: undefined, pinnedCertSha256: 'cd'.repeat(32) })
+    ]);
+    expect(onChanged).toHaveBeenCalledOnce();
+    expect(vscode.window.showWarningMessage).toHaveBeenCalledWith(expect.stringContaining('Re-enter or confirm'));
+    expect(vscode.window.showWarningMessage).toHaveBeenCalledTimes(2);
+    expect(vscode.window.showErrorMessage).not.toHaveBeenCalled();
   });
 });

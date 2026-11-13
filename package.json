@@ -28,7 +28,7 @@
     "setup": "node ./setup.mjs"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "^5.0.5",
+    "@vitest/coverage-v8": "^5.1.0",
     "markdown-it": "^15.0.3",
     "yaml": "2.9.1"
   },

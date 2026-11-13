@@ -85,6 +85,8 @@ async function setup(editing?: Record<string, unknown>, client: Record<string, u
     forgetProfile: vi.fn(),
     ...client
   };
+  // The extension's lazy client wrapper answers every method asynchronously, so the fake does too.
+  Object.assign(fmClient, { createIsolatedClient: vi.fn(async () => fmClient) });
   ConnectionWizardPanel.createOrShow(
     { extensionUri: { fsPath: '/ext' }, extension: { id: 'x.y' } } as never,
     { upsertProfile, listProfiles: vi.fn(async () => []) } as never,
