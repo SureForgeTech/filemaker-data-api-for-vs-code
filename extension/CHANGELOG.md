@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- [SECURITY] Patch vulnerable glob matching in publishing and compatible development tools.
+
 - [FIX] Generated app updates recognize the current dependency manifests while preserving edited files and previously shipped versions.
 
 - [FIX] Batch CSV export preserves Unicode line and paragraph separators without failing on newer VS Code versions.
