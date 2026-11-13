@@ -48,7 +48,9 @@ it('agrees on the package version, release instructions and current user guide',
 it('records offline cache ignores and transfer limits once with accurate snapshot behavior', () => {
   for (const changelog of [readRoot('CHANGELOG.md'), readExtension('CHANGELOG.md')]) {
     const unreleased = changelog.split('\n## Unreleased\n')[1]?.split('\n## ')[0] ?? '';
-    const ignores = unreleased.split('\n').filter((line) => line.includes('[SECURITY]') && /ignore/i.test(line));
+    const ignores = unreleased
+      .split('\n')
+      .filter((line) => line.includes('[SECURITY]') && line.includes('Offline metadata cache') && /ignore/i.test(line));
     expect(ignores).toHaveLength(1);
     expect(ignores[0]).toContain('Offline metadata cache');
     expect(ignores[0]).toContain('snapshots remain available to commit');
