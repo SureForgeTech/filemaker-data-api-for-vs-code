@@ -11,6 +11,8 @@ import { registerFmWebProjectCommands } from '../../../src/commands/fmWebProject
 import { RecordViewerPanel } from '../../../src/webviews/recordViewer';
 import { RecordEditorPanel } from '../../../src/webviews/recordEditor';
 import { ScriptRunnerPanel } from '../../../src/webviews/scriptRunner';
+import { ProfileStore } from '../../../src/services/profileStore';
+import { InMemoryMemento } from '../mocks';
 
 describe('parseProfileId', () => {
   it('returns profileId from valid arg', () => {
@@ -225,6 +227,32 @@ describe('registerCoreCommands', () => {
     } finally {
       setAgentReplacedPolicy(() => false);
     }
+  });
+
+  it('trusts a certificate without losing a legacy password when secret storage fails', async () => {
+    const deps = createMockDeps();
+    const global = new InMemoryMemento();
+    const raw = { id: 'p1', name: 'Legacy', authMode: 'direct' as const,
+      serverUrl: 'https://user:fixture-password@fm.example.test', database: 'Sales' };
+    await global.update('filemakerDataApiTools.profiles', [raw]);
+    deps.profileStore = new ProfileStore(global as never, new InMemoryMemento() as never, {
+      getPassword: async () => undefined,
+      setPassword: async () => { throw new Error('unavailable'); }
+    }) as never;
+    Object.assign(deps.fmClient, { clearAuthPause: vi.fn() });
+    vi.spyOn(certificateTrust, 'reviewAndTrustCertificate').mockResolvedValue({ sha256: 'ab'.repeat(32), allowExpired: false });
+    vi.mocked(vscode.window.showInformationMessage).mockResolvedValue(undefined);
+    registerCoreCommands(deps);
+    const trust = vi.mocked(vscode.commands.registerCommand).mock.calls.find(([id]) => id === 'filemakerDataApiTools.trustServerCertificate')![1];
+
+    await trust({ profileId: raw.id });
+
+    expect(global.get('filemakerDataApiTools.profiles')).toEqual([
+      expect.objectContaining({ serverUrl: raw.serverUrl, pinnedCertSha256: 'ab'.repeat(32) })
+    ]);
+    expect(deps.refreshExplorer).toHaveBeenCalledOnce();
+    expect(vscode.window.showWarningMessage).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('Re-enter or confirm'));
+    expect(vscode.window.showErrorMessage).not.toHaveBeenCalled();
   });
 
   it('registers multiple command disposables', () => {

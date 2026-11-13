@@ -5,6 +5,8 @@ import * as vscode from 'vscode';
 import { AiToolsController } from '../../../src/ai/aiRegistration';
 import { AiStatusBar, auditLogPath, registerAiToolCommands } from '../../../src/commands/aiTools';
 import { makeHarness } from './harness';
+import { ProfileStore } from '../../../src/services/profileStore';
+import { InMemoryMemento } from '../mocks';
 
 describe('AI commands', () => {
   let roleGuard: { isProfileLocked: ReturnType<typeof vi.fn>; assertFeature: ReturnType<typeof vi.fn> };
@@ -156,6 +158,31 @@ describe('AI commands', () => {
     expect(roleGuard.assertFeature).toHaveBeenCalledWith('writeOperations', expect.any(String));
     expect(profileStore.upsertProfile).not.toHaveBeenCalled();
     expect(update).not.toHaveBeenCalled();
+  });
+
+  it('sets AI access without losing a legacy password when secret storage fails', async () => {
+    const global = new InMemoryMemento();
+    const raw = { ...h.profile, serverUrl: 'https://user:fixture-password@fm.example.test' };
+    await global.update('filemakerDataApiTools.profiles', [raw]);
+    const store = new ProfileStore(global as never, new InMemoryMemento() as never, {
+      getPassword: async () => undefined,
+      setPassword: async () => { throw new Error('unavailable'); }
+    });
+    vi.mocked(vscode.commands.registerCommand).mockClear();
+    registerAiToolCommands({ service: h.service, controller, audit: audit as never, profileStore: store,
+      roleGuard: roleGuard as never, statusBar: { refresh: vi.fn() } as never });
+    vi.mocked(vscode.window.showQuickPick)
+      .mockResolvedValueOnce({ profile: store.listProfilesSync()[0] } as never)
+      .mockResolvedValueOnce({ label: 'Read', access: 'read' } as never);
+    vi.mocked(vscode.window.showInformationMessage).mockResolvedValue(undefined);
+
+    await command('filemakerDataApiTools.setAiAccess')();
+
+    expect(global.get('filemakerDataApiTools.profiles')).toEqual([
+      expect.objectContaining({ serverUrl: raw.serverUrl, aiAccess: 'read' })
+    ]);
+    expect(vscode.window.showWarningMessage).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('Re-enter or confirm'));
+    expect(vscode.window.showErrorMessage).not.toHaveBeenCalled();
   });
 
   it('choosing None clears access and does not touch the connection setting', async () => {

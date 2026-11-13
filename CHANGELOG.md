@@ -18,6 +18,7 @@ PR title prefix matches the highest-tier label added:
 
 ## Unreleased
 
+- [SECURITY] Editing a profile preserves its legacy server password until secure storage confirms it is saved; stalled storage no longer blocks profile changes indefinitely.
 - [SECURITY] Adding, editing or removing another profile preserves legacy server passwords until secure storage is available.
 - [SECURITY] Legacy offline schema caches without a recorded hash algorithm accept the configured algorithm and still reject altered content.
 - [SECURITY] Migrating a password from a saved server address preserves a password saved during the migration.

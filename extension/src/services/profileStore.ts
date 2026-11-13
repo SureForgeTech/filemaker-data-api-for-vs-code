@@ -9,6 +9,7 @@ import { validateDatabaseName, validateProfileId, validateServerUrl } from '../u
 const PROFILES_KEY = 'filemakerDataApiTools.profiles';
 const ACTIVE_PROFILE_KEY = 'filemakerDataApiTools.activeProfileId';
 const SAVED_QUERIES_KEY = 'filemakerDataApiTools.savedQueries';
+const SECRET_STORAGE_TIMEOUT_MS = 5000;
 
 export class ProfileStore {
   private readonly changeListeners = new Set<() => void>();
@@ -92,14 +93,18 @@ export class ProfileStore {
         );
       }
       // Never overwrite a separately saved password or discard one we could not save.
-      if (original.authMode === 'direct' && url.password) {
-        if (!this.secrets) continue;
+      if (url.password) {
+        // A URL password is not a proxy API key. Keep it recoverable in the raw entry.
+        const secrets = this.secrets;
+        if (original.authMode !== 'direct' || !secrets) continue;
         try {
-          if (await this.secrets.getPassword(normalized.id) === undefined) {
+          if (await withSecretStorageTimeout(() => secrets.getPassword(normalized.id)) === undefined) {
             const password = decodeURIComponent(url.password);
             // A wizard save may have completed while the first read was pending.
-            if (await this.secrets.getPassword(normalized.id) === undefined) {
-              await this.secrets.setPassword(normalized.id, password);
+            if (await withSecretStorageTimeout(() => secrets.getPassword(normalized.id)) === undefined) {
+              await withSecretStorageTimeout(() => secrets.setPassword(normalized.id, password));
+              // Disabled persistence can resolve a write without storing anything.
+              if (await withSecretStorageTimeout(() => secrets.getPassword(normalized.id)) === undefined) continue;
             }
           }
         } catch {
@@ -147,15 +152,27 @@ export class ProfileStore {
     await this.migrateUrlCredentials();
     const rawProfiles = this.globalState.get<unknown>(PROFILES_KEY, []);
     const profiles = Array.isArray(rawProfiles) ? [...rawProfiles] : [];
-    const existingIndex = profiles.findIndex((item) => normalizeProfile(item)?.id === normalizedProfile.id);
+    const existing = profiles.filter((item) => normalizeProfile(item)?.id === normalizedProfile.id);
+    // Migration is the only path allowed to strip persisted credentials. If it failed
+    // (or the raw entry changed while it waited), apply edits without losing that URL.
+    const preserveCredentials = existing.some((item) => {
+      const url = new URL((item as ConnectionProfile).serverUrl);
+      return Boolean(url.username || url.password);
+    });
+    let replaced = false;
+    const updated = profiles.flatMap((item) => {
+      if (normalizeProfile(item)?.id !== normalizedProfile.id) return [item];
+      if (preserveCredentials) {
+        // Keep every duplicate until migration succeeds; each may hold credentials.
+        return [{ ...normalizedProfile, serverUrl: (item as ConnectionProfile).serverUrl }];
+      }
+      if (replaced) return [];
+      replaced = true;
+      return [normalizedProfile];
+    });
+    if (existing.length === 0) updated.push(normalizedProfile);
 
-    if (existingIndex >= 0) {
-      profiles[existingIndex] = normalizedProfile;
-    } else {
-      profiles.push(normalizedProfile);
-    }
-
-    await this.globalState.update(PROFILES_KEY, profiles);
+    await this.globalState.update(PROFILES_KEY, updated);
     this.fireChange();
   }
 
@@ -209,6 +226,18 @@ export class ProfileStore {
       SAVED_QUERIES_KEY,
       queries.filter((query) => query.id !== queryId)
     );
+  }
+}
+
+async function withSecretStorageTimeout<T>(operation: () => Promise<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => reject(new Error('Secret storage timed out.')), SECRET_STORAGE_TIMEOUT_MS);
+  });
+  try {
+    return await Promise.race([operation(), timeout]);
+  } finally {
+    clearTimeout(timer);
   }
 }
 
