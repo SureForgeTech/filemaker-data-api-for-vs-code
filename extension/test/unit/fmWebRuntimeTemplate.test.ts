@@ -53,6 +53,33 @@ describe('FM Web runtime template', () => {
     );
   }
 
+  it('A5 lists repository execution inputs even with an unchanged package.json', async () => {
+    const gen = generator();
+    await gen.generateRuntimeAppTemplate();
+    const root = gen.getGeneratedRuntimeRoot();
+    for (const file of ['.npmrc', 'package-lock.json', 'yarn.lock', 'pnpm-lock.yaml', '.env.production', 'app/evil.ts']) {
+      await writeFile(path.join(root, file), 'attacker');
+    }
+    await mkdir(path.join(root, 'node_modules'));
+    await writeFile(path.join(root, 'next.config.ts'), 'attacker');
+    await writeFile(path.join(dir, '.npmrc'), 'script-shell=./evil.sh');
+    const files = await gen.inspectPreviewFiles();
+    for (const file of ['.npmrc', 'package-lock.json', 'yarn.lock', 'pnpm-lock.yaml', '.env.production', 'app/evil.ts', 'node_modules', 'next.config.ts', '../.npmrc']) expect(files).toContain(file);
+  });
+
+  it('A8 never writes a browser-public token or preserves public env overrides', async () => {
+    const gen = generator();
+    await gen.generateRuntimeAppTemplate();
+    const root = gen.getGeneratedRuntimeRoot();
+    await writeFile(path.join(root, '.env.local'), 'NEXT_PUBLIC_FMWEB_BRIDGE_TOKEN=old-secret\nNEXT_PUBLIC_EVIL=bad\n');
+    const file = await gen.writeBridgeEnv('http://127.0.0.1:1234', 'private-canary');
+    const env = await readFile(file, 'utf8');
+    expect(env).not.toContain('NEXT_PUBLIC_');
+    expect(env).not.toContain('private-canary');
+    const client = await readFile(path.join(root, 'lib/runtime-data.ts'), 'utf8');
+    expect(client).not.toContain('NEXT_PUBLIC_FMWEB_BRIDGE_TOKEN');
+  });
+
   it('A1 binds new and regenerated preview scripts to the exact loopback address and port', async () => {
     const gen = generator();
     await gen.generateRuntimeAppTemplate();
@@ -544,10 +571,10 @@ describe('FM Web runtime template', () => {
 
     await rm(envPath);
     await gen.writeBridgeEnv('http://127.0.0.1:1/fm', 'abc');
-    expect(await readFile(envPath, 'utf8')).toContain('NEXT_PUBLIC_FMWEB_BRIDGE_TOKEN=abc');
+    expect(await readFile(envPath, 'utf8')).not.toContain('abc');
   });
 
-  it('end to end: the generated bridge client, with the written env values, talks to the real bridge server', async () => {
+  it('the generated low-level client authenticates to the real bridge with a server-held token', async () => {
     const gen = generator();
     await gen.generateRuntimeAppTemplate();
 
@@ -562,21 +589,16 @@ describe('FM Web runtime template', () => {
     nock.enableNetConnect('127.0.0.1');
     const { baseUrl } = await server.ensureStarted();
     try {
-      const envPath = await gen.writeBridgeEnv(baseUrl, server.getSessionToken());
-      const env = Object.fromEntries(
-        (await readFile(envPath, 'utf8')).trim().split('\n').map((line) => line.split(/=(.*)/s).slice(0, 2))
-      ) as Record<string, string>;
-
       const generated = (await import(/* @vite-ignore */ pathToFileURL(bridgeClientPath()).href)) as {
         RuntimeBridgeClient: new (url?: string, fetchFn?: typeof fetch, token?: string) => {
           find(request: { layout: string; query: Array<Record<string, unknown>> }): Promise<{ data: unknown[] }>;
         };
       };
       const request = { layout: 'L', query: [{ A: '*' }] };
-      // The way the generated app builds its client from NEXT_PUBLIC_* env values.
-      const ok = new generated.RuntimeBridgeClient(env.NEXT_PUBLIC_FMWEB_BRIDGE_URL, (url, init) => fetch(url, { ...init, headers: { ...init?.headers, Origin: 'http://localhost:3000' } }), env.NEXT_PUBLIC_FMWEB_BRIDGE_TOKEN);
+      // Low-level bridge authentication; browser requests now go through the server route.
+      const ok = new generated.RuntimeBridgeClient(baseUrl, (url, init) => fetch(url, { ...init, headers: { ...init?.headers, Origin: 'http://localhost:3000' } }), server.getSessionToken());
       expect((await ok.find(request)).data).toHaveLength(1);
-      await expect(new generated.RuntimeBridgeClient(env.NEXT_PUBLIC_FMWEB_BRIDGE_URL, (url, init) => fetch(url, { ...init, headers: { ...init?.headers, Origin: 'http://localhost:3000' } })).find(request)).rejects.toThrow(
+      await expect(new generated.RuntimeBridgeClient(baseUrl, (url, init) => fetch(url, { ...init, headers: { ...init?.headers, Origin: 'http://localhost:3000' } })).find(request)).rejects.toThrow(
         /bridge session token/
       );
     } finally {

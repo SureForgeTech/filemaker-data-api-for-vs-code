@@ -3,10 +3,20 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { registerFmWebProjectCommands } from '../../src/commands/fmWebProject';
 
+const processStart = vi.hoisted(() => vi.fn(async () => undefined));
+vi.mock('../../src/services/fmWebPreviewProcess', () => ({
+  FmWebPreviewProcess: class { start = processStart; dispose = vi.fn(); },
+  PREVIEW_INSTALL_DESCRIPTION: 'npm install --ignore-scripts',
+  PREVIEW_DEV_DESCRIPTION: 'npm run dev --ignore-scripts -- --hostname 127.0.0.1 --port 3000'
+}));
+
 /** The preview runs npm in a folder that can come with the repository, so it asks first. */
 
 function start() {
   const generator = {
+    inspectPreviewFiles: vi.fn(async () => [] as string[]),
+    removePreviewFiles: vi.fn(async () => undefined),
+    previewTemplateFiles: vi.fn(async () => new Map()),
     generateRuntimeAppTemplate: vi.fn(async () => undefined),
     listLayoutDefinitions: vi.fn(async () => []),
     generateLayoutPage: vi.fn(async () => undefined),
@@ -84,8 +94,8 @@ describe('FM Web preview', () => {
 
     await run();
 
-    expect(terminal.sendText).toHaveBeenCalledWith('npm install --no-audit --no-fund');
-    expect(terminal.sendText).toHaveBeenCalledWith('npm run dev -- --hostname 127.0.0.1 --port 3000');
+    expect(terminal.sendText).not.toHaveBeenCalled();
+    expect(processStart).toHaveBeenCalledWith(expect.any(Map), expect.any(Map), 'http://127.0.0.1:1234', 'session-token');
   });
 
   it('hands the preview app the bridge address and its session token', async () => {
@@ -100,12 +110,33 @@ describe('FM Web preview', () => {
   it('warns when an edited generated file could not be updated, so a silent failure is not left to the user', async () => {
     vi.mocked(vscode.window.showWarningMessage).mockResolvedValue(undefined as never);
     const { run, generator } = start();
-    generator.generateRuntimeAppTemplate.mockResolvedValue({ needsManualUpdate: ['lib/bridge-client.ts'] } as never);
+    generator.inspectPreviewFiles.mockResolvedValue(['lib/bridge-client.ts']);
 
     await run();
 
     const messages = vi.mocked(vscode.window.showWarningMessage).mock.calls.map((call) => String(call[0]));
-    expect(messages.some((message) => message.includes('lib/bridge-client.ts') && message.includes('not updated'))).toBe(true);
+    expect(messages.some((message) => message.includes('lib/bridge-client.ts') && message.includes('cannot run'))).toBe(true);
+  });
+
+  it('A5 never launches or starts a bridge while unexpected files remain', async () => {
+    const { run, generator, bridge } = start();
+    generator.inspectPreviewFiles.mockResolvedValue(['.npmrc', 'next.config.ts', 'node_modules']);
+    vi.mocked(vscode.window.showWarningMessage).mockResolvedValue(undefined as never);
+    await run();
+    expect(processStart).not.toHaveBeenCalled();
+    expect(bridge.ensureStarted).not.toHaveBeenCalled();
+    expect(generator.removePreviewFiles).not.toHaveBeenCalled();
+    expect(vscode.window.showWarningMessage).toHaveBeenCalledWith(expect.stringContaining('node_modules'), { modal: true }, 'Regenerate from template');
+  });
+
+  it('A5 deletes only after the named regeneration modal, then checks again', async () => {
+    const { run, generator } = start();
+    generator.inspectPreviewFiles.mockResolvedValueOnce(['.npmrc']).mockResolvedValue([]);
+    vi.mocked(vscode.window.showWarningMessage).mockResolvedValueOnce('Regenerate from template' as never).mockResolvedValueOnce('Run' as never);
+    await run();
+    expect(generator.removePreviewFiles).toHaveBeenCalledWith(['.npmrc']);
+    expect(generator.inspectPreviewFiles).toHaveBeenCalledTimes(2);
+    expect(processStart).toHaveBeenCalledOnce();
   });
 
   it('refuses in an untrusted workspace without asking', async () => {

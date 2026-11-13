@@ -141,7 +141,7 @@ request with:
 2. **Localhost socket check**: non-loopback peers are rejected.
 3. **Per-session bridge token**: a 256-bit random token must be sent
    in the `X-FM-Bridge-Token` header. The token is generated on each
-   `ensureStarted()` and discarded on `stop()`.
+   bridge start and discarded on `stop()`.
 4. **Origin allow-list**: every request must carry exactly
    `http://localhost:3000` or `http://127.0.0.1:3000` as its Origin.
    Missing origins, HTTPS and other ports are refused. The preview dev/start
@@ -152,25 +152,70 @@ request with:
    request cap. Throttled requests receive `HTTP 429` with
    `Retry-After`; budget-exhausted clients must restart the bridge.
 
-The trust boundary is **the bridge token + localhost binding**. Any
-local process that obtains the token can call the bridge as if it
-were the trusted runtime. The token lives in the extension host's
-memory and, so the preview app can send it, in the generated runtime's
-`.env.local` (`.fmweb/generated/runtime-next/.env.local`, owner-only,
-with a `.gitignore` beside it) as `NEXT_PUBLIC_FMWEB_BRIDGE_TOKEN`. That
-name means Next.js also puts it in the preview app's browser bundle, so
-treat the preview page like any other local client of the bridge. A new
-token is generated each time the bridge starts; rate limiting bounds the
-blast radius if it is exfiltrated. Loopback binding keeps the preview off the
-network, but another local user may still fetch its browser bundle. A local
-process holding the token can forge an allowed Origin; these headers are not
-an authentication boundary against local processes. Do not share the preview
-or its bundle. Cancelling the preview start stops an existing bridge and removes
-its generated env entries.
+The bridge token is held only in the extension host and the private Next server's
+`FMWEB_BRIDGE_TOKEN` environment variable. It is never a `NEXT_PUBLIC_` value,
+written into `.env.local`, or passed to browser JavaScript. Browser calls go to
+`/api/bridge/<route>`; that server route validates the session, Host and exact
+Origin before adding the token to a fixed, allowlisted bridge request. It does
+not forward client credentials or upstream headers. Origin alone cannot
+authenticate a local process; possession of the private session cookie is required.
+
+At each start the extension generates independent random 256-bit launch and
+session credentials and passes both only through the server process environment.
+Once Next reports ready, the extension opens `http://127.0.0.1:3000/?launch=...`
+in the user's browser. Proxy exchanges the launch code once, within two minutes
+of server start, for an HttpOnly, SameSite=Strict, Path=/ session cookie and
+redirects to `/` without the code. An exclusively created file in the private
+temporary directory makes redemption single-use across workers and recompiles.
+Pages and assets without the cookie receive 401; the bridge-proxy route also
+checks the cookie independently and returns 401 without it. Wrong Host values
+are refused: only `127.0.0.1:3000` and `localhost:3000` are accepted. This prevents
+DNS rebinding. Preview responses use no-store and launch responses suppress the
+Referer. Server request output is not displayed because it could include the
+launch code. Restarting stops the old preview and bridge and changes all credentials.
+A busy port is an error; the extension never opens an existing service as its preview.
+
+This protects against another local OS user who can connect to loopback but
+cannot read the victim's private files, browser cookies or process environment.
+That user gets 401 without a cookie and cannot obtain the bridge token from
+served HTML or browser bundles. Root, processes able to read the victim's process
+environment, malicious software running as the victim, a compromised browser or
+extension, stolen/shared launch links or cookies, and malicious downloaded
+packages are outside this boundary. Cookies are scoped to a host, not a port;
+use the launched 127.0.0.1 URL and do not send the preview cookie to other local
+services. A local attacker can still occupy port 3000 to deny startup.
+
+Before running, the extension checks every generated runtime file against the
+shipped template and shared sources. Unknown files, edited files (including
+`next.config.ts`), links, committed dependencies/build output, lockfiles not
+shipped by the template, foreign `.env*` files, and `.npmrc` files from the
+runtime through the workspace root block startup. A modal lists exactly what
+“Regenerate from template” will delete, including the contents of listed folders
+and any listed parent `.npmrc`; cancelling executes nothing. No repository marker
+can establish dependency provenance. The extension's own non-secret env notice
+is accepted only while its bytes match output recorded by this extension process.
+
+Execution uses a fresh owner-only temporary copy of the shipped files and
+generated layout JSON, with a fresh dependency tree and private npm cache.
+`npm install --ignore-scripts` uses the public npm registry, empty pinned user
+and global config files, explicit prefix, and an allowlisted process environment
+that excludes all `npm_config_*`, Node injection hooks and public Next overrides.
+No project `.npmrc` is copied there. The template dev script runs with npm
+pre/post scripts disabled and binds Next to 127.0.0.1:3000. The Run modal describes
+both commands and their configuration. The locally installed Next 16.3.8 package
+declares no install lifecycle script; its platform SWC binary is an optional
+package, and it built this template offline. The template declares Next 16.4.2;
+that version and a fresh script-free download/startup on every platform could
+not be verified without network access. A failed install stops the preview rather than retrying with scripts.
+The system Node/npm installation and PATH must be trusted. The generated env
+file now contains only a non-secret notice; cancelling also removes legacy saved
+bridge entries while preserving unrelated env lines (which block the next run).
 
 Every preview `/runScript` request asks in a VS Code modal naming the exact
 script, layout, parameter and connection host, and says it came from a layout
-file. Control and formatting characters are escaped. Values that exceed the
+file. All Unicode category C and default-ignorable characters are visibly
+escaped, and the parameter length is shown. Layout Mode uses the same escaping
+and displays the layout execution will actually use. Values that exceed the
 confirmation display bounds are refused in full, never shortened for approval.
 Only one prompt may be pending, with a five-second cooldown after it closes;
 other bridge routes keep their existing behavior. Layout URL actions accept

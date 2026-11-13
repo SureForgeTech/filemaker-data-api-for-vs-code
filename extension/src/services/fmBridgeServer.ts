@@ -1,3 +1,4 @@
+import { displayText } from '../ai/aiText';
 import * as vscode from 'vscode';
 import { assertFindCriteria } from '../utils/findCriteria';
 import { createHash, randomBytes, timingSafeEqual } from 'crypto';
@@ -369,10 +370,12 @@ export class FmBridgeServer {
     const host = new URL(target).host;
     const message = [
       `Run script ${confirmationText(script, 'Script name', 512)} on layout ${confirmationText(layout, 'Layout name', 512)}?`,
-      `Parameter: ${parameter === undefined ? '(not supplied)' : confirmationText(parameter, 'Parameter', 2048)}`,
+      `Parameter (${parameter?.length ?? 0} UTF-16 code units): ${parameter === undefined ? '(not supplied)' : confirmationText(parameter, 'Parameter', 2048)}`,
       `Connection: ${confirmationText(profile.name, 'Connection name', 512)} (${confirmationText(host, 'Server host', 512)})`,
       'This request came from a layout file in your workspace.'
     ].join('\n\n');
+
+    if (message.length > 4000) throw new FMClientError('Script confirmation is too long to show in full; script was not run.', { status: 400 });
 
     // Independent of the configurable request limiter: never queue prompts, even if it is disabled.
     if (this.scriptPromptPending || Date.now() < this.scriptPromptAfter) {
@@ -439,8 +442,7 @@ function tokenMatches(presented: string | undefined, expected: string | undefine
 
 /** Plain modal text: quote whitespace/controls and bidi/format characters, never truncate a value. */
 function confirmationText(value: string, label: string, maxLength: number): string {
-  const escaped = JSON.stringify(value).replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu,
-    (character) => character.split('').map((unit) => `\\u${unit.charCodeAt(0).toString(16).padStart(4, '0')}`).join(''));
+  const escaped = displayText(value, Infinity);
   if (escaped.length > maxLength) {
     throw new FMClientError(`${label} is too long to show in full in a confirmation; script was not run.`, { status: 400 });
   }

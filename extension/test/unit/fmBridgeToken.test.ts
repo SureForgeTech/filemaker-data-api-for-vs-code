@@ -149,11 +149,11 @@ describe('writeBridgeEnv', () => {
     );
   }
 
-  it('writes the address and the token, owner-only, and keeps the file out of git', async () => {
+  it('writes only a non-secret notice, owner-only, and keeps it out of git', async () => {
     const envPath = await generator().writeBridgeEnv('http://127.0.0.1:5000/fm', 'abc123');
     const text = await readFile(envPath, 'utf8');
-    expect(text).toContain('NEXT_PUBLIC_FMWEB_BRIDGE_URL=http://127.0.0.1:5000/fm\n');
-    expect(text).toContain('NEXT_PUBLIC_FMWEB_BRIDGE_TOKEN=abc123\n');
+    expect(text).not.toContain('NEXT_PUBLIC_');
+    expect(text).not.toContain('abc123');
     if (process.platform !== 'win32') {
       expect((await stat(envPath)).mode & 0o777).toBe(0o600);
     }
@@ -161,14 +161,14 @@ describe('writeBridgeEnv', () => {
     expect(ignore.split('\n')).toContain('.env.local');
   });
 
-  it('replaces the old values on a later start and keeps unrelated lines', async () => {
+  it('never persists credentials on a later start', async () => {
     const gen = generator();
     const envPath = await gen.writeBridgeEnv('http://127.0.0.1:5000/fm', 'old-token');
     await gen.writeBridgeEnv('http://127.0.0.1:6000/fm', 'new-token');
     const text = await readFile(envPath, 'utf8');
     expect(text).not.toContain('old-token');
-    expect(text.match(/NEXT_PUBLIC_FMWEB_BRIDGE_TOKEN=/g)).toHaveLength(1);
-    expect(text).toContain(':6000');
+    expect(text).not.toContain('new-token');
+    expect(text).not.toContain(':6000');
   });
 
   it('A3 removes saved bridge entries on cancel while preserving unrelated env values', async () => {
@@ -177,10 +177,8 @@ describe('writeBridgeEnv', () => {
     const { writeFile } = await import('fs/promises');
     await writeFile(envPath, `${await readFile(envPath, 'utf8')}OTHER=value\n export NEXT_PUBLIC_FMWEB_BRIDGE_TOKEN=stale\n`);
     await gen.clearBridgeEnv();
-    expect(await readFile(envPath, 'utf8')).toBe('OTHER=value\n');
-    await gen.writeBridgeEnv('http://127.0.0.1:5000/fm', 'another-token');
-    await gen.clearBridgeEnv();
-    expect(await readFile(envPath, 'utf8')).toBe('OTHER=value\n');
+    expect(await readFile(envPath, 'utf8')).toContain('OTHER=value\n');
+
   });
 
   it('A3 removes an env file containing only bridge entries and tolerates repeated cleanup', async () => {

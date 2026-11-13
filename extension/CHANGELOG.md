@@ -2,7 +2,12 @@
 
 ## Unreleased
 
-- [SECURITY] FM Web preview listens only on 127.0.0.1:3000, and the bridge refuses missing origins and origins outside that preview port. The browser bundle still contains the session token; local processes that obtain it can forge an Origin.
+- [SECURITY] FM Web preview refuses unexpected or edited runtime files and workspace npm configuration. A named regeneration confirmation is required to delete them. Preview runs a fresh private template copy with install scripts disabled and empty npm config files.
+- [SECURITY] Layout Mode and preview script confirmations visibly escape hidden characters, show parameter lengths, and refuse values too long to show in full. Layout Mode shows the layout that will actually run.
+- [SECURITY] Plugin consent visibly escapes filenames containing newlines or hidden characters; approval hashes still use the original names and bytes.
+- [SECURITY] FM Web preview keeps the bridge token on the server. A single-use launch link grants a private session cookie; requests without it and requests with the wrong Host are refused.
+
+- [SECURITY] FM Web preview listens only on 127.0.0.1:3000, and the bridge refuses missing origins and origins outside that preview port.
 - [SECURITY] FM Web preview script buttons ask for confirmation in VS Code with the exact script, escaped parameter and connection host. Oversized confirmation values are refused, and repeated prompts are throttled.
 - [SECURITY] Cancelling FM Web preview startup stops the bridge and removes its saved address and token without removing unrelated env settings.
 - [SECURITY] FM Web layout URL actions refuse schemes other than HTTP and HTTPS. Script and layout names and script parameters reach the preview bridge unchanged.

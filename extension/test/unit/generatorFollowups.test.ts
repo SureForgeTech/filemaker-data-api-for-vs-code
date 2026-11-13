@@ -74,7 +74,7 @@ it('allows project, template and env generation through a linked workspace', asy
     const gen = runtime(alias);
     expect((await gen.generateRuntimeAppTemplate()).created.length).toBeGreaterThan(10);
     const env = await gen.writeBridgeEnv('http://127.0.0.1:123/fm', 'private');
-    expect(await readFile(env, 'utf8')).toContain('NEXT_PUBLIC_FMWEB_BRIDGE_TOKEN=private');
+    expect(await readFile(env, 'utf8')).not.toContain('NEXT_PUBLIC_');
   } finally { await rm(alias); }
 });
 

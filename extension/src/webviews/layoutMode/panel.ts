@@ -1,3 +1,4 @@
+import { displayText } from '../../ai/aiText';
 import * as vscode from 'vscode';
 import { boundedDesignerFields } from '../../fmweb/fieldMetadata';
 
@@ -283,24 +284,26 @@ export class LayoutModePanel {
     // Used exactly as stored: a space can be part of a script or layout name, and a parameter is passed verbatim.
     const scriptName = payload.behavior.scriptName ?? '';
     const parameter = payload.behavior.parameter ?? '';
-    const layout = payload.fmLayoutName ?? payload.layoutName ?? '';
+    const layout = payload.fmLayoutName?.trim() ? payload.fmLayoutName : payload.layoutName;
     const target = profile.authMode === 'proxy' ? profile.proxyEndpoint : profile.serverUrl;
     const project = await this.fmWebProjectService.readProjectConfig();
     const userProfileId = this.profileStore.getActiveProfileId();
     const chosenByProject = Boolean(project?.activeProfileId) && project?.activeProfileId !== userProfileId;
 
-    const answer = await vscode.window.showWarningMessage(
-      [
-        `Run the script "${oneLine(scriptName, 120)}" on the FileMaker layout "${oneLine(layout, 120)}"?`,
-        `Parameter: ${parameter ? oneLine(parameter, 200) : '(none)'}`,
-        `Connection: ${oneLine(profile.name, 80)} (${oneLine(target ?? profile.serverUrl, 200)})`,
+    const message = [
+        `Run the script ${oneLine(scriptName, 512)} on the FileMaker layout ${oneLine(layout, 512)}?`,
+        `Parameter (${parameter.length} UTF-16 code units): ${oneLine(parameter, 2048)}`,
+        `Connection: ${oneLine(profile.name, 512)} (${oneLine(target ?? profile.serverUrl, 512)})`,
         chosenByProject
           ? 'The project file in this workspace chose this connection; it is not your active connection.'
           : '',
         'This request comes from the layout file in your workspace, not from you.'
       ]
         .filter(Boolean)
-        .join('\n\n'),
+        .join('\n\n');
+    if (message.length > 4000) return 'Script confirmation is too long to show in full; script was not run.';
+    const answer = await vscode.window.showWarningMessage(
+      message,
       { modal: true },
       'Run script'
     );
@@ -482,9 +485,9 @@ function parseBehaviorBinding(value: unknown): BehaviorBinding | undefined {
   };
 }
 
-/** Collapses line breaks and control characters so text from a layout file cannot add lines to a prompt. */
+/** Show every character or refuse the run; never hide part of what will execute. */
 function oneLine(value: string, max: number): string {
-  // eslint-disable-next-line no-control-regex
-  const flat = value.replace(/[\u0000-\u001f\u007f\u2028\u2029]+/g, ' ').trim();
-  return flat.length > max ? `${flat.slice(0, max)}…` : flat;
+  const escaped = displayText(value, Infinity);
+  if (escaped.length > max) throw new Error('Script value is too long to show in full in a confirmation; script was not run.');
+  return escaped;
 }

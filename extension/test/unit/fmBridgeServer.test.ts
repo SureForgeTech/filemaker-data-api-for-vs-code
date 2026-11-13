@@ -59,13 +59,24 @@ describe('FmBridgeServer', () => {
     const prompt = vi.mocked(vscode.window.showWarningMessage).mock.calls[0]!;
     expect(prompt[0]).toContain('" Script "');
     expect(prompt[0]).toContain('" Layout "');
-    expect(prompt[0]).toContain('Parameter: " \\n\\"Run\\"\\t\\u202e "');
+    expect(prompt[0]).toContain('Parameter (10 UTF-16 code units): " \\n\\"Run\\"\\t\\u202e "');
     expect(prompt[0]).toContain('Connection: "Local Profile" ("example.com")');
     expect(prompt[0]).toContain('came from a layout file');
     expect(prompt.slice(1)).toEqual([{ modal: true }, 'Run script']);
     answer('Run script' as never);
     expect((await pending).status).toBe(200);
     expect(client.runScript).toHaveBeenCalledWith(profile, { ...payload, recordId: undefined }, { signal: expect.any(AbortSignal) });
+  });
+
+  it('A6 escapes default-ignorable non-format characters at the bridge too', async () => {
+    const client = createFmClientStub();
+    const server = new FmBridgeServer(createProfileStoreStub(), client, createFmWebProjectServiceStub(), logger);
+    const scriptParam = 'x\ufe0f\u034f';
+    await invokeBridgeRequest(server, '/fm/runScript', { payload: { layout: 'L', scriptName: 'S', scriptParam } });
+    const prompt = String(vi.mocked(vscode.window.showWarningMessage).mock.calls[0]?.[0]);
+    expect(prompt).toContain('\\ufe0f\\u034f');
+    expect(prompt).toContain('Parameter (3 UTF-16 code units):');
+    expect(client.runScript).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ scriptParam }), expect.anything());
   });
 
   it('A2 refuses a declined script and leaves other routes unchanged', async () => {
@@ -122,7 +133,7 @@ describe('FmBridgeServer', () => {
     const server = new FmBridgeServer(createProfileStoreStub(), client, createFmWebProjectServiceStub(), logger);
     const scriptParam = '\u061c\u00ad\u{e0001}';
     expect((await invokeBridgeRequest(server, '/fm/runScript', { payload: { layout: 'L', scriptName: 'S', scriptParam } })).status).toBe(200);
-    expect(vi.mocked(vscode.window.showWarningMessage).mock.calls[0]?.[0]).toContain('Parameter: "\\u061c\\u00ad\\udb40\\udc01"');
+    expect(vi.mocked(vscode.window.showWarningMessage).mock.calls[0]?.[0]).toContain('Parameter (4 UTF-16 code units): "\\u061c\\u00ad\\udb40\\udc01"');
     expect(vi.mocked(client.runScript).mock.calls[0]?.[1].scriptParam).toBe(scriptParam);
   });
 

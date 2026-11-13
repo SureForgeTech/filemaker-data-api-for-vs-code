@@ -31,8 +31,8 @@ export function displayText(value: unknown, max = 80): string {
   // emphasis. The VS Code docs do not say whether a modal's `detail` renders markdown, so none
   // of these may reach a dialog as itself.
   const escaped = JSON.stringify(kept).replace(
-    /[\p{C}\u2028\u2029[\]<>`*~|]/gu,
-    (character) => `\\u${(character.codePointAt(0) as number).toString(16).padStart(4, '0')}`
+    /[\p{C}\p{Default_Ignorable_Code_Point}\u2028\u2029[\]<>`*~|]/gu,
+    (character) => character.split('').map((unit) => `\\u${unit.charCodeAt(0).toString(16).padStart(4, '0')}`).join('')
   );
   const cut = characters.length - Math.min(characters.length, max);
   return cut > 0 ? `${escaped}…(+${cut} more characters)` : escaped;
