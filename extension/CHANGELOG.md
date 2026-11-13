@@ -2,71 +2,53 @@
 
 ## Unreleased
 
-- [SECURITY] Remove the vulnerable documentation matcher while preserving API documentation generation.
+## 1.9.0
 
-- [SECURITY] Large downloads and uploads have bounded deadlines: downloads renew after progress; upload deadlines grow with body size, last at least the request timeout, and have a 30 minute ceiling; stalled transfers stop and trickling downloads time out.
-- [SECURITY] Batch update confirmation accepts saved server addresses that are not parseable URLs.
-- [SECURITY] Error notifications keep bracketed codes and file paths readable while breaking injected links.
-- [SECURITY] FM Web refreshes recognize the current shared container-link safety code without overwriting local edits.
-- [SECURITY] Suggested export filenames keep their original case and extension while removing unsafe path characters.
-- [SECURITY] Offline metadata cache folders ignore themselves in Git; schema snapshots remain available to commit.
-- [SECURITY] Error messages stay short and on one line, escape display markup, and remain inside code fences in copied error reports.
-- [SECURITY] Environment comparison exports keep hostile names inside their Markdown table cells.
-- [SECURITY] Record Editor and Record Viewer only open container links on the selected connection’s server address.
-- [SECURITY] Export suggestions use safe filenames while keeping exact layout and saved-query names in exported data.
-- [SECURITY] Release packaging installs dependencies without running their install scripts.
-- [SECURITY] Hostile portal notes, numeric cells, certificate names and AI error text no longer cause excessive regex backtracking; exported portal notes bound names and require safe counts.
-- [SECURITY] Direct and proxy FileMaker requests enforce a 64 MiB response limit; sign-in, sign-out, server discovery and other small requests also have a fixed time limit.
-- [FIX] Batch exports keep the configured record cap even when the server returns too many rows.
-- [SECURITY] Batch updates refuse files above filemaker.batch.maxRecords and show escaped layout and profile names with the server host before execution.
-- [SECURITY] Generated client README files display layout and profile names as code so hostile names cannot load remote Markdown images or links.
-- [SECURITY] FM Web preview recognizes unchanged template files on Windows and shows relative file names with forward slashes.
-- [SECURITY] FM Web preview cleans up private files after Windows stop failures and can start again after a preview exits.
-- [SECURITY] FM Web preview keeps old temporary folders while their owning VS Code process is still running in another window.
-- [SECURITY] FM Web preview warns and skips layouts with edited or linked generated files while starting the remaining layouts.
-- [SECURITY] FM Web preview leaves dependency and build folders out of inspection and regeneration, and checks file sizes before reading contents.
-- [SECURITY] FM Web preview hides the Windows console for dependency installation and the development server.
-- [SECURITY] AI approval dialogs show hidden Unicode characters as visible escapes, preserving supplementary characters exactly so the proposed names and values remain distinguishable.
-- [SECURITY] FM Web preview leaves workspace npm configuration and edited or added runtime files untouched, lists ignored runtime files, and runs a clean private template copy with install scripts disabled and empty npm config files. Deleting runtime files requires named confirmation in the explicit generation command.
-- [SECURITY] FM Web preview finds Node.js and npm on Windows without a shell and stops the whole preview process tree before removing its private files.
-- [SECURITY] FM Web preview recognizes its own comment-only env file after a VS Code restart without reporting it as unexpected.
-- [SECURITY] FM Web preview preserves proxy settings and extra CA certificates for installs on enterprise networks while continuing to exclude npm and Node injection settings.
-- [SECURITY] FM Web preview waits for private-file cleanup on shutdown with a time limit and removes only old temporary preview folders carrying its ownership marker.
-- [SECURITY] Layout Mode and preview script confirmations visibly escape hidden characters, show parameter lengths, and refuse values too long to show in full. Layout Mode shows the layout that will actually run.
-- [SECURITY] Plugin consent visibly escapes filenames containing newlines or hidden characters; approval hashes still use the original names and bytes.
-- [SECURITY] FM Web preview keeps the bridge token on the server. A single-use launch link grants a private session cookie; application requests reaching the preview proxy without it or with the wrong Host are refused. Next development endpoints, including HMR, are outside this cookie gate.
+_Release notes prepared 2026-11-13._
 
-- [SECURITY] FM Web preview listens only on 127.0.0.1:3000, and the bridge refuses missing origins and origins outside that preview port.
-- [SECURITY] FM Web preview script buttons ask for confirmation in VS Code with the exact script, escaped parameter and connection host. Oversized confirmation values are refused, and repeated prompts are throttled.
-- [SECURITY] Cancelling FM Web preview startup stops the bridge and removes its saved address and token without removing unrelated env settings.
-- [SECURITY] FM Web layout URL actions refuse schemes other than HTTP and HTTPS. Script and layout names and script parameters reach the preview bridge unchanged.
-- [SECURITY] Patch vulnerable glob matching in publishing and compatible development tools.
+Version 1.9.0 is mainly a security and safety release. Batch updates now follow the same write rules as every other change, saved passwords are protected while old saved addresses are cleaned up, the FM Web preview is locked down so only you can use it, and the extension handles hostile or oversized answers from a server safely. It also adds related portal rows to Create Record. Read [UPGRADE.md](https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/blob/main/extension/UPGRADE.md), “Upgrading from 1.8.0 to 1.9.0”.
 
-- [SECURITY] Editing a profile preserves its legacy server password until secure storage confirms it is saved; stalled storage no longer blocks profile changes indefinitely.
-- [SECURITY] Adding, editing or removing another profile preserves legacy server passwords until secure storage is available.
-- [SECURITY] Legacy offline schema caches without a recorded hash algorithm accept the configured algorithm and still reject altered content.
-- [SECURITY] Migrating a password from a saved server address preserves a password saved during the migration.
-- [SECURITY] Trust Server Certificate and Set AI Access are unavailable in offline mode, like other write actions.
-- [SECURITY] Batch dry runs remain available when writes are disabled or offline mode is on; offline previews do not contact the server.
-- [SECURITY] Offline schema caches keep working after the hash algorithm setting changes, while altered content is still rejected.
-- [SECURITY] Removing credentials from saved server addresses preserves profiles added or edited during the migration.
-- [SECURITY] Saved server addresses keep their password for a later migration attempt if secure password storage fails.
-- [SECURITY] Batch updates respect the record editing switch and enterprise record and write policies.
-- [SECURITY] Running batch jobs stop with a clear reason when offline mode or policy blocks further work.
-- [SECURITY] Trusting a server certificate respects locked profiles and enterprise write policy.
-- [SECURITY] Changing a connection's AI access respects enterprise write policy.
-- [SECURITY] Untrusted workspaces cannot apply enterprise policy from filemaker.config.json.
-- [SECURITY] Offline schema metadata is ignored in untrusted workspaces and checked against its stored hash before use.
-- [SECURITY] Environment comparison and layout comparison refuse untrusted workspaces.
-- [SECURITY] Snippet authorization defaults, schema hash algorithms and bridge request limits can only be set in User settings.
-- [SECURITY] Record editing, creation and container uploads respect the enterprise write switch; open Record Editor and Script Runner panels recheck policy before writes. Write AI Context respects filemaker.features.ai.enabled, enterprise AI policy and offline mode, independently of the language-model tools switch.
-- [SECURITY] Saved server addresses lose embedded credentials, preserving an existing saved password and asking you to confirm it. Test Connection keeps temporary credentials in memory, and removing a profile attempts to close its server session before clearing secrets.
-- [SECURITY] Logs mask more token formats, and Connect warns once per profile each session when a remote connection uses unencrypted HTTP.
-- [FIX] Generated app updates recognize the current dependency manifests while preserving edited files and previously shipped versions.
+**New**
 
-- [FIX] Batch CSV export preserves Unicode line and paragraph separators without failing on newer VS Code versions.
-- [INTERNAL] The mock Data API answers the `productInfo` and `databases` calls that **Test Connection** makes, so Test Connection passes all three steps against the mock. The documentation that said the mock lacked them is corrected, a new first-run journey (test the connection, save the profile, connect, run the first query) runs against the mock on every pull request, and a test keeps the documentation in step with what the mock does.
-- Create Record can add new portal rows alongside a parent record on direct connections. Existing related rows are not edited; proxy connections show that portal-row creation is unavailable. This is mock-tested; real-server compatibility remains unverified.
+- Create Record can add new portal rows alongside a parent record on direct connections. Existing related rows are not edited, and proxy connections say that portal-row creation is unavailable. This was tested against the mock server; compatibility with a real server is not yet confirmed.
+
+**Changes you may notice**
+
+- Batch update follows the same write rules as other changes. It is refused when record editing is switched off by your settings or your administrator, it checks those rules and offline mode again before every row and stops with a plain reason if they change, and it refuses files with more rows than `filemaker.batch.maxRecords`. Dry runs still work because they write nothing. The confirmation names the layout, the profile and the server, with hidden characters shown.
+- Trust Server Certificate and Set AI Access now respect locked profiles and the write rules, so like other changes they are unavailable in offline mode.
+- Saved server addresses that still contain a user name or password are cleaned up. The password moves to secure storage first, and the address changes only after that worked; if secure storage is unavailable the old entry is kept and nothing is lost. Test Connection keeps its temporary password in memory only, and removing a profile closes its server session first.
+- Connect warns once per profile in each session when a remote server is reached over plain `http://`. Log files mask more kinds of tokens.
+- In a folder you have not trusted, a project can no longer set enterprise rules with `.vscode/filemaker.config.json`, an offline schema cache is not used, and environment and layout comparison are unavailable until you trust the folder. A cache is also checked against its stored checksum before it is used.
+- Three settings that a downloaded project could otherwise set can now only be set in your User settings: the snippet authorization default, the schema hash algorithm and the bridge request limits.
+- Write AI Context works without turning on the AI tools setting. It still respects `filemaker.features.ai.enabled`, the enterprise AI policy and offline mode.
+- Every response from a server is limited to 64 MiB. Sign-in, sign-out, server discovery and other small requests have a fixed time limit, downloads keep going while data keeps arriving, and an upload gets a deadline that grows with the size of the file (at least the request timeout, at most 30 minutes). Stalled transfers stop.
+- Error messages are shown on one line, shortened, with injected links broken, while bracketed codes and file paths stay readable. Copied error reports keep server text inside code blocks.
+- Record Editor and Record Viewer open container links only when they point at the connection's own server.
+- Suggested file names in save dialogs keep their case and extension with unsafe characters removed; exported data keeps the exact layout and query names.
+- Offline metadata cache folders now ignore themselves in Git. Schema snapshots are not ignored, so they can still be committed.
+- Environment comparison reports and generated client README files show layout and profile names safely, so a hostile name cannot add links, images or table rows.
+- AI approval dialogs, Layout Mode and preview script confirmations, and plugin consent show hidden characters as visible escapes, and refuse values too long to show in full.
+
+**FM Web preview**
+
+- Only you can use the preview. It listens on `127.0.0.1:3000` only, the connection to FileMaker stays on the preview server behind a single-use launch link, and requests without the matching private cookie are refused. Next.js development endpoints, such as live reload, are outside that check.
+- VS Code asks before the preview installs or starts, and before any script runs from a layout or a preview button, showing the exact script, its escaped parameter and the connection host. Cancelling stops the preview and removes its saved address and token.
+- The preview runs from a clean private copy with install scripts turned off. Your npm configuration and any edited or added runtime files are left alone and listed as ignored. Only the explicit generation command deletes files, and only after you confirm them by name.
+- On Windows the preview finds Node.js and npm, stops everything it started when you cancel, removes its private files, and no longer flashes a console window. Proxy and extra certificate settings pass through, so installs work on company networks.
+- Old temporary preview folders are removed only when their VS Code window has closed. A layout with an edited or linked generated file is skipped with a warning instead of stopping the preview.
+- Layout link actions open only `http` and `https` addresses, and script names and parameters reach the preview connection exactly as written.
+
+**Fixes**
+
+- Batch exports keep the configured record cap even when the server returns too many rows, and batch CSV export keeps Unicode line and paragraph separators without failing on newer VS Code versions.
+- Crafted portal notes, numbers, certificate names and AI error text can no longer freeze the extension.
+- Generated app updates recognize the current dependency lists while keeping your edits.
+- Offline schema caches keep working after the hash algorithm setting changes, and altered content is still rejected.
+
+**Behind the scenes**
+
+- The mock Data API answers the calls that Test Connection makes, so Test Connection passes all three steps against the mock, and a new first-run test (test the connection, save the profile, connect, run the first query) runs against it.
+- Publishing and development tools are patched for a glob matcher advisory, and release packaging installs without running install scripts.
 
 ## 1.8.0
 

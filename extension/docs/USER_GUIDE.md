@@ -1,6 +1,6 @@
 # FileMaker Data API Tools: User Guide
 
-This is the manual for operators and developers who use the extension to work with a FileMaker database from VS Code. It covers version 1.8, including what changed since 1.7 (listed under [New in 1.8](#new-in-18)). Earlier changes remain under [New in 1.7](#new-in-17), [New in 1.6](#new-in-16) and [New in 1.5](#new-in-15). The screenshots show a mock FileMaker Data API with made-up data. They are from an older version; version labels and some field styling differ, and panels now follow your editor theme. You can open it from VS Code with **FileMaker: Open User Guide**.
+This is the manual for operators and developers who use the extension to work with a FileMaker database from VS Code. It covers version 1.9, including what changed since 1.8 (listed under [New in 1.9](#new-in-19)). Earlier changes remain under [New in 1.8](#new-in-18), [New in 1.7](#new-in-17), [New in 1.6](#new-in-16) and [New in 1.5](#new-in-15). The screenshots show a mock FileMaker Data API with made-up data. They are from an older version; version labels and some field styling differ, and panels now follow your editor theme. You can open it from VS Code with **FileMaker: Open User Guide**.
 
 You can also read the [User Guide on the website](https://sureforgetech.github.io/filemaker-data-api-for-vs-code/guide/), the [upgrade notes](https://sureforgetech.github.io/filemaker-data-api-for-vs-code/upgrade/) and the [changelog by version](https://sureforgetech.github.io/filemaker-data-api-for-vs-code/changelog/). The website follows the guide in this repository and is rebuilt when changes reach the main branch. The [privacy policy](https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/blob/main/PRIVACY.md) says what the extension stores and never sends.
 
@@ -10,7 +10,7 @@ Command names below are the titles you see in the Command Palette (`Cmd+Shift+P`
 
 1. [First run in 10 minutes](#first-run-in-10-minutes)
 2. [Before you start](#before-you-start)
-3. [What's new in 1.4](#whats-new-in-14)
+3. [What's new in 1.4](#whats-new-in-14), including [New in 1.9](#new-in-19) and [New in 1.8](#new-in-18)
 4. [Install](#install)
 5. [Connect to a server](#connect-to-a-server)
 6. [The FileMaker sidebar](#the-filemaker-sidebar)
@@ -101,7 +101,7 @@ The table lists every extension command. Titles have the **FileMaker:** prefix i
 | Diff Schema Snapshots | Compares two saved snapshots for a layout. Opens with **Show only changes** ticked; clear it to see all fields. | Shown when snapshots exist; needs two snapshots for the chosen profile and layout. |
 | Diff Against Latest Snapshot | Compares current layout fields with its latest saved snapshot. | Shown when snapshots exist; needs a snapshot and current layout metadata. |
 | Open Schema Snapshot JSON | Opens a saved schema snapshot as JSON. | Shown when snapshots exist. |
-| Write AI Context | Writes selected layout schemas and script names to an AI context Markdown file. | Shown with a profile; writing inside the workspace needs trust. |
+| Write AI Context | Writes selected layout schemas and script names to an AI context Markdown file. | Shown with a profile; writing inside the workspace needs trust; follows feature and enterprise AI rules and offline mode, without needing AI tools on. |
 | Generate Types for Layout | Writes and opens TypeScript types for one layout. | Shown with a profile; needs workspace trust and a layout. |
 | Generate Types for All Layouts | Writes TypeScript types for every layout in the profile. | Shown with a profile; needs workspace trust. |
 | Generate Snippets for Layout | Writes and opens editor snippets for a layout. | Shown with a profile; needs workspace trust and a layout. |
@@ -113,12 +113,12 @@ The table lists every extension command. Titles have the **FileMaker:** prefix i
 | Delete Record | Deletes a chosen record after confirmation. | Shown with a profile; needs record editing enabled, workspace trust and write operations allowed. |
 | Upload to Container | Uploads a chosen file to a record's container field. | Shown with a profile; needs record editing enabled and allowed, trust, a record and a container field. |
 | Batch Export (Find) | Saves matching records to CSV or JSONL safely as a background job, with missing related row notes and an optional CSV format for Excel. | Shown with a profile; needs batch operations enabled and workspace trust. |
-| Batch Update from CSV/JSON | Previews or applies updates, checks exported record versions unless you choose to overwrite, skips calculation, summary and container columns and later rows with editable values for the same record, and leaves empty CSV cells unchanged; refuses rows containing a NUL character. | Shown with a profile; needs batch operations enabled, trust and batch updates allowed by policy and offline mode. |
+| Batch Update from CSV/JSON | Previews or applies updates, checks exported record versions unless you choose to overwrite, skips calculation, summary and container columns and later rows with editable values for the same record, and leaves empty CSV cells unchanged; refuses rows containing a NUL character. | Shown with a profile; needs batch operations enabled and trust; execution also needs record editing and batch, record and write permission. Dry runs remain available offline. |
 | Cancel Job | Stops sending new work for a running job, waits for pending requests and keeps partial results. | Always available in the Command Palette; also on running jobs in the Jobs view and jobs menu. |
 | Show Jobs | Lists active and recent jobs once, shows counts and record details, and offers cancellation or Copy failures. After a restart, each saved list keeps at most 1,000 entries and marks any shortened list. | Always available in the Command Palette; explains when there are no jobs. |
 | Create Environment Set | Groups at least two profiles for comparison. | Shown in enterprise mode; needs two profiles and write operations allowed. |
-| Compare Environments | Shows layout presence and schema comparisons across an environment set. | Shown in enterprise mode; needs an environment set and its profiles. |
-| Diff Layout Across Environments | Shows field differences for one layout across an environment set. | Shown in enterprise mode; needs a set with at least two existing profiles. |
+| Compare Environments | Shows layout presence and schema comparisons across an environment set. | Shown in enterprise mode; needs trust, an environment set and its profiles. |
+| Diff Layout Across Environments | Shows field differences for one layout across an environment set. | Shown in enterprise mode; needs trust and a set with at least two existing profiles. |
 | Export Environment Comparison Report | Saves an environment comparison as JSON or Markdown. | Shown in enterprise mode; needs an environment set or previous comparison and environment export allowed by policy. |
 | Open Environment Set JSON | Opens a selected environment set's definition as JSON. | Shown in enterprise mode; needs an environment set. |
 | Open Diagnostics Dashboard | Opens request metrics and recent request history in a dashboard. | Shown in power-user mode. |
@@ -133,8 +133,8 @@ The table lists every extension command. Titles have the **FileMaker:** prefix i
 | Open FM Web Layout Mode | Opens the visual editor for saved FM Web layouts. | Shown with an initialized FM Web project; needs trust. |
 | Generate FM Web Next.js App | Generates or updates the local preview app and its shared field controls. | Shown with an initialized project and installed preview template; needs trust. |
 | Generate FM Web Layout Page | Writes a saved layout for the preview, including which fields can be edited. | Shown with an initialized project; needs trust and a saved layout definition. |
-| Start FM Web Preview Server | Starts the local bridge and launches the preview app in a terminal. | Shown with an initialized project and installed preview template; needs trust. |
-| Set AI Access for Connection | Chooses no AI access, read access or write access for a profile. | Shown with a profile; needs an unlocked profile. |
+| Start FM Web Preview Server | Asks before installing and starting a clean private preview, then opens a one-time browser link. | Shown with an initialized project and installed preview template; needs trust. |
+| Set AI Access for Connection | Chooses no AI access, read access or write access for a profile. | Shown with a profile; needs an unlocked profile and write operations allowed; unavailable offline. |
 | Switch AI Tools Off or On | Stops AI tools immediately or restores them after confirmation. | Shown while AI tools are active; also available from the AI status bar. |
 | Show AI Activity | Opens the shared activity log for AI tools in VS Code, chat and external tools. Field values are not recorded. | Shown while AI tools are active. |
 | Start New AI Session | Resets AI quotas, write counters and layout approvals after confirmation. | Shown while AI tools are active. |
@@ -192,7 +192,7 @@ VS Code has a safety feature called Workspace Trust. When you open a folder you 
 
 In Restricted Mode the connection wizard shows a notice at the top (with a **Manage Workspace Trust** button) that says what is limited: a profile template in the project is ignored, and workspace settings that change how connections and commands behave are ignored until you trust the workspace. Your own profile, password and Test Connection work as usual, and a profile you save is yours (it is not stored in the project). The notice goes away when you trust the workspace.
 
-In an untrusted workspace this extension can browse, read metadata and run finds. It will not edit, create or delete records, upload to containers, run scripts, write generated files, run batch jobs, load plugins, start the FM Web preview, or register AI tools, and it ignores a `.filemaker/profile-template.json`. Trust is checked each time, and a panel that is already open refuses changes if trust is lost. A trusted workspace is also not a free pass: the extension still asks before risky actions. See [Security behavior you will notice](#security-behavior-you-will-notice).
+In an untrusted workspace this extension can browse, read metadata and run finds. It will not edit, create or delete records, upload to containers, run scripts, write generated files, run batch jobs, load plugins, start the FM Web preview, or register AI tools, and it ignores a `.filemaker/profile-template.json`. It also ignores `.vscode/filemaker.config.json` and the offline schema cache, and refuses environment and layout comparison until the folder is trusted. The workspace enterprise file `.vscode/filemaker.config.json` and offline schema cache are ignored; environment and layout comparison are unavailable until trust is granted. Trust is checked each time, and a panel that is already open refuses changes if trust is lost. A trusted workspace is also not a free pass: the extension still asks before risky actions. See [Security behavior you will notice](#security-behavior-you-will-notice).
 
 ### Windows, Linux and macOS
 
@@ -201,10 +201,10 @@ The extension runs on macOS, Windows and Linux desktops (VS Code 1.96 or newer).
 - **Shortcuts.** `Cmd` on macOS is `Ctrl` on Windows and Linux.
 - **Passwords** are kept in the operating system's keychain through VS Code: Keychain on macOS, Credential Manager on Windows, a keyring (such as GNOME Keyring) on Linux. A Linux desktop without a running keyring gives "SecretStorage unavailable (…)" (see [Troubleshooting](#signing-in)).
 - **AI server for MCP clients.** It listens on a local socket on macOS and Linux and on a named pipe on Windows. The client needs Node.js 18 or newer on its PATH. It does not run in remote windows (SSH, WSL, Dev Containers, Codespaces).
-- **Generated files.** File names avoid names Windows reserves (such as `CON` or `NUL`), and names that differ only in letter case can share a file on Windows and on macOS's default disk format. Generated files use LF line endings on every system. A generated file that is marked read-only (for example by a version-control tool) is still updated and stays read-only. Your workspace folder itself may be a symbolic link, as is common on macOS. Links or directory junctions below it in an output path are refused, even if they point inside the workspace. The message explains which folder to fix; generating types for every layout also shows this refusal.
+- **Generated files.** File names avoid names Windows reserves (such as `CON` or `NUL`), and layout names that differ only in letter case get separate type files with short hash suffixes on Windows and on macOS's default disk format. Generated files use LF line endings on every system. A generated file that is marked read-only (for example by a version-control tool) is still updated and stays read-only. Your workspace folder itself may be a symbolic link, as is common on macOS. Links or directory junctions below it in an output path are refused, even if they point inside the workspace. The message explains which folder to fix; generating types for every layout also shows this refusal.
 - **Copied commands.** **Copy as curl** produces a command for a POSIX shell (sh, bash, zsh); use the `.http`, fetch() or Postman formats in PowerShell or cmd.exe.
 
-What has been checked: build, lint, type check and the unit tests run on Windows and Linux on every change. The real VS Code screens have been driven by the UI test suite on macOS only, and no automated test runs against a real FileMaker Server (the tests use a mock of the Data API). See [Compatibility](./COMPATIBILITY.md) for details and what is not tested.
+What has been checked: build, lint, type check and the unit tests run on Windows and Linux on every change. GitHub CI also runs the first-run VS Code smoke journey and wider UI journeys on Linux against the mock. No automated test runs against a real FileMaker Server. See [Compatibility](./COMPATIBILITY.md) for details and what is not tested.
 
 ### Opening your user settings
 
@@ -240,6 +240,22 @@ Changes you may notice (details in the [upgrade notes](../UPGRADE.md)):
 - A batch update carries on past records your account cannot change and stops only when the account cannot do updates at all.
 - Logs and error details hide more secrets (session tokens in URLs, more token-like keys, passwords in URLs).
 - A status bar item `AI: off` is always shown, on the right. Selecting it switches AI tools off when they are on. When AI is not on, it only explains why (for example `filemaker.ai.enabled` is off, offline mode, an untrusted workspace, enterprise policy, or no connection enabled) and offers **Open AI Settings**; it does not change anything.
+
+### New in 1.9
+
+Version 1.9.0 adds new portal rows to Create Record on direct connections, alongside the parent record. Existing related rows are not edited; proxy connections do not offer portal-row creation. Mock tests cover it; real-server compatibility remains unverified.
+
+Most changes improve safety:
+
+- Batch updates need record editing enabled and follow enterprise batch, record and write rules, checked again before every row. Files above `filemaker.batch.maxRecords` are refused, including dry runs; dry runs still write nothing and remain available offline or with writes disabled.
+- Certificate trust and **Set AI Access for Connection** follow locked profiles and write rules and are unavailable offline. Old saved addresses with embedded credentials are cleaned only after their password is safely stored. Connecting over remote plain HTTP warns once per profile per session.
+- Untrusted folders cannot supply enterprise policy, offline schema caches or environment comparisons. Caches are checksum-checked before use in trusted folders.
+- Snippet authorization, schema hashing and bridge limit settings are User-only; workspace values are ignored. **Write AI Context** works with AI tools off, while still following the feature and enterprise AI rules and offline mode.
+- Server responses are limited to 64 MiB. Upload deadlines grow with file size, up to 30 minutes; stalled transfers stop. Error text, suggested file names and confirmations display untrusted names safely, and record panels open container links only on the connection's server.
+- Offline metadata cache folders ignore themselves in Git; schema snapshots remain available to commit.
+- The source-checkout FM Web preview uses a clean private temporary copy, loopback-only access, a single-use launch link and a private session cookie. It asks before starting and before scripts, and leaves your npm configuration and edited runtime files alone. Regeneration deletes files only after a named confirmation. Windows startup and cancellation are improved.
+
+No command or setting was removed or renamed. Read [Upgrading from 1.8.0 to 1.9.0](../UPGRADE.md#upgrading-from-180-to-190) for the prompts, exact setting keys and rollback steps.
 
 ### New in 1.8
 
@@ -332,16 +348,16 @@ The password, proxy API key and session token are stored in VS Code SecretStorag
 
 ### What the wizard asks you to confirm
 
-- **Plain `http://` to a remote server.** The password would travel unencrypted. You can continue, but you are warned.
+- **Plain `http://` to a remote server.** Credentials and data travel unencrypted. The wizard asks before sending them; Connect warns once per profile per session. Use HTTPS where possible.
 - **An address that came from the workspace.** See profile templates below.
 - **A changed server, proxy or user name.** When you edit a saved profile and change the server address, the proxy address or the account name, the wizard does not reuse the saved password or API key. Type it again. This stops a saved password from being sent to a different server. If you only change the profile name or the database, the saved secret is kept.
-- **Test Connection** opens a throwaway session and closes it. It never changes the saved profile's secrets. For an unchanged server and user, leave the password empty to test with the saved one.
+- **Test Connection** opens a throwaway session and closes it. Its temporary password (or proxy API key) and session token stay in memory only; it never changes the saved profile's secrets. For an unchanged server and user, leave the password empty to test with the saved one.
 
 When editing a profile, **••••••• (saved)** in the password box means you can leave it empty to keep the saved password. Typing a password replaces it when you save, including any spaces you type; the saved password is never displayed. If you have not tested the current values, Save shows **Test the connection first, or choose Save anyway** with a **Save anyway** button. A workplace policy that requires a successful test still blocks saving until it passes.
 
 Changing the host or port clears the trusted certificate in the wizard and shows a notice. Review the certificate for the new address before trusting it.
 
-Server addresses with a user name or password inside them (`https://user:pass@host`) are rejected.
+Server addresses with a user name or password inside them (`https://user:pass@host`) are rejected. Old saved addresses are cleaned up only after any embedded password is safely stored, preserving a password already saved separately. A warning asks you to re-enter or confirm the credential in **Edit Connection Profile**. If secure storage is unavailable, the old entry stays for a later attempt so the password is not lost. Removing a profile closes its server session before local secrets are deleted.
 
 ### Certificates
 
@@ -522,6 +538,8 @@ Run **FileMaker: Get Record by ID** or **FileMaker: Open Record Viewer**, choose
 
 If **Load more** in the Record Viewer fails, the error is shown and the button becomes available to try again. Portal counts supplied only for the first result are not applied to other records in a search or CSV export.
 
+Record Viewer and Record Editor open container links only when they point at the selected connection's own server. A link to another server is refused.
+
 ### Edit a record
 
 ![The Record Editor with record 1003 loaded](./marketplace/record-editor.png)
@@ -545,13 +563,13 @@ If a save works but the editor cannot re-read the record afterwards, it says so 
 
 ### Create a record
 
-Run **FileMaker: Create Record** (or the plus icon on a layout). The Record Editor opens in create mode with the layout's field list. Fill in the fields you want. On a direct connection, each portal listed by the layout metadata also has an **Add row** button; choose the fields for each new row and add as many rows as needed. Empty portal rows are ignored. These rows are created with the parent record and linked by FileMaker; existing portal rows are not edited here. Portal-row creation is not available through proxy connections. Select **Create Record** and confirm the dialog, which summarizes the related rows. The editor then shows the new record's ID. If the first field list cannot be loaded, the editor shows the error and has no fields to fill in. Select another layout, then select this layout again to request its fields again. If a lookup fails after switching layouts, the previous fields can still be visible. Wait for the selected layout’s fields before creating. If Create Record reports a field-loading error, nothing was created; your entries remain and you can try again.
+Run **FileMaker: Create Record** (or the plus icon on a layout). The Record Editor opens in create mode with the layout's field list. Fill in the fields you want. On a direct connection, each portal listed by the layout metadata also has an **Add row** button; choose the fields for each new row and add as many rows as needed. Empty portal rows are ignored. These rows are created with the parent record and linked by FileMaker; existing portal rows are not edited here. Portal-row creation is not available through proxy connections. Select **Create Record** and confirm the dialog, which summarizes the related rows. The editor then shows the new record's ID. Portal creation is mock-tested; real-server compatibility remains unverified. If the first field list cannot be loaded, the editor shows the error and has no fields to fill in. Select another layout, then select this layout again to request its fields again. If a lookup fails after switching layouts, the previous fields can still be visible. Wait for the selected layout’s fields before creating. If Create Record reports a field-loading error, nothing was created; your entries remain and you can try again.
 
 ### Delete a record
 
 Run **FileMaker: Delete Record**, choose a profile and layout, and enter the record ID. Because a mistyped ID deletes the wrong record, look the ID up first: run a find in the Query Builder and read the `recordId` of the row you mean. A dialog then asks you to confirm with **Delete**, naming the ID and the layout. Deleting cannot be undone.
 
-Editing, creating, deleting and uploading all need a trusted workspace (checked each time; an open editor refuses changes if trust is lost), are blocked in offline mode and for the enterprise `viewer` role, and respect `filemaker.features.recordEdit.enabled`. Deleting also needs the general write permission (`writeOperations`) in addition to record editing.
+Editing, creating, deleting and uploading all need a trusted workspace (checked each time; an open editor refuses changes if trust is lost), are blocked in offline mode and for the enterprise `viewer` role, and respect `filemaker.features.recordEdit.enabled`. Editing, creating, deleting and uploading also need the general write permission (`writeOperations`) in addition to record editing.
 
 ---
 
@@ -561,7 +579,7 @@ Editing, creating, deleting and uploading all need a trusted workspace (checked 
 2. Choose a profile and layout, then enter the record ID and the container field name.
 3. Pick the file.
 
-The default size limit is 100 MB (`filemaker.containerUploadMaxBytes`). Uploading needs a trusted workspace.
+The default size limit is 100 MB (`filemaker.containerUploadMaxBytes`). Uploading needs a trusted workspace. Its deadline grows with file size, lasts at least `filemaker.requestTimeoutMs` and is capped at 30 minutes. Connection setup still uses the base timeout; a stalled upload stops at its deadline. A timeout after sending may mean the upload was applied: check the record before repeating it. The 64 MiB response limit is separate from the upload allowance.
 
 ---
 
@@ -617,7 +635,7 @@ Rows containing a NUL character are refused before sending any fields from that 
 2. Choose a `.csv` or `.json` file.
    - **CSV**: a header row with a `recordId` column and one column per field. Empty cells are skipped (a CSV cannot clear a field).
    - **JSON**: an array of `{ "recordId": "123", "modId": "7", "fieldData": { "Field": "value" } }` entries (`recordId` and `modId` are strings). Keep `modId` from the export when available.
-3. Choose **Dry-run only (recommended)** or **Execute updates now**. A dry run shows a sample, how many rows have `modId`, how many will be checked for newer changes, and calculation, summary and container columns that will be skipped. The sample and NUL warnings leave out skipped columns. The preview opens after the field check without switching focus; if it cannot open, the result remains in Jobs. It sends no updates. Executing asks for confirmation first.
+3. Choose **Dry-run only (recommended)** or **Execute updates now**. A dry run shows a sample, how many rows have `modId`, how many will be checked for newer changes, and calculation, summary and container columns that will be skipped. The sample and NUL warnings leave out skipped columns. The preview opens after the field check without switching focus; if it cannot open, the result remains in Jobs. It sends no updates. Executing asks for confirmation first, showing the layout, profile and server with hidden characters made visible. Files with more rows than `filemaker.batch.maxRecords` are refused before any updates, including for dry runs; split the file or deliberately raise the limit.
 
 **Protect newer changes.** Keep the exported `modId` column (or reserved `__modId`) unchanged. Choose **Check for newer changes (recommended)** before running. FileMaker checks each row's version; if someone edited that record after the export, the row fails with code **306** and “Changed since the export (someone edited this record). Not updated.” It is not retried, and other rows continue. Jobs and **Copy failures** include these rows and their code. If a reply is lost and a retry receives 306, the extension reads the record again. If all values being written already match, it counts the row as successful. This comparison allows different number formats only for fields listed as number fields. Text, dates and timestamps must match exactly, including leading zeros and trailing spaces; only line endings may differ. If the field type is unknown, the same exact comparison applies. It does not change what you send or guess between different date formats. If the values differ, the record cannot be read, or you cancel before the check starts, it says **Could not confirm: the first attempt may have succeeded**. Check that record before trying again; this is not counted as a record changed by someone else. The final job summary says how many rows were skipped because the records changed after the export. To replace newer values deliberately, choose **Overwrite even if changed**; this sends no modification ID.
 
@@ -627,7 +645,7 @@ A record your account cannot change because of a record-level access rule (error
 
 Updates run with `filemaker.batch.concurrency` requests at a time (default 4, maximum 10). There is no undo. The modification ID check protects newer edits when their exported IDs are kept. Keep an export from before the update for reference; restoring old values is another update, with the same checks and field limits.
 
-Batch update is blocked in offline mode, for the `viewer` role, and when `filemaker.features.batch.enabled` is off or the workspace is untrusted.
+Executing batch updates needs both `filemaker.features.batch.enabled` and `filemaker.features.recordEdit.enabled`, workspace trust and enterprise permission for `batchUpdate`, `recordEdit` and `writeOperations`. The job rechecks policy and offline mode before every row and stops with a reason if further writes are blocked. Dry runs still write nothing and remain available with writes disabled or offline mode on; an offline dry run does not contact the server.
 
 ---
 
@@ -782,7 +800,7 @@ Regenerate after a schema change, and use a [schema diff](#schema-snapshots-and-
 
 ## FM Web and Layout Mode
 
-FM Web is an experimental workflow for designing web layouts that sit on top of your FileMaker data and generating a small Next.js app from them. Everything is under `.fmweb/` in the workspace and needs a trusted workspace.
+FM Web is an experimental workflow for designing web layouts that sit on top of your FileMaker data and generating a small Next.js app from them. Project files are under `.fmweb/` in the workspace and need a trusted workspace; the running preview uses a separate private temporary folder.
 
 ![Layout Mode with six fields placed on a layout](./marketplace/layout-mode.png)
 
@@ -819,7 +837,9 @@ When field details are available, calculated fields, summary fields and containe
 
 The bridge connection detail is hidden during normal use. Add `?debug=1` to the page address (or `&debug=1` if it already has a question mark) to show it when checking a preview problem.
 
-When you run **Generate FM Web Next.js App** or **Start FM Web Preview Server** again, the extension refreshes the few managed runtime files (marked `fmweb-managed: runtime template v7`) in an app you generated earlier. It never overwrites a file you edited and never follows a symbolic link: such files are left as they are, and a warning names each one ("These generated preview files were edited (or are symbolic links), so they were not updated: ..."). Delete the named files and run the command again to get fresh copies; until then the preview may still show the older behaviour. The shared field controls are copied into the preview app’s shared folder. Untouched shared files from known older versions refresh automatically too; edited files stay as they are and the warning names them. The app also includes the test settings and test tools it needs. After its dependencies are available, you can run its own tests from the generated app folder.
+**Start FM Web Preview Server** runs a clean private copy of the shipped template and generated layouts, leaving your edited or added runtime files alone. The start dialog lists edited or added runtime files that it will ignore. Workspace npm configuration, `.env` overrides, lockfiles, dependencies and build output are not used by the private preview. A layout whose generated file was edited or linked is skipped with a warning. Your edits are not used by the private preview.
+
+**Generate FM Web Next.js App** refreshes recognized, untouched generated files and keeps edited or linked files. If regeneration is needed, **Regenerate from template** lists exactly which files or folders it will delete, including their contents; only confirming that dialog deletes them. Cancel leaves them alone. See [FM Web reference](./FM_WEB.md) for the file rules and limits.
 
 New fields added from the picker or toolbox continue below existing objects on the standard grid, including room for labels. The page grows as needed. Opening **Edit Record by ID** loads the supplied record automatically.
 
@@ -827,10 +847,12 @@ Query Builder find values, Record Editor, Record Viewer and FM Web use the same 
 
 Confirmations you will see:
 
-- **Start FM Web Preview Server** shows the folder and asks before it runs `npm install` and `npm run dev` there. The folder's `package.json` can come from a repository, and npm runs the scripts it defines. Only continue if you trust it.
-- **A layout button that runs a script** (a `runScript` behavior) asks before it runs, naming the script, the parameter and the connection, and saying when the project file chose that connection. It also needs the script runner enabled, offline mode off and a policy that allows scripts.
+- **Start FM Web Preview Server** asks **Run** before installing dependencies and starting the private preview. Install scripts and npm pre/post scripts are disabled; it uses separate empty npm configuration and a private cache, downloading from `registry.npmjs.org`. Each start resolves package versions with `npm install`. Cancelling stops the old preview and clears its saved bridge address and token.
+- **A script from Layout Mode or a preview button** asks in VS Code before running, showing the exact script, layout, escaped parameter and connection host. Hidden characters are visible; values too long to show in full are refused. Cancelling a script prompt runs no script. Script permission and offline rules still apply.
 
-The bridge accepts requests only from your own computer, it needs a trusted workspace, every request must carry a session token, and it serves only the active connection. The token is written to a private `.env.local` in the generated app and sent by the generated client; apps you generated earlier get their managed runtime files refreshed to the current template, and an app whose files you edited is left alone with a warning. Record changes and script runs follow your own limits:
+The app listens only on `127.0.0.1:3000`. VS Code opens a single-use launch link, valid for two minutes, which becomes a private HttpOnly session cookie. Keep the link private. Restarting invalidates the old launch and session. Pages and the server-side bridge route require the cookie; Next.js development endpoints such as live reload are outside that check. A busy port prevents startup. The bridge token stays in the private server process, never in browser JavaScript or a saved `.env.local`.
+
+On Windows the preview finds Node.js and npm on PATH, hides console windows and stops its process tree and removes private files on cancellation. If it cannot find them, install Node.js with npm and restart VS Code. Proxy and extra certificate environment settings pass through; your npm configuration stays unchanged. Record changes and script runs follow your own limits:
 
 - Record changes (edit, create, delete) are refused in offline mode, when `filemaker.features.recordEdit.enabled` is off, and when the enterprise role or `disabledFeatures` disallow `writeOperations` or `recordEdit`.
 - Script runs are refused in offline mode, when `filemaker.features.scriptRunner.enabled` is off, and when the enterprise role or `disabledFeatures` disallow `scriptRunner`.
@@ -845,8 +867,10 @@ Offline mode keeps you working with what the extension has already learned about
 
 1. Run **FileMaker: Toggle Offline Mode**. The sidebar shows an **OFFLINE MODE** badge.
 2. Layout and field metadata is served from a cache in `.vscode/filemaker/offline-metadata/`. The extension fills the cache whenever it reads layout metadata while online. **FileMaker: Refresh Offline Metadata Cache** caches every layout of a profile in one go. A layout you never opened shows "no cached metadata".
-3. Writes are disabled: record edit, create, delete and upload, batch update, the Script Runner, and adding, editing or removing profiles.
+3. Writes are disabled: record edit, create, delete and upload, executing batch updates, the Script Runner, adding, editing or removing profiles, trusting server certificates, changing AI access and Write AI Context. Batch dry runs remain available and do not contact the server offline.
 4. A warning appears when the cache is older than `filemaker.offline.staleCacheWarnHours` (default 24).
+
+The offline schema cache is not used in an untrusted folder. In a trusted folder its content is checked against the stored checksum; altered content is refused, and changing the hash algorithm does not invalidate intact caches. The cache folder writes its own `.gitignore`; schema snapshots are not ignored and remain available to commit.
 
 Offline mode does not block finds or opening records: those still call the server, and fail if it is unreachable.
 
@@ -866,7 +890,7 @@ Set `filemaker.enterprise.mode` to `true` and `filemaker.enterprise.role` to one
 | `developer` (default) | Everything except exporting environment comparison reports and loading plugins. |
 | `admin` | Everything. |
 
-A team can also put `.vscode/filemaker.config.json` in a repository:
+In a trusted folder, a team can also put `.vscode/filemaker.config.json` in a repository. The file is ignored in an untrusted folder:
 
 ```json
 {
@@ -883,7 +907,9 @@ The feature names for `disabledFeatures` are `recordEdit`, `batchUpdate`, `envir
 
 **Restrict-only.** A repository can make the policy stricter but never looser. A workspace setting or this file can turn enterprise mode on and lower the role, but it cannot turn enterprise mode off or raise the role above the one in your own user settings (the default is `developer`). If you used a repository file to grant `admin`, set it in your user settings instead. In the same way, a workspace can switch offline mode on or a `filemaker.features.*.enabled` switch off, but not the reverse.
 
-**Environment Sets** group profiles (for example Dev, Staging, Production) so you can compare them. With enterprise mode on, use **FileMaker: Create Environment Set**, **FileMaker: Compare Environments**, **FileMaker: Diff Layout Across Environments**, **FileMaker: Export Environment Comparison Report** and **FileMaker: Open Environment Set JSON**.
+Batch updates also need record editing enabled and permission for `batchUpdate`, `recordEdit` and `writeOperations`; these rules are rechecked per row. Certificate trust and **Set AI Access for Connection** respect locked profiles, `writeOperations` and offline mode.
+
+**Environment Sets** group profiles (for example Dev, Staging, Production) so you can compare them. With enterprise mode on, use **FileMaker: Create Environment Set**, **FileMaker: Compare Environments**, **FileMaker: Diff Layout Across Environments**, **FileMaker: Export Environment Comparison Report** and **FileMaker: Open Environment Set JSON**. Environment and layout comparison require workspace trust.
 
 ---
 
@@ -930,7 +956,7 @@ Nothing else is needed. Writes and scripts stay unavailable until you switch the
 
 ### Write AI Context
 
-AI models guess layout and field names and get find requests wrong. This command gives them the real names.
+AI models guess layout and field names and get find requests wrong. This command gives them the real names. It works with `filemaker.ai.enabled` off and does not enable AI tools. It still needs `filemaker.features.ai.enabled`, enterprise AI permission and offline mode off.
 
 1. Run **FileMaker: Write AI Context**.
 2. Choose a connection if asked, then tick the layouts to describe. None are selected by default and the limit is 50.
@@ -1031,11 +1057,11 @@ VS Code has two places to set most options. **User settings** are yours and foll
 
 | Kind | What the Workspace tab does | Examples |
 | --- | --- | --- |
-| **User settings only** | Nothing. A workspace value is ignored (VS Code may not even show the setting in the Workspace tab). | all `filemaker.ai.*` settings except `hiddenFields`, `filemaker.secrets.fallback`, `filemaker.export.neutralizeFormulas` |
+| **User settings only** | Nothing. A workspace value is ignored (VS Code may not even show the setting in the Workspace tab). | all `filemaker.ai.*` settings except `hiddenFields`, `filemaker.secrets.fallback`, `filemaker.export.neutralizeFormulas`, `filemaker.snippets.includeAuthByDefault`, `filemaker.schema.hashAlgorithm`, and the three bridge limits listed below |
 | **Workspace can only make this stricter** | A value that adds a restriction counts; one that would loosen your user value is ignored. | `filemaker.offline.mode` (can only turn on), `filemaker.features.*.enabled` (can only turn off), `filemaker.enterprise.mode` (can only turn on), `filemaker.enterprise.role` (can only lower), `filemaker.ai.hiddenFields` (can only add names) |
 | **Per workspace** | Works as you expect. Some are ignored until you trust the folder. | `filemaker.savedQueries.scope`, `filemaker.typegen.outputDir`, `filemaker.schema.snapshots.storage`, `filemaker.batch.*`, timeouts, and the rest |
 
-Every setting's description in the Settings editor starts with one of these three labels.
+Every setting's description in the Settings editor starts with one of these three labels. In 1.9, workspace values for snippet authorization defaults, schema hashing and bridge request limits are ignored. Move any intended values to User settings; the exact keys are in the reference below.
 
 **See what is really in effect.** Run **FileMaker: Show Effective Settings**. For every policy-related setting it shows the value in effect, where it comes from (Default, User, Workspace, Workspace Folder, Enterprise file or Restricted Mode), your User and Workspace values and, when a workspace value is ignored, a plain sentence saying why, with buttons to open the User or Workspace tab at that setting. The value in effect is read by the same code that applies the rule (and for the on/off switches the explanation is built from the same reading); the page is a snapshot that refreshes when settings change. When a configured value is not usable as written it adds a note: for example a User role that is not viewer, developer or admin is treated as developer, and a `filemaker.typegen.outputDir` that is empty, absolute or contains `..` falls back to the default folder. When a project ships a value that is ignored, the extension also tells you once per setting for that workspace, with **Don't show again for this workspace**.
 
@@ -1061,7 +1087,7 @@ Open Settings (`Cmd+,` / `Ctrl+,`) and search for `filemaker`; make sure the **U
 
 | Setting | Default | Badge | What it does |
 | --- | --- | --- | --- |
-| `filemaker.requestTimeoutMs` | `15000` | Per workspace | Timeout for each Data API request, in milliseconds. |
+| `filemaker.requestTimeoutMs` | `15000` | Per workspace | Base request timeout in milliseconds. Fixed for small requests and connection setup; downloads renew on progress, upload deadlines grow with size. Transfers stop after at most 30 minutes; raising this does not raise the 64 MiB response cap. |
 | `filemaker.defaultApiBasePath` | `"/fmi/data"` | Per workspace | API path used when a profile does not set one. |
 | `filemaker.defaultApiVersionPath` | `"vLatest"` | Per workspace | Data API version segment used when a profile does not set one. |
 | `filemaker.connect.maxRetries` | `3` | Per workspace | Retries of a failed sign-in on network or server errors. 0 turns retry off. |
@@ -1079,7 +1105,7 @@ Open Settings (`Cmd+,` / `Ctrl+,`) and search for `filemaker`; make sure the **U
 | --- | --- | --- | --- |
 | `filemaker.savedQueries.scope` | `"workspace"` | Per workspace | Where saved queries are kept: `workspace` or `global`. |
 | `filemaker.history.maxEntries` | `10` | Per workspace | Request history entries kept per workspace. |
-| `filemaker.snippets.includeAuthByDefault` | `false` | Per workspace | Show an Authorization header with a variable to fill in (`$FM_TOKEN`, `{{token}}`) instead of `<REDACTED>` in copied requests (curl, fetch(), .http, Postman, TypeScript). A real token, password or API key is never written. |
+| `filemaker.snippets.includeAuthByDefault` | `false` | User settings only | Show an Authorization header with a variable to fill in (`$FM_TOKEN`, `{{token}}`) instead of `<REDACTED>` in copied requests (curl, fetch(), .http, Postman, TypeScript). A real token, password or API key is never written. |
 
 **Records, Scripts, and Batch**
 
@@ -1088,7 +1114,7 @@ Open Settings (`Cmd+,` / `Ctrl+,`) and search for `filemaker`; make sure the **U
 | `filemaker.features.scriptRunner.enabled` | `true` | Workspace can only make this stricter; ignored until you trust the folder | Turns the Script Runner off when false. |
 | `filemaker.scripts.parameterBuilder.enabled` | `true` | Per workspace | Shows the JSON parameter builder in the Script Runner. |
 | `filemaker.export.neutralizeFormulas` | `true` | User settings only | Put an apostrophe in front of CSV cells and Copy results as table cells that start with `=`, `+`, `-`, `@`, tab or carriage return. Turn off only if you need the raw text. |
-| `filemaker.batch.maxRecords` | `10000` | Per workspace; ignored until you trust the folder | Most records a batch export fetches. |
+| `filemaker.batch.maxRecords` | `10000` | Per workspace; ignored until you trust the folder | Caps exported records and update-file rows, including dry runs. Oversized update files are refused; default 10,000, maximum 250,000. |
 | `filemaker.batch.concurrency` | `4` | Per workspace; ignored until you trust the folder | Requests sent at a time by a batch update (1 to 10). |
 | `filemaker.batch.dryRunDefault` | `true` | Per workspace; ignored until you trust the folder | Default mode shown for batch updates. |
 | `filemaker.features.recordEdit.enabled` | `true` | Workspace can only make this stricter; ignored until you trust the folder | Turns the Record Editor write-back and container upload off when false. |
@@ -1105,7 +1131,7 @@ Open Settings (`Cmd+,` / `Ctrl+,`) and search for `filemaker`; make sure the **U
 | `filemaker.schema.snapshots.storage` | `"workspaceFiles"` | Per workspace | `workspaceFiles` (`.vscode/filemaker/snapshots/`) or `workspaceState`. An untrusted workspace always uses `workspaceState`. |
 | `filemaker.schema.snapshots.maxPerLayout` | `20` | Per workspace | Snapshots kept per layout; the oldest are removed. |
 | `filemaker.schema.diagnostics.enabled` | `false` | Per workspace | Lists snapshot differences in the Problems panel. |
-| `filemaker.schema.hashAlgorithm` | `"sha256"` | Per workspace | Hash used to fingerprint schema metadata. |
+| `filemaker.schema.hashAlgorithm` | `"sha256"` | User settings only | Hash used to fingerprint schema metadata. |
 
 **Code Generation**
 
@@ -1117,9 +1143,9 @@ Open Settings (`Cmd+,` / `Ctrl+,`) and search for `filemaker`; make sure the **U
 
 | Setting | Default | Badge | What it does |
 | --- | --- | --- | --- |
-| `filemaker.fmWeb.bridge.rateLimitPerSecond` | `20` | Per workspace | Sustained requests per second the FM Web bridge accepts. Extra requests get HTTP 429. |
-| `filemaker.fmWeb.bridge.rateLimitBurst` | `60` | Per workspace | Largest burst the FM Web bridge accepts at once. |
-| `filemaker.fmWeb.bridge.requestBudget` | `10000` | Per workspace | Total requests per bridge session; restart the bridge to reset. |
+| `filemaker.fmWeb.bridge.rateLimitPerSecond` | `20` | User settings only | Sustained requests per second the FM Web bridge accepts. Extra requests get HTTP 429. |
+| `filemaker.fmWeb.bridge.rateLimitBurst` | `60` | User settings only | Largest burst the FM Web bridge accepts at once. |
+| `filemaker.fmWeb.bridge.requestBudget` | `10000` | User settings only | Total requests per bridge session; restart the bridge to reset. |
 
 **Offline Mode**
 
@@ -1168,7 +1194,7 @@ Old names: `filemakerDataApiTools.logLevel`, `.requestTimeoutMs`, `.defaultApiBa
 
 ## Security behavior you will notice
 
-Error messages hide plain-text `api_key` values and `X-FM-Data-Access-Token` headers.
+Error messages hide plain-text `api_key` values and `X-FM-Data-Access-Token` headers. They are shortened to one line and break injected links while keeping bracketed codes and file paths readable. Copied reports keep server text inside code blocks. Suggested save names keep case and extension with unsafe characters removed; exported layout and query names stay exact. Confirmations for AI, plugins and layout/preview scripts show hidden characters as escapes and refuse values too long to display in full.
 
 - **Workspace trust.** In an untrusted workspace (Restricted Mode, see [above](#trusted-workspace-and-restricted-mode)) you can browse, read metadata and run finds. Editing, creating and deleting records, uploading to containers, the Script Runner, batch export and update, writing files (type generation, snippets, snapshots on disk, the AI context copy, FM Web), plugins, the FM Web preview and AI tools need a trusted workspace. Trust is checked each time, and an open panel refuses changes if trust is lost. This is not a free pass in a trusted workspace: the prompts below still apply.
 - **Virtual workspaces** (such as github.dev) are not supported: the extension writes files to a folder on disk.
@@ -1176,7 +1202,7 @@ Error messages hide plain-text `api_key` values and `X-FM-Data-Access-Token` hea
 - **Secrets stay in the keychain.** Passwords, API keys and session tokens are kept in VS Code SecretStorage and never shown in webviews.
 - **Redaction.** Logs, request history, error details and copied snippets hide authorization headers, session tokens (including in request paths), token-like query parameters and JSON keys (anything containing `token`, `secret`, `password`, `session` or `apiKey`), and passwords inside URLs. Copied requests (curl, fetch(), .http, Postman, TypeScript) never contain a password, session token or API key: the Authorization header shows `<REDACTED>`, or with the opt-in a variable name, and the server address loses any account or query string typed into it.
 - **Certificates.** The server certificate is checked, except for a profile that still has the older allow-self-signed setting (that skips every check, and shows a warning). You can trust one specific certificate by its fingerprint (never from a workspace file); a different certificate later is a hard failure, and for a normal or pinned profile nothing is sent before the certificate is checked. A pin is trust on first use: it does not authenticate who presented the certificate when you trusted it (see [What pinning does and does not give you](#what-pinning-does-and-does-not-give-you)).
-- **Repositories cannot loosen your policy.** Workspace settings and `.vscode/filemaker.config.json` can only restrict enterprise mode, roles, offline mode and feature switches.
+- **Repositories cannot loosen your policy.** Workspace settings and, in a trusted folder, `.vscode/filemaker.config.json` can only restrict enterprise mode, roles, offline mode and feature switches. Untrusted folders cannot supply that enterprise file or offline schema caches, or run environment and layout comparison.
 - **No telemetry.** The extension sends nothing to its authors. It talks only to your FileMaker server (or your proxy).
 - **Local files that hold schema.** Snapshots, the offline cache, generated types and the AI context file contain layout and field names. Do not commit them to a public repository.
 
@@ -1194,7 +1220,7 @@ Connection errors name the step that failed and what to do. The most common firs
 - **Test Connection** (in the connection wizard) tells you which step failed: reaching the Data API, listing the databases, or signing in. See [Test Connection, step by step](#test-connection-step-by-step).
 - **Status bar:** the `FileMaker: <profile>` item says `sign-in failed`, `certificate problem` or `unreachable` after a failed request; its tooltip repeats the reason.
 - **Output panel:** View > Output, then choose **FileMaker Data API Tools** in the dropdown. Set `filemaker.logging.level` to `debug` for more detail. Secrets are redacted.
-- **FileMaker: Show Diagnostics** opens a report with your VS Code and extension versions, operating system, active profile (no secrets), settings and recent log lines. Attach it to bug reports. **FileMaker: Show Effective Settings** shows the value in effect for the policy-related settings (24 of them: the switches, limits and paths a project could try to change), not every setting.
+- **FileMaker: Show Diagnostics** opens a report with your VS Code and extension versions, operating system, active profile (no secrets), settings and recent log lines. Attach it to bug reports. **FileMaker: Show Effective Settings** shows the value in effect for the policy-related settings (the switches, limits and paths a project could try to change), not every setting.
 
 ### Connecting: certificates and network
 
@@ -1202,6 +1228,8 @@ Connection errors name the step that failed and what to do. The most common firs
 - The server certificate is refused: [certificate errors](./TROUBLESHOOTING.md#certificate-errors-the-server-certificate-is-not-trusted), [a revoked, expired or replaced certificate](./TROUBLESHOOTING.md#the-certificate-was-revoked-expired-or-replaced), [the custom CA file cannot be read](./TROUBLESHOOTING.md#the-custom-ca-file-cannot-be-read) and [an old TLS version](./TROUBLESHOOTING.md#the-server-offers-only-an-old-tls-version).
 - A proxy is in the way: [a proxy or a CORS rule is in the way](./TROUBLESHOOTING.md#a-proxy-or-a-cors-rule-is-in-the-way).
 - The server cannot be reached: [the server cannot be reached or times out](./TROUBLESHOOTING.md#the-server-cannot-be-reached-or-times-out).
+- **Request timed out** says to raise `filemaker.requestTimeoutMs` for a slow server. Downloads need continuing progress; upload deadlines grow with size, up to 30 minutes. A timed-out change may already have been applied: check before retrying. Error details containing **maxContentLength size of 67108864 exceeded** mean a response crossed the 64 MiB cap; reduce page size or the response at the source. HTTP 413 is a server or gateway request limit; send less.
+- A source-checkout preview that will not start on Windows may say **Could not find Node.js and npm on PATH**. Install Node.js with npm, restart VS Code and ensure port 3000 is free; see [FM Web reference](./FM_WEB.md).
 - The request was refused: [HTTP 403: the request was refused](./TROUBLESHOOTING.md#http-403-the-request-was-refused).
 
 ### Signing in

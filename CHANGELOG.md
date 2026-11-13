@@ -18,45 +18,27 @@ PR title prefix matches the highest-tier label added:
 
 ## Unreleased
 
-- [SECURITY] Remove the vulnerable documentation matcher while preserving API documentation generation.
+### [BREAKING]
 
-- [SECURITY] Large downloads and uploads have bounded deadlines: downloads renew after progress; upload deadlines grow with body size, last at least the request timeout, and have a 30 minute ceiling; stalled transfers stop and trickling downloads time out.
-- [SECURITY] Batch update confirmation accepts saved server addresses that are not parseable URLs.
-- [SECURITY] Error notifications keep bracketed codes and file paths readable while breaking injected links.
-- [SECURITY] FM Web refreshes recognize the current shared container-link safety code without overwriting local edits.
-- [SECURITY] Suggested export filenames keep their original case and extension while removing unsafe path characters.
-- [SECURITY] Offline metadata cache folders ignore themselves in Git; schema snapshots remain available to commit.
-- [SECURITY] Error messages stay short and on one line, escape display markup, and remain inside code fences in copied error reports.
-- [SECURITY] Environment comparison exports keep hostile names inside their Markdown table cells.
-- [SECURITY] Record Editor and Record Viewer only open container links on the selected connection’s server address.
-- [SECURITY] Export suggestions use safe filenames while keeping exact layout and saved-query names in exported data.
-- [SECURITY] Release packaging installs dependencies without running their install scripts.
-- [SECURITY] Hostile portal notes, numeric cells, certificate names and AI error text no longer cause excessive regex backtracking; exported portal notes bound names and require safe counts.
-- [SECURITY] Direct and proxy FileMaker requests enforce a 64 MiB response limit; sign-in, sign-out, server discovery and other small requests also have a fixed time limit.
-- [FIX] Batch exports keep the configured record cap even when the server returns too many rows.
-- [SECURITY] Batch updates refuse files above filemaker.batch.maxRecords and show escaped layout and profile names with the server host before execution.
-- [SECURITY] Generated client README files display layout and profile names as code so hostile names cannot load remote Markdown images or links.
-- [SECURITY] FM Web preview recognizes unchanged template files on Windows and shows relative file names with forward slashes.
-- [SECURITY] Editing a profile preserves its legacy server password until secure storage confirms it is saved; stalled storage no longer blocks profile changes indefinitely.
-- [SECURITY] Adding, editing or removing another profile preserves legacy server passwords until secure storage is available.
-- [SECURITY] Legacy offline schema caches without a recorded hash algorithm accept the configured algorithm and still reject altered content.
-- [SECURITY] Migrating a password from a saved server address preserves a password saved during the migration.
-- [SECURITY] Trust Server Certificate and Set AI Access are unavailable in offline mode, like other write actions.
-- [SECURITY] Batch dry runs remain available when writes are disabled or offline mode is on; offline previews do not contact the server.
-- [SECURITY] Offline schema caches keep working after the hash algorithm setting changes, while altered content is still rejected.
-- [SECURITY] Removing credentials from saved server addresses preserves profiles added or edited during the migration.
-- [SECURITY] Saved server addresses keep their password for a later migration attempt if secure password storage fails.
-- [SECURITY] Batch updates respect the record editing switch and enterprise record and write policies.
-- [SECURITY] Running batch jobs stop with a clear reason when offline mode or policy blocks further work.
-- [SECURITY] Trusting a server certificate respects locked profiles and enterprise write policy.
-- [SECURITY] Changing a connection's AI access respects enterprise write policy.
-- [SECURITY] Untrusted workspaces cannot apply enterprise policy from filemaker.config.json.
-- [SECURITY] Offline schema metadata is ignored in untrusted workspaces and checked against its stored hash before use.
-- [SECURITY] Environment comparison and layout comparison refuse untrusted workspaces.
-- [SECURITY] Snippet authorization defaults, schema hash algorithms and bridge request limits can only be set in User settings.
-- [SECURITY] Record editing, creation and container uploads respect the enterprise write switch; open Record Editor and Script Runner panels recheck policy before writes. Write AI Context respects filemaker.features.ai.enabled, enterprise AI policy and offline mode, independently of the language-model tools switch.
-- [SECURITY] Saved server addresses lose embedded credentials, preserving an existing saved password and asking you to confirm it. Test Connection keeps temporary credentials in memory, and removing a profile attempts to close its server session before clearing secrets.
-- [SECURITY] Logs mask more token formats, and Connect warns once per profile each session when a remote connection uses unencrypted HTTP.
+- None.
+
+### [FEATURE]
+
+- None.
+
+### [FIX]
+
+- None.
+
+### [INTERNAL]
+
+- None.
+
+### [SECURITY]
+
+- None.
+
+## 1.9.0 (2026-11-13)
 
 ### [BREAKING]
 
@@ -68,8 +50,8 @@ PR title prefix matches the highest-tier label added:
 
 ### [FIX]
 
-- [FIX] Generated app updates recognize the current dependency manifests while preserving edited files and previously shipped versions.
-
+- Batch exports keep the configured record cap even when the server returns too many rows.
+- Generated app updates recognize the current dependency manifests while preserving edited files and previously shipped versions.
 - Batch CSV export preserves Unicode line and paragraph separators without failing on newer VS Code versions.
 
 ### [INTERNAL]
@@ -78,28 +60,62 @@ PR title prefix matches the highest-tier label added:
 
 ### [SECURITY]
 
-- [SECURITY] FM Web preview cleans up private files after Windows stop failures and can start again after a preview exits.
-- [SECURITY] FM Web preview keeps old temporary folders while their owning VS Code process is still running in another window.
-- [SECURITY] FM Web preview warns and skips layouts with edited or linked generated files while starting the remaining layouts.
-- [SECURITY] FM Web preview leaves dependency and build folders out of inspection and regeneration, and checks file sizes before reading contents.
-- [SECURITY] FM Web preview hides the Windows console for dependency installation and the development server.
-- [SECURITY] AI approval dialogs show hidden Unicode characters as visible escapes, preserving supplementary characters exactly so the proposed names and values remain distinguishable.
-- [SECURITY] FM Web preview leaves workspace npm configuration and edited or added runtime files untouched, lists ignored runtime files, and runs a clean private template copy with install scripts disabled and empty npm config files. Deleting runtime files requires named confirmation in the explicit generation command.
-- [SECURITY] FM Web preview finds Node.js and npm on Windows without a shell and stops the whole preview process tree before removing its private files.
-- [SECURITY] FM Web preview recognizes its own comment-only env file after a VS Code restart without reporting it as unexpected.
-- [SECURITY] FM Web preview preserves proxy settings and extra CA certificates for installs on enterprise networks while continuing to exclude npm and Node injection settings.
-- [SECURITY] FM Web preview waits for private-file cleanup on shutdown with a time limit and removes only old temporary preview folders carrying its ownership marker.
+- Remove the vulnerable documentation matcher while preserving API documentation generation.
+- Large downloads and uploads have bounded deadlines: downloads renew after progress; upload deadlines grow with body size, last at least the request timeout, and have a 30 minute ceiling; stalled transfers stop and trickling downloads time out.
+- Batch update confirmation accepts saved server addresses that are not parseable URLs.
+- Error notifications keep bracketed codes and file paths readable while breaking injected links.
+- FM Web refreshes recognize the current shared container-link safety code without overwriting local edits.
+- Suggested export filenames keep their original case and extension while removing unsafe path characters.
+- Offline metadata cache folders ignore themselves in Git; schema snapshots remain available to commit.
+- Error messages stay short and on one line, escape display markup, and remain inside code fences in copied error reports.
+- Environment comparison exports keep hostile names inside their Markdown table cells.
+- Record Editor and Record Viewer only open container links on the selected connection’s server address.
+- Export suggestions use safe filenames while keeping exact layout and saved-query names in exported data.
+- Release packaging installs dependencies without running their install scripts.
+- Hostile portal notes, numeric cells, certificate names and AI error text no longer cause excessive regex backtracking; exported portal notes bound names and require safe counts.
+- Direct and proxy FileMaker requests enforce a 64 MiB response limit; sign-in, sign-out, server discovery and other small requests also have a fixed time limit.
+- Batch updates refuse files above filemaker.batch.maxRecords and show escaped layout and profile names with the server host before execution.
+- Generated client README files display layout and profile names as code so hostile names cannot load remote Markdown images or links.
+- FM Web preview recognizes unchanged template files on Windows and shows relative file names with forward slashes.
+- Editing a profile preserves its legacy server password until secure storage confirms it is saved; stalled storage no longer blocks profile changes indefinitely.
+- Adding, editing or removing another profile preserves legacy server passwords until secure storage is available.
+- Legacy offline schema caches without a recorded hash algorithm accept the configured algorithm and still reject altered content.
+- Migrating a password from a saved server address preserves a password saved during the migration.
+- Trust Server Certificate and Set AI Access are unavailable in offline mode, like other write actions.
+- Batch dry runs remain available when writes are disabled or offline mode is on; offline previews do not contact the server.
+- Offline schema caches keep working after the hash algorithm setting changes, while altered content is still rejected.
+- Removing credentials from saved server addresses preserves profiles added or edited during the migration.
+- Saved server addresses keep their password for a later migration attempt if secure password storage fails.
+- Batch updates respect the record editing switch and enterprise record and write policies.
+- Running batch jobs stop with a clear reason when offline mode or policy blocks further work.
+- Trusting a server certificate respects locked profiles and enterprise write policy.
+- Changing a connection's AI access respects enterprise write policy.
+- Untrusted workspaces cannot apply enterprise policy from filemaker.config.json.
+- Offline schema metadata is ignored in untrusted workspaces and checked against its stored hash before use.
+- Environment comparison and layout comparison refuse untrusted workspaces.
+- Snippet authorization defaults, schema hash algorithms and bridge request limits can only be set in User settings.
+- Record editing, creation and container uploads respect the enterprise write switch; open Record Editor and Script Runner panels recheck policy before writes. Write AI Context respects filemaker.features.ai.enabled, enterprise AI policy and offline mode, independently of the language-model tools switch.
+- Saved server addresses lose embedded credentials, preserving an existing saved password and asking you to confirm it. Test Connection keeps temporary credentials in memory, and removing a profile attempts to close its server session before clearing secrets.
+- Logs mask more token formats, and Connect warns once per profile each session when a remote connection uses unencrypted HTTP.
+- FM Web preview cleans up private files after Windows stop failures and can start again after a preview exits.
+- FM Web preview keeps old temporary folders while their owning VS Code process is still running in another window.
+- FM Web preview warns and skips layouts with edited or linked generated files while starting the remaining layouts.
+- FM Web preview leaves dependency and build folders out of inspection and regeneration, and checks file sizes before reading contents.
+- FM Web preview hides the Windows console for dependency installation and the development server.
+- AI approval dialogs show hidden Unicode characters as visible escapes, preserving supplementary characters exactly so the proposed names and values remain distinguishable.
+- FM Web preview leaves workspace npm configuration and edited or added runtime files untouched, lists ignored runtime files, and runs a clean private template copy with install scripts disabled and empty npm config files. Deleting runtime files requires named confirmation in the explicit generation command.
+- FM Web preview finds Node.js and npm on Windows without a shell and stops the whole preview process tree before removing its private files.
+- FM Web preview recognizes its own comment-only env file after a VS Code restart without reporting it as unexpected.
+- FM Web preview preserves proxy settings and extra CA certificates for installs on enterprise networks while continuing to exclude npm and Node injection settings.
+- FM Web preview waits for private-file cleanup on shutdown with a time limit and removes only old temporary preview folders carrying its ownership marker.
 - Layout Mode and preview script confirmations visibly escape hidden characters, show parameter lengths, and refuse values too long to show in full. Layout Mode shows the layout that will actually run.
 - Plugin consent visibly escapes filenames containing newlines or hidden characters; approval hashes still use the original names and bytes.
 - FM Web preview keeps the bridge token on the server. A single-use launch link grants a private session cookie; application requests reaching the preview proxy without it or with the wrong Host are refused. Next development endpoints, including HMR, are outside this cookie gate.
-
 - FM Web preview listens only on 127.0.0.1:3000, and the bridge refuses missing origins and origins outside that preview port.
 - FM Web preview script buttons ask for confirmation in VS Code with the exact script, escaped parameter and connection host. Oversized confirmation values are refused, and repeated prompts are throttled.
 - Cancelling FM Web preview startup stops the bridge and removes its saved address and token without removing unrelated env settings.
 - FM Web layout URL actions refuse schemes other than HTTP and HTTPS. Script and layout names and script parameters reach the preview bridge unchanged.
-- [SECURITY] Patch vulnerable glob matching in publishing and compatible development tools.
-
-- None.
+- Patch vulnerable glob matching in publishing and compatible development tools.
 
 ## 1.8.0 (2026-11-02)
 

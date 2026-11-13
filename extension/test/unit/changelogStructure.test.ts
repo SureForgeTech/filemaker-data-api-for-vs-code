@@ -36,28 +36,32 @@ it('makes 1.7.0 notes available to the release helper and preserves earlier user
 it('agrees on the package version, release instructions and current user guide', () => {
   const manifest = JSON.parse(readExtension('package.json')) as { version: string };
   const lock = JSON.parse(readRoot('package-lock.json')) as { packages: Record<string, { version: string }> };
-  expect(manifest.version).toBe('1.8.0');
+  expect(manifest.version).toBe('1.9.0');
   expect(lock.packages.extension?.version).toBe(manifest.version);
   const jobAid = readRoot('docs/JOB_AID_MANUAL_RELEASE.md');
-  expect(jobAid).toContain("grep -c 'Upgrading from 1.7.0 to 1.8.0' artifacts/RELEASE_NOTES_v1.8.0.md");
-  expect(jobAid).toContain("--grep='^\\[minor\\] Release 1\\.8\\.0'");
-  expect(readExtension('docs/USER_GUIDE.md')).toContain('### New in 1.8');
+  expect(jobAid).toContain("grep -c 'Upgrading from 1.8.0 to 1.9.0' artifacts/RELEASE_NOTES_v1.9.0.md");
+  expect(jobAid).toContain("--grep='^\\[minor\\] Release 1\\.9\\.0'");
+  expect(readExtension('docs/USER_GUIDE.md')).toContain('### New in 1.9');
 });
 
 
 it('records offline cache ignores and transfer limits once with accurate snapshot behavior', () => {
-  for (const changelog of [readRoot('CHANGELOG.md'), readExtension('CHANGELOG.md')]) {
-    const unreleased = changelog.split('\n## Unreleased\n')[1]?.split('\n## ')[0] ?? '';
-    const ignores = unreleased
-      .split('\n')
-      .filter((line) => line.includes('[SECURITY]') && line.includes('Offline metadata cache') && /ignore/i.test(line));
+  for (const [changelog, heading] of [
+    [readRoot('CHANGELOG.md'), '## 1.9.0 (2026-11-13)'],
+    [readExtension('CHANGELOG.md'), '## 1.9.0']
+  ] as const) {
+    const release = changelog.split(`\n${heading}\n`)[1]?.split('\n## ')[0] ?? '';
+    const ignores = release.split('\n').filter((line) => /offline metadata cache.*ignore.*Git/i.test(line));
     expect(ignores).toHaveLength(1);
-    expect(ignores[0]).toContain('Offline metadata cache');
-    expect(ignores[0]).toContain('snapshots remain available to commit');
-    const deadlines = unreleased.split('\n').filter((line) => line.includes('[SECURITY]') && /deadline|ceiling/.test(line));
+    expect(ignores[0]).toMatch(/snapshots (?:are not ignored|remain available to commit)/);
+    const deadlines = release.split('\n').filter((line) => /upload.*(?:deadline|ceiling)/i.test(line));
     expect(deadlines).toHaveLength(1);
-    expect(deadlines[0]).toContain('downloads and uploads');
-    expect(deadlines[0]).toContain('stalled');
-    expect(deadlines[0]).toContain('30 minute ceiling');
+    expect(deadlines[0]).toMatch(/(?:deadline.*grow.*size|deadline that grows with the size)/);
+    expect(deadlines[0]).toMatch(/30 minute(?:s| ceiling)/);
+    expect(deadlines[0]).toMatch(/stalled/i);
   }
+  expect(readExtension('CHANGELOG.md').split('\n## Unreleased\n')[1]?.split('\n## ')[0]?.trim()).toBe('');
+  const unreleased = readRoot('CHANGELOG.md').split('\n## Unreleased\n')[1]?.split('\n## ')[0] ?? '';
+  expect(unreleased.match(/^- None\.$/gm)).toHaveLength(5);
+  expect(unreleased.match(/^- /gm)).toHaveLength(5);
 });
