@@ -25,7 +25,8 @@
     "docs:api": "npm run docs:api -w extension",
     "package:check": "npm run package:check -w extension",
     "package:vsix": "npm run build --workspaces --if-present && npm run package:vsix -w extension",
-    "setup": "node ./setup.mjs"
+    "setup": "node ./setup.mjs",
+    "postinstall": "node tools/patch-typedoc-glob.mjs"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^5.1.0",
@@ -44,6 +45,9 @@
       "minimatch": "11.0.8"
     },
     "eslint": {
+      "minimatch": "11.0.8"
+    },
+    "typedoc": {
       "minimatch": "11.0.8"
     }
   }
