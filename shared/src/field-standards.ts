@@ -142,16 +142,29 @@ export function checkboxValue(original: string, values: readonly string[]): stri
   return result;
 }
 
+/** The scheme and host of a server URL, without its path; nothing for a URL that is not http(s). */
+export function serverOrigin(serverUrl: string | undefined): string | undefined {
+  if (!serverUrl) return undefined;
+  try {
+    const url = new URL(serverUrl);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return undefined;
+    return `${url.protocol}//${url.host}`;
+  } catch {
+    return undefined;
+  }
+}
+
 /** DOM controls for the extension's CSP-restricted pages; values and names are never normalized. */
 export function createStandardControl(document: Document, field: Partial<StandardFieldMetadata>, value: string,
-  onChange: (value: string) => void, readOnly = false): HTMLElement {
+  onChange: (value: string) => void, readOnly = false, serverUrl?: string): HTMLElement {
   const standard = standardControlFor({ ...field, value, displayType: choiceDisplayType(field.displayType, field.options) });
   const locked = readOnly || standard.readOnly;
   let control: HTMLElement;
   if (standard.kind === 'container') {
     control = document.createElement('div');
     control.className = 'fm-container fm-readonly';
-    if (/^https?:\/\//i.test(value)) {
+    const origin = serverOrigin(serverUrl);
+    if (origin && serverOrigin(value) === origin) {
       const link = document.createElement('a');
       link.href = value;
       link.target = '_blank';

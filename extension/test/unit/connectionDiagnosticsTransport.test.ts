@@ -18,14 +18,37 @@ function client() {
 describe('diagnosis uses the real FMClient unauthenticated transport', () => {
   it('reports actual HTTP status and envelope code, without session or credential access', async () => {
     const { fm, request, secrets } = client();
-    request.mockResolvedValueOnce({ status: 201, data: { response: { productInfo: { name: 'Server', version: '23' } }, messages: [{ code: '0' }] } });
-    const signal = new AbortController().signal;
+    const caller = new AbortController();
+    const signal = caller.signal;
+    request.mockImplementationOnce(async (options) => {
+      expect(options.signal).toBeInstanceOf(AbortSignal);
+      expect(options.signal).not.toBe(signal);
+      expect(options.signal.aborted).toBe(false);
+      caller.abort();
+      expect(options.signal.aborted).toBe(true);
+      return { status: 201, data: { response: { productInfo: { name: 'Server', version: '23' } }, messages: [{ code: '0' }] } };
+    });
     expect(await createDiagnosticProbes(fm).product(profile, signal)).toEqual({ status: 201, code: '0', name: 'Server', version: '23' });
     const options = request.mock.calls[0]![0];
-    expect(options).toMatchObject({ method: 'GET', url: 'https://fm.example.test/fmi/data/vLatest/productInfo', headers: { Accept: 'application/json' }, maxRedirects: 0, signal, timeout: 5000 });
-    expect(options.signal).toBe(signal);
+    expect(options).toMatchObject({ method: 'GET', url: 'https://fm.example.test/fmi/data/vLatest/productInfo', headers: { Accept: 'application/json' }, maxRedirects: 0, timeout: 5000 });
     expect(options.headers).toEqual({ Accept: 'application/json' });
     expect(options.auth).toBeUndefined(); expect(secrets.getPassword).not.toHaveBeenCalled(); expect(secrets.getToken).not.toHaveBeenCalled(); expect(secrets.getProxyApiKey).not.toHaveBeenCalled();
+  });
+  it('provides a deadline signal even without caller cancellation', async () => {
+    vi.useFakeTimers();
+    try {
+      const { fm, request } = client();
+      request.mockImplementationOnce(async (options) => {
+        expect(options.signal).toBeInstanceOf(AbortSignal);
+        expect(options.signal.aborted).toBe(false);
+        await vi.advanceTimersByTimeAsync(5000);
+        expect(options.signal.aborted).toBe(true);
+        return { status: 200, data: { response: { productInfo: {} }, messages: [{ code: '0' }] } };
+      });
+      await fm.getProductInfoDiagnostics(profile);
+    } finally {
+      vi.useRealTimers();
+    }
   });
   it('uses the path prefix in the real unauthenticated request', async () => {
     const { fm, request } = client();

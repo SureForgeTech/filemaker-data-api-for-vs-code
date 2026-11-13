@@ -152,7 +152,7 @@ describe('Record Editor: message routing', () => {
       expect(panel.posted).toContainEqual({
         type: 'init',
         payload: {
-          profiles: [{ id: 'p1', name: 'Production', database: 'Sales' }],
+          profiles: [{ id: 'p1', name: 'Production', serverOrigin: 'https://fm.example.com', database: 'Sales' }],
           activeProfileId: 'p1'
         }
       });

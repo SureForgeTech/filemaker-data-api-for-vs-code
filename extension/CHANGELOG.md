@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- [SECURITY] Error messages stay short and on one line, escape display markup, and remain inside code fences in copied error reports.
+- [SECURITY] Environment comparison exports keep hostile names inside their Markdown table cells.
+- [SECURITY] Record Editor and Record Viewer only open container links on the selected connection’s server address.
+- [SECURITY] Export suggestions use safe filenames while keeping exact layout and saved-query names in exported data.
+- [SECURITY] New offline metadata and schema snapshot folders include ignore rules to keep cached database details out of Git.
+- [SECURITY] Release packaging installs dependencies without running their install scripts.
+
 - [SECURITY] Hostile portal notes, numeric cells, certificate names and AI error text no longer cause excessive regex backtracking; exported portal notes bound names and require safe counts.
 - [SECURITY] Direct and proxy FileMaker requests now have a wall-clock deadline and a 64 MiB response limit, including sign-in, sign-out and server discovery.
 - [FIX] Batch exports keep the configured record cap even when the server returns too many rows.

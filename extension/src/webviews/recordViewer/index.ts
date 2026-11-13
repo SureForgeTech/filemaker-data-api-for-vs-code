@@ -6,7 +6,7 @@ import type { FMClient } from '../../services/fmClient';
 import type { Logger } from '../../services/logger';
 import type { ProfileStore } from '../../services/profileStore';
 import type { FileMakerRecord } from '../../types/fm';
-import { buildWebviewCsp, createNonce, profileImageSources } from '../common/csp';
+import { buildWebviewCsp, createNonce, profileImageSources, serverOrigin } from '../common/csp';
 import { guardDispatch, requestType } from '../common/dispatch';
 import { getStringField, toRecord } from '../common/messageValidation';
 import {
@@ -170,6 +170,7 @@ export class RecordViewerPanel {
         profiles: profiles.map((profile) => ({
           id: profile.id,
           name: profile.name,
+          serverOrigin: serverOrigin(profile.serverUrl),
           database: profile.database,
           authMode: profile.authMode
         })),

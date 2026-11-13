@@ -113,7 +113,7 @@ describe('DOM field controls', () => {
     expect(unsafe.querySelector('a, img')).toBeNull();
     expect(unsafe.textContent).toBe('javascript:alert(1)');
 
-    const image = createStandardControl(document, { name: 'Photo', type: 'container' }, 'https://example.test/photo.png', () => undefined);
+    const image = createStandardControl(document, { name: 'Photo', type: 'container' }, 'https://example.test/photo.png', () => undefined, false, 'https://example.test');
     const link = image.querySelector('a')!;
     expect(link.rel).toBe('noopener noreferrer');
     image.querySelector('img')?.dispatchEvent(new Event('error'));

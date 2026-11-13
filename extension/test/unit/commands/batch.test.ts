@@ -112,6 +112,20 @@ describe('batch commands', () => {
     expect(vscode.window.showInformationMessage).toHaveBeenCalledWith('Started job 12345678 for batch export.');
   });
 
+  it.each([
+    ['../ Layout/Name\\x\0', 'layout-name-x'], ['..', 'export'], ['CON', '_con'], ['LPT1', '_lpt1']
+  ])('uses a safe default export filename for %j while keeping the exact layout', async (name, safe) => {
+    const { tasks, batchService } = setup();
+    exportInputs();
+    vi.mocked(vscode.window.showQuickPick).mockResolvedValue('Standard CSV' as never);
+    await command('batchExportFind')({ ...arg, layout: name });
+    expect(vscode.window.showSaveDialog).toHaveBeenCalledWith(expect.objectContaining({
+      defaultUri: expect.objectContaining({ fsPath: `${safe}.jsonl` })
+    }));
+    await tasks[0]!({ log: vi.fn() } as never);
+    expect(batchService.batchExportFind).toHaveBeenCalledWith(profile, name, expect.anything(), expect.anything(), expect.anything());
+  });
+
   it('offers standard CSV first and forwards the optional Excel format', async () => {
     const { tasks, batchService } = setup();
     exportInputs();

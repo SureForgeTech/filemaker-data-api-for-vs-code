@@ -1,3 +1,4 @@
+import { safeFileName } from '../utils/safeText';
 import { displayText } from '../ai/aiText';
 import * as vscode from 'vscode';
 import { singleFlight } from '../utils/singleFlight';
@@ -66,7 +67,7 @@ export function registerBatchCommands(deps: RegisterBatchCommandsDeps): vscode.D
 
       const outputUri = await vscode.window.showSaveDialog({
         title: 'Export batch find results',
-        defaultUri: vscode.Uri.file(`${layout}.jsonl`),
+        defaultUri: vscode.Uri.file(`${safeFileName(layout)}.jsonl`),
         filters: {
           JSONL: ['jsonl'],
           CSV: ['csv']

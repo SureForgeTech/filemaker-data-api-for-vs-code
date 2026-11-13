@@ -26,6 +26,16 @@ describe('normalizeError', () => {
     expect(error.safeHeaders?.authorization).toBe('***');
   });
 
+  it('bounds server error messages and removes line breaks and control characters', () => {
+    const result = normalizeError({ isAxiosError: true, message: 'failed', response: {
+      status: 500, data: { messages: [{ code: '9999', message: 'first\r\nsecond\u2028third\0' + 'x'.repeat(5000) }] }
+    } });
+    expect(result.message).toContain('first second third ');
+    expect(result.message).not.toMatch(/[\r\n\u2028\0]/);
+    expect(result.message.length).toBeLessThanOrEqual(1025);
+    expect(result.message.endsWith('…')).toBe(true);
+  });
+
   it('maps timeout to timeout kind with retryable true', () => {
     const error = normalizeError({
       isAxiosError: true,

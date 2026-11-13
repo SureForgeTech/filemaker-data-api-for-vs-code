@@ -105,13 +105,28 @@ describe('Schema Diff: message routing', () => {
         { title: string; defaultUri: { fsPath: string }; filters: Record<string, string[]> }
       ];
       expect(options.title).toBe('Export schema diff JSON');
-      expect(options.defaultUri.fsPath).toBe('schema-diff-Contacts.json');
+      expect(options.defaultUri.fsPath).toBe('schema-diff-contacts.json');
       expect(options.filters).toEqual({ JSON: ['json'] });
       expect(vscode.workspace.fs.writeFile).toHaveBeenCalledTimes(1);
       const [uri, bytes] = vi.mocked(vscode.workspace.fs.writeFile).mock.calls[0] as [unknown, Buffer];
       expect(uri).toBe(target);
       expect(bytes.toString('utf8')).toBe(`${JSON.stringify(diff, null, 2)}\n`);
       expect(vscode.window.showInformationMessage).toHaveBeenCalledWith('Exported schema diff to /tmp/schema-diff.json');
+    });
+
+    it.each([
+      ['../ Layout/Name\\x\0', 'layout-name-x'], ['..', 'export'], ['CON', '_con'], ['LPT1', '_lpt1']
+    ])('uses a safe default path for layout %j without changing the exported name', async (layout, safe) => {
+      panel.close();
+      panel = open({ ...diff, layout });
+      const target = vscode.Uri.file('/tmp/schema-diff.json');
+      vi.mocked(vscode.window.showSaveDialog).mockResolvedValueOnce(target as never);
+      await panel.send({ type: 'exportJson' });
+      expect(vscode.window.showSaveDialog).toHaveBeenCalledWith(expect.objectContaining({
+        defaultUri: expect.objectContaining({ fsPath: `schema-diff-${safe}.json` })
+      }));
+      const bytes = vi.mocked(vscode.workspace.fs.writeFile).mock.calls[0]![1] as Buffer;
+      expect(JSON.parse(bytes.toString()).layout).toBe(layout);
     });
 
     it('writes nothing when the save dialog is dismissed', async () => {

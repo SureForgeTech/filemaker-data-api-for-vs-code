@@ -15,7 +15,7 @@ describe('renderErrorReport (#42)', () => {
   it('renders message, kind, retryable for a minimal error', () => {
     const out = renderErrorReport(baseError());
     expect(out).toContain('# FileMaker Data API — Error Report');
-    expect(out).toContain('**Message:** Failed to list layouts.');
+    expect(out).toContain('**Message:**\n\n```\nFailed to list layouts.\n```');
     expect(out).toContain('**Kind:** server');
     expect(out).toContain('**Retryable:** false');
   });

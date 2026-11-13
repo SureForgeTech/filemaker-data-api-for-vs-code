@@ -262,7 +262,7 @@ jobs:
           package-manager-cache: false
 
       - name: Install Dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Build shared package
         run: npm run build -w shared

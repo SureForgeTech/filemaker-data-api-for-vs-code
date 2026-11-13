@@ -39,3 +39,9 @@ export function plainTextPreview(body: string, maxChars: number): string {
   const collapsed = out.replace(/\s+/g, ' ').trim();
   return collapsed.length > maxChars ? `${collapsed.slice(0, maxChars)}…` : collapsed;
 }
+
+/** A bounded, single-line error message; names used in requests are never passed here. */
+export function errorMessageText(value: string): string {
+  const text = value.slice(0, 4096).replace(/[\s\p{C}]+/gu, ' ');
+  return text.length > 1024 || value.length > 4096 ? `${text.slice(0, 1024)}…` : text;
+}

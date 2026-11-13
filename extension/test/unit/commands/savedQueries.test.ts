@@ -209,6 +209,20 @@ describe('saved query commands', () => {
     expect(vscode.window.showSaveDialog).toHaveBeenCalledWith(expect.objectContaining({ defaultUri: expect.objectContaining({ fsPath: 'query-with-spaces.json' }) }));
   });
 
+  it.each([['CON', '_con'], ['..', 'export']])('uses a safe export name for saved query %j', async (name, safe) => {
+    setup();
+    vi.mocked(vscode.window.showQuickPick)
+      .mockResolvedValueOnce({ query: { ...query, name } } as never)
+      .mockResolvedValueOnce({ value: 'export' } as never);
+    vi.mocked(vscode.window.showSaveDialog).mockResolvedValue(vscode.Uri.file(join('/tmp', 'query.json')));
+    await command('manageSavedQueries')();
+    expect(vscode.window.showSaveDialog).toHaveBeenCalledWith(expect.objectContaining({
+      defaultUri: expect.objectContaining({ fsPath: `${safe}.json` })
+    }));
+    const bytes = vi.mocked(vscode.workspace.fs.writeFile).mock.calls[0]![1];
+    expect(JSON.parse(Buffer.from(bytes).toString()).queries[0].name).toBe(name);
+  });
+
   it.each(['exportSavedQueries', 'single'])('writes nothing when %s save dialog is cancelled', async (name) => {
     setup();
     if (name === 'single') await manage('export');

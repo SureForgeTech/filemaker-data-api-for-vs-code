@@ -244,7 +244,7 @@ export class EnvironmentCompareService {
         Object.values(row.metadataHashes).filter((value): value is string => typeof value === 'string')
       ).size;
 
-      lines.push(`| ${row.layout} | ${present || '-'} | ${missing || '-'} | ${hashVariants} |`);
+      lines.push(`| ${[row.layout, present || '-', missing || '-', String(hashVariants)].map(markdownCell).join(' | ')} |`);
     }
 
     lines.push('');
@@ -425,4 +425,8 @@ function normalizeHashAlgorithm(value: string | undefined): string {
   }
 
   return value.trim();
+}
+
+function markdownCell(value: string): string {
+  return value.replace(/[&\\|[\]<>`]/g, (character) => `&#${character.charCodeAt(0)};`).replace(/[\r\n\u2028\u2029]+/g, ' ');
 }

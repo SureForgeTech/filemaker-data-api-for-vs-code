@@ -128,7 +128,7 @@ describe('Record Viewer: message routing', () => {
       expect(panel.posted).toContainEqual({
         type: 'init',
         payload: {
-          profiles: [{ id: 'p1', name: 'Production', database: 'Sales', authMode: 'direct' }],
+          profiles: [{ id: 'p1', name: 'Production', serverOrigin: 'https://fm.example.com', database: 'Sales', authMode: 'direct' }],
           activeProfileId: 'p1'
         }
       });
