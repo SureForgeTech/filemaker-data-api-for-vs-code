@@ -8,7 +8,7 @@ import { SchemaSnapshotStore } from '../../src/services/schemaSnapshotStore';
 
 /** The snapshot index lives in the workspace, so a cloned repository can ship its own. */
 describe('snapshot index from the workspace', () => {
-  it('creates an ignore file before storing snapshots and preserves existing ignore rules', async () => {
+  it('keeps workspace snapshots committable and preserves user ignore rules', async () => {
     const root = await mkdtemp(join(tmpdir(), 'fm-snapidx-'));
     const store = new SchemaSnapshotStore(
       { get: <T>(_key: string, fallback?: T) => fallback as T, update: async () => undefined } as never,
@@ -18,7 +18,8 @@ describe('snapshot index from the workspace', () => {
     const input = { profileId: 'p', layout: ' Layout ', source: 'manual' as const, metadata: { valueLists: ['Private'] } };
     const ignore = join(root, '.vscode/filemaker/snapshots/.gitignore');
     await store.captureSnapshot(input);
-    expect(await readFile(ignore, 'utf8')).toBe('*\n!.gitignore\n');
+    expect(existsSync(ignore)).toBe(false);
+    expect((await store.listSnapshots()).map((snapshot) => snapshot.layout)).toEqual([' Layout ']);
     await writeFile(ignore, '# keep custom rules\n*\n');
     await store.captureSnapshot(input);
     expect(await readFile(ignore, 'utf8')).toBe('# keep custom rules\n*\n');

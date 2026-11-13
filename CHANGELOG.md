@@ -18,22 +18,19 @@ PR title prefix matches the highest-tier label added:
 
 ## Unreleased
 
-- [SECURITY] Large record reads and container transfers can finish beyond the request deadline while making steady progress; stalled and trickling transfers still time out.
+- [SECURITY] Large downloads and uploads can keep making progress beyond the request deadline; stalled transfers stop, trickling downloads time out, and all transfers have a 30 minute ceiling.
 - [SECURITY] Batch update confirmation accepts saved server addresses that are not parseable URLs.
 - [SECURITY] Error notifications keep bracketed codes and file paths readable while breaking injected links.
 - [SECURITY] FM Web refreshes recognize the current shared container-link safety code without overwriting local edits.
 - [SECURITY] Suggested export filenames keep their original case and extension while removing unsafe path characters.
-- [SECURITY] Offline cache and snapshot folders ignore themselves in Git; teams that deliberately commit snapshots must remove the folder's `.gitignore`.
-
+- [SECURITY] Offline metadata cache folders ignore themselves in Git; schema snapshots remain available to commit.
 - [SECURITY] Error messages stay short and on one line, escape display markup, and remain inside code fences in copied error reports.
 - [SECURITY] Environment comparison exports keep hostile names inside their Markdown table cells.
 - [SECURITY] Record Editor and Record Viewer only open container links on the selected connection’s server address.
 - [SECURITY] Export suggestions use safe filenames while keeping exact layout and saved-query names in exported data.
-- [SECURITY] New offline metadata and schema snapshot folders include ignore rules to keep cached database details out of Git.
 - [SECURITY] Release packaging installs dependencies without running their install scripts.
-
 - [SECURITY] Hostile portal notes, numeric cells, certificate names and AI error text no longer cause excessive regex backtracking; exported portal notes bound names and require safe counts.
-- [SECURITY] Direct and proxy FileMaker requests now have a wall-clock deadline and a 64 MiB response limit, including sign-in, sign-out and server discovery.
+- [SECURITY] Direct and proxy FileMaker requests enforce a 64 MiB response limit; sign-in, sign-out, server discovery and other small requests also have a fixed time limit.
 - [FIX] Batch exports keep the configured record cap even when the server returns too many rows.
 - [SECURITY] Batch updates refuse files above filemaker.batch.maxRecords and show escaped layout and profile names with the server host before execution.
 - [SECURITY] Generated client README files display layout and profile names as code so hostile names cannot load remote Markdown images or links.

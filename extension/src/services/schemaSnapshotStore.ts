@@ -239,11 +239,6 @@ export class SchemaSnapshotStore {
     await mkdir(dir, { recursive: true });
     await assertSafeOutputFolder(dir, root);
 
-    try {
-      await writeFile(await confinedSnapshotFile(root, '.gitignore'), '*\n!.gitignore\n', { encoding: 'utf8', flag: 'wx' });
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
-    }
     const safeProfile = toSafeFileName(snapshot.profileId);
     const safeLayout = toSafeFileName(snapshot.layout);
     const safeId = toSafeFileName(snapshot.id);

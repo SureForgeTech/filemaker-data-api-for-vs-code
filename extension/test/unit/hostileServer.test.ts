@@ -1,4 +1,4 @@
-import axios, { CanceledError, type AxiosRequestConfig } from 'axios';
+import axios, { AxiosError, CanceledError, type AxiosRequestConfig } from 'axios';
 import { createServer } from 'http';
 import type { AddressInfo } from 'net';
 import nock from 'nock';
@@ -162,43 +162,78 @@ describe('hostile FileMaker response budgets', () => {
 
 const transfers = ['upload', 'get', 'list', 'find', 'proxy upload', 'proxy get', 'proxy find'] as const;
 type Transfer = typeof transfers[number];
-async function transfer(kind: Transfer, http: ReturnType<typeof axios.create>, signal?: AbortSignal) {
-  const client = context(http, 15_000);
+async function transfer(kind: Transfer, http: ReturnType<typeof axios.create>, signal?: AbortSignal, options: { target?: typeof profile; content?: Buffer; timeoutMs?: number } = {}) {
+  const source = options.target ?? profile;
+  const client = context(http, options.timeoutMs ?? 15_000);
   client.withHistory = (_history, run) => run({ operation: 'transfer', requestId: 'r', reauthCount: 0, cacheHit: false, endpoint: '' });
   client.requestWithAuth = (target, request, retry, trace) => requestWithAuth(client, target, request, retry, trace);
-  const proxy = new ProxyClient({ getProxyApiKey: async () => undefined }, logger, 15_000, http);
-  const target = { ...profile, authMode: 'proxy' as const, proxyEndpoint: profile.serverUrl + '/proxy' };
-  const file = { fileName: 'Invoices.bin', content: Buffer.alloc(1024 * 1024), contentType: 'application/octet-stream' };
+  const proxy = new ProxyClient({ getProxyApiKey: async () => undefined }, logger, client.timeoutMs, http);
+  const target = { ...source, authMode: 'proxy' as const, proxyEndpoint: source.serverUrl + '/proxy' };
+  const file = { fileName: 'Invoices.bin', content: options.content ?? Buffer.alloc(1024 * 1024), contentType: 'application/octet-stream' };
   if (kind === 'proxy upload') return proxy.uploadContainer(target, ' Layout ', '1', ' Field ', file, { signal });
   if (kind === 'proxy get') return proxy.getRecord(target, ' Layout ', '1', signal);
   if (kind === 'proxy find') return proxy.findRecords(target, ' Layout ', { query: [{ ' Field ': '*' }] }, signal);
-  if (kind === 'upload') return uploadContainer(client, profile, ' Layout ', '1', ' Field ', file, { signal });
+  if (kind === 'upload') return uploadContainer(client, source, ' Layout ', '1', ' Field ', file, { signal });
   if (kind === 'get') return getRecord(client, profile, ' Layout ', '1', { signal });
   if (kind === 'list') return listRecords(client, profile, ' Layout ', {}, { signal });
   return findRecords(client, profile, ' Layout ', { query: [{ ' Field ': '*' }] }, { signal });
 }
 
-function transferAdapter(kind: Transfer, bytesPerSecond: number, finishMs = 19_000, progressSeconds = Infinity) {
+function transferAdapter(kind: Transfer, bytesPerTick: number, finishMs = 19_000, progressSeconds = Infinity, tickMs = 1000) {
   return axios.create({ adapter: (config) => new Promise((resolve, reject) => {
     let loaded = 0;
     let ticks = 0;
-    const progress = kind.includes('upload') ? config.onUploadProgress : config.onDownloadProgress;
-    const tick = setInterval(() => { if (++ticks > progressSeconds) return; loaded += bytesPerSecond; progress?.({ loaded, bytes: bytesPerSecond, lengthComputable: false }); }, 1000);
+    let idle: ReturnType<typeof setTimeout> | undefined;
+    const upload = kind.includes('upload');
+    const stop = () => { clearInterval(tick); clearTimeout(finish); clearTimeout(idle); };
+    const resetIdle = () => {
+      clearTimeout(idle);
+      idle = setTimeout(() => { stop(); reject(new AxiosError('Socket idle timeout', 'ECONNABORTED', config)); }, config.timeout);
+    };
+    // Axios can consume the entire Buffer at once, before the socket drains it.
+    if (upload) {
+      config.onUploadProgress?.({ loaded: 1024 * 1024, bytes: 1024 * 1024, lengthComputable: false });
+      resetIdle();
+    }
+    const tick = setInterval(() => {
+      if (++ticks * tickMs > progressSeconds * 1000) return;
+      loaded += bytesPerTick;
+      if (upload) {
+        // Model real socket writes separately from axios' buffered upload events.
+        if (bytesPerTick > 0) resetIdle();
+      } else config.onDownloadProgress?.({ loaded, bytes: bytesPerTick, lengthComputable: false });
+    }, tickMs);
     const finish = setTimeout(() => {
-      clearInterval(tick);
+      stop();
       const record = { recordId: '1', fieldData: { ' Field ': 'value' } };
       const result = { recordId: '1', data: [record] };
       resolve({ data: kind.startsWith('proxy') ? { ok: true, data: { record, result } }
         : { response: result, messages: [{ code: '0', message: 'OK' }] }, status: 200, statusText: 'OK', headers: {}, config });
     }, finishMs);
     config.signal?.addEventListener?.('abort', () => {
-      clearInterval(tick); clearTimeout(finish);
+      stop();
       reject(new CanceledError('cancelled', config));
     }, { once: true });
   }) });
 }
 
 describe('transfer progress deadlines', () => {
+  it.each(transfers)('caps a continuously progressing %s at 30 minutes', async (kind) => {
+    vi.useFakeTimers();
+    try {
+      let settled = false;
+      // 64 KiB per 14 seconds stays below the response cap even after 30 minutes.
+      const outcome = transfer(kind, transferAdapter(kind, 64 * 1024, 31 * 60_000, Infinity, 14_000))
+        .then(() => 'completed', (error: unknown) => error).finally(() => { settled = true; });
+      await vi.advanceTimersByTimeAsync(30 * 60_000 - 1);
+      expect(settled).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(settled).toBe(true);
+      expect(await outcome).toMatchObject({ kind: 'timeout' });
+      expect(vi.getTimerCount()).toBe(0);
+    } finally { vi.useRealTimers(); }
+  });
+
   it.each(transfers)('lets a large progressing %s finish beyond the default deadline', async (kind) => {
     vi.useFakeTimers();
     try {
@@ -210,10 +245,10 @@ describe('transfer progress deadlines', () => {
     } finally { vi.useRealTimers(); }
   });
 
-  it.each(transfers)('aborts a stalled or one-byte-per-second %s', async (kind) => {
+  it.each(transfers)('aborts a stalled %s and rejects trickling downloads', async (kind) => {
     vi.useFakeTimers();
     try {
-      for (const bytes of [0, 1]) {
+      for (const bytes of kind.includes('upload') ? [0] : [0, 1]) {
         const outcome = transfer(kind, transferAdapter(kind, bytes)).then(() => 'completed', (error: unknown) => error);
         await vi.advanceTimersByTimeAsync(15_000);
         expect(await outcome).toMatchObject({ kind: 'timeout' });
@@ -236,7 +271,7 @@ describe('transfer progress deadlines', () => {
     } finally { vi.useRealTimers(); }
   });
 
-  it.each(transfers)('retains user cancellation after %s progress extends the deadline', async (kind) => {
+  it.each(transfers)('retains user cancellation for a %s beyond the default deadline', async (kind) => {
     vi.useFakeTimers();
     try {
       const caller = new AbortController();
@@ -247,4 +282,64 @@ describe('transfer progress deadlines', () => {
       expect(vi.getTimerCount()).toBe(0);
     } finally { vi.useRealTimers(); }
   });
+});
+
+
+describe('real HTTP upload socket timeouts', () => {
+  it.each(['upload', 'proxy upload'] as const)('lets a slow, steadily draining %s outlast the default 15 second deadline', async (kind) => {
+    nock.restore();
+    let received = 0;
+    const server = createServer((request, response) => {
+      // Keep the request paused and consume at most 64 KiB every 40 ms. A 32 MiB
+      // Buffer takes over 20 seconds, including on a fast loopback interface.
+      const reader = setInterval(() => {
+        const chunk = request.read(64 * 1024) as Buffer | null;
+        if (chunk) received += chunk.length;
+      }, 40);
+      request.on('end', () => {
+        clearInterval(reader);
+        response.setHeader('Content-Type', 'application/json');
+        response.end(JSON.stringify(kind === 'proxy upload'
+          ? { ok: true, data: { result: { recordId: '1' } } } : envelope));
+      });
+      request.on('close', () => clearInterval(reader));
+    });
+    try {
+      await new Promise<void>((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
+      const target = { ...profile, serverUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}` };
+      const started = performance.now();
+      await transfer(kind, axios.create({ proxy: false }), undefined, { target, content: Buffer.alloc(32 * 1024 * 1024) });
+      expect(received).toBeGreaterThanOrEqual(32 * 1024 * 1024);
+      expect(performance.now() - started).toBeGreaterThan(15_000);
+    } finally {
+      server.closeAllConnections();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+      nock.activate();
+      nock.disableNetConnect();
+    }
+  }, 60_000);
+
+  it.each(['upload', 'proxy upload'] as const)('stops a %s when the real server stops reading', async (kind) => {
+    nock.restore();
+    let received = 0;
+    const server = createServer((request) => {
+      request.once('readable', () => { received = (request.read() as Buffer | null)?.length ?? 0; });
+      // Leave the rest of the body unread so the client's socket stops draining.
+    });
+    try {
+      await new Promise<void>((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
+      const target = { ...profile, serverUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}` };
+      const started = performance.now();
+      await expect(transfer(kind, axios.create({ proxy: false }), undefined, {
+        target, content: Buffer.alloc(32 * 1024 * 1024), timeoutMs: 300
+      })).rejects.toMatchObject({ kind: 'timeout' });
+      expect(received).toBeGreaterThan(0);
+      expect(performance.now() - started).toBeLessThan(5000);
+    } finally {
+      server.closeAllConnections();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+      nock.activate();
+      nock.disableNetConnect();
+    }
+  }, 10_000);
 });

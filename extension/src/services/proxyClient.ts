@@ -311,6 +311,7 @@ export class ProxyClient {
     // omitted — proxies are configured per-environment and don't need to display
     // human-readable profile names.
     try {
+      const transport = httpsTransportFor(profile, endpoint);
       const response = await withRequestLimits(this.timeoutMs, signal, (limits) => this.httpClient.post<ProxyEnvelope<T> | T>(
         endpoint,
         {
@@ -320,11 +321,11 @@ export class ProxyClient {
         },
         {
           headers,
+          ...transport,
           ...limits,
-          maxRedirects: 0,
-          ...httpsTransportFor(profile, endpoint)
+          maxRedirects: 0
         }
-      ), undefined, ['getRecord', 'findRecords', 'uploadContainer'].includes(action));
+      ), undefined, action === 'uploadContainer' ? 'upload' : ['getRecord', 'findRecords'].includes(action), transport.transport);
 
       const responseData = response.data;
       if (responseData === undefined || responseData === null || typeof responseData === 'string') {
