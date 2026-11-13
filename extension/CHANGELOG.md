@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- [SECURITY] Patch vulnerable glob matching in publishing and compatible development tools.
+
 - [SECURITY] Editing a profile preserves its legacy server password until secure storage confirms it is saved; stalled storage no longer blocks profile changes indefinitely.
 - [SECURITY] Adding, editing or removing another profile preserves legacy server passwords until secure storage is available.
 - [SECURITY] Legacy offline schema caches without a recorded hash algorithm accept the configured algorithm and still reject altered content.

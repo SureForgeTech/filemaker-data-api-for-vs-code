@@ -59,6 +59,8 @@ PR title prefix matches the highest-tier label added:
 
 ### [SECURITY]
 
+- [SECURITY] Patch vulnerable glob matching in publishing and compatible development tools.
+
 - None.
 
 ## 1.8.0 (2026-11-02)
