@@ -254,6 +254,9 @@ export class RoleGuard {
   }
 
   private async loadEnterpriseConfig(): Promise<EnterpriseConfigFile | undefined> {
+    if (!this.isWorkspaceTrusted()) {
+      return undefined;
+    }
     const root = this.getWorkspaceRoot();
     if (!root) {
       return undefined;

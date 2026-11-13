@@ -34,6 +34,26 @@ PR title prefix matches the highest-tier label added:
 - [FIX] Batch exports keep the configured record cap even when the server returns too many rows.
 - [SECURITY] Batch updates refuse files above filemaker.batch.maxRecords and show escaped layout and profile names with the server host before execution.
 - [SECURITY] Generated client README files display layout and profile names as code so hostile names cannot load remote Markdown images or links.
+- [SECURITY] Editing a profile preserves its legacy server password until secure storage confirms it is saved; stalled storage no longer blocks profile changes indefinitely.
+- [SECURITY] Adding, editing or removing another profile preserves legacy server passwords until secure storage is available.
+- [SECURITY] Legacy offline schema caches without a recorded hash algorithm accept the configured algorithm and still reject altered content.
+- [SECURITY] Migrating a password from a saved server address preserves a password saved during the migration.
+- [SECURITY] Trust Server Certificate and Set AI Access are unavailable in offline mode, like other write actions.
+- [SECURITY] Batch dry runs remain available when writes are disabled or offline mode is on; offline previews do not contact the server.
+- [SECURITY] Offline schema caches keep working after the hash algorithm setting changes, while altered content is still rejected.
+- [SECURITY] Removing credentials from saved server addresses preserves profiles added or edited during the migration.
+- [SECURITY] Saved server addresses keep their password for a later migration attempt if secure password storage fails.
+- [SECURITY] Batch updates respect the record editing switch and enterprise record and write policies.
+- [SECURITY] Running batch jobs stop with a clear reason when offline mode or policy blocks further work.
+- [SECURITY] Trusting a server certificate respects locked profiles and enterprise write policy.
+- [SECURITY] Changing a connection's AI access respects enterprise write policy.
+- [SECURITY] Untrusted workspaces cannot apply enterprise policy from filemaker.config.json.
+- [SECURITY] Offline schema metadata is ignored in untrusted workspaces and checked against its stored hash before use.
+- [SECURITY] Environment comparison and layout comparison refuse untrusted workspaces.
+- [SECURITY] Snippet authorization defaults, schema hash algorithms and bridge request limits can only be set in User settings.
+- [SECURITY] Record editing, creation and container uploads respect the enterprise write switch; open Record Editor and Script Runner panels recheck policy before writes. Write AI Context respects filemaker.features.ai.enabled, enterprise AI policy and offline mode, independently of the language-model tools switch.
+- [SECURITY] Saved server addresses lose embedded credentials, preserving an existing saved password and asking you to confirm it. Test Connection keeps temporary credentials in memory, and removing a profile attempts to close its server session before clearing secrets.
+- [SECURITY] Logs mask more token formats, and Connect warns once per profile each session when a remote connection uses unencrypted HTTP.
 
 ### [BREAKING]
 
@@ -44,6 +64,8 @@ PR title prefix matches the highest-tier label added:
 - Create Record can add new portal rows alongside the parent record on direct connections; proxy connections explain that portal-row creation is unavailable. Mock-tested; real-server compatibility remains unverified.
 
 ### [FIX]
+
+- [FIX] Generated app updates recognize the current dependency manifests while preserving edited files and previously shipped versions.
 
 - Batch CSV export preserves Unicode line and paragraph separators without failing on newer VS Code versions.
 

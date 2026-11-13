@@ -143,6 +143,10 @@ export function registerAiToolCommands(deps: Deps & { statusBar: AiStatusBar }):
         return;
       }
 
+      if (!(await deps.roleGuard.assertFeature('writeOperations', 'Set AI Access'))) {
+        return;
+      }
+
       const choice = await vscode.window.showQuickPick<{ label: string; description: string; detail: string; access: AiAccess }>(
         [
           { label: 'None', description: 'AI tools cannot use this connection', detail: 'The default.', access: 'none' },

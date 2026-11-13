@@ -388,6 +388,16 @@ describe('registry kinds match the code that enforces each setting', () => {
     expect(await fakeEnterprise('admin', 'viewer', true)).toBe('viewer');
   });
 
+  it.each([
+    'snippets.includeAuthByDefault', 'schema.hashAlgorithm', 'fmWeb.bridge.rateLimitPerSecond',
+    'fmWeb.bridge.rateLimitBurst', 'fmWeb.bridge.requestBudget'
+  ])('%s is user-only and restricted in untrusted workspaces', (key) => {
+    const properties = Object.assign({}, ...manifest.contributes.configuration.map((section) => section.properties));
+    expect(properties[`filemaker.${key}`].scope).toBe('application');
+    expect(restrictedKeys.has(`filemaker.${key}`)).toBe(true);
+    expect(policyFor(key)?.kind).toBe('user-only');
+  });
+
   it('every registry key is a real setting and application-scope settings are exactly the user-only ones', () => {
     const properties = manifest.contributes.configuration.flatMap((section) => Object.entries(section.properties));
     const applicationKeys = properties.filter(([, schema]) => schema.scope === 'application').map(([key]) => key.replace(/^filemaker\./, ''));

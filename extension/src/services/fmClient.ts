@@ -244,6 +244,11 @@ export class FMClient {
     );
   }
 
+  /** A separate session and health table, using only the supplied temporary secrets. */
+  public createIsolatedClient(secretStore: SecretStore): FMClient {
+    return new FMClient(secretStore, this.logger, this.timeoutMs, this.httpClient);
+  }
+
   public async deleteSession(profile: ConnectionProfile, control?: ClientRequestControl): Promise<void> {
     await this.withHistory(
       {

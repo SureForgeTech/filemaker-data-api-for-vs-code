@@ -48,12 +48,12 @@ describe('host request guards', () => {
     const payload = { profileId: 'p1', layout: ' Contacts ', recordId: '42', scriptName: ' Go ', findJson: '[{" Name ":"*"}]', runId: 1 };
     for (let i = 0; i < 15; i++) receive({ type, payload });
     await tick();
-    expect(operation).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(operation).toHaveBeenCalledTimes(1));
     finish({ data: [], response: {}, messages: [], recordId: '42', fieldData: {} } as never);
     await tick();
     receive({ type, payload });
     await tick();
-    expect(operation).toHaveBeenCalledTimes(2);
+    await vi.waitFor(() => expect(operation).toHaveBeenCalledTimes(2));
     finish({ data: [], response: {}, messages: [], recordId: '42', fieldData: {} } as never);
     await tick();
   });
@@ -67,9 +67,9 @@ describe('host request guards', () => {
     const payload = { ...target, originalFieldData: { ' Name ': 'old' }, draftFieldData: { ' Name ': 'new' }, fieldData: { ' Name ': 'new' } };
     for (let i = 0; i < 15; i++) receive({ type, payload });
     await tick();
-    expect(vscode.window.showWarningMessage).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(vscode.window.showWarningMessage).toHaveBeenCalledTimes(1));
     finish((type === 'createRecord' ? 'Create' : 'Save') as never); await tick();
-    expect(mutate).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(mutate).toHaveBeenCalledTimes(1));
   });
 });
 

@@ -2,6 +2,8 @@ import { basename, join } from 'path';
 
 import * as vscode from 'vscode';
 
+import { RoleGuard } from '../enterprise/roleGuard';
+import { isFeatureEnabled, isOfflineModeOn } from '../utils/policySetting';
 import { HiddenFields } from '../ai/aiText';
 import { readAiSettings, type HiddenFieldsProblemReporter } from '../ai/aiSettings';
 import {
@@ -69,6 +71,25 @@ export function registerAiContextCommands(deps: RegisterAiContextCommandsDeps): 
 
 async function writeAiContext(deps: RegisterAiContextCommandsDeps): Promise<void> {
   const { context, profileStore, fmClient, logger } = deps;
+
+  const configuration = vscode.workspace.getConfiguration('filemaker');
+  const policy = new RoleGuard(logger);
+  await policy.refresh();
+  const guard = policy.getFeatureGuard('ai');
+  const reason = !isFeatureEnabled(configuration, 'features.ai.enabled')
+    ? 'AI is disabled by filemaker.features.ai.enabled.'
+    : !guard.allowed
+      ? guard.reason ?? 'AI is disabled by enterprise policy.'
+      : isOfflineModeOn(configuration)
+        ? 'Offline mode is enabled; writing AI context is unavailable.'
+        : undefined;
+  if (reason) {
+    const choice = await vscode.window.showInformationMessage(reason, 'Open Settings');
+    if (choice === 'Open Settings') {
+      await vscode.commands.executeCommand('workbench.action.openSettings', 'filemaker.ai');
+    }
+    return;
+  }
 
   const profile = await pickProfile(profileStore, false);
   if (!profile) {

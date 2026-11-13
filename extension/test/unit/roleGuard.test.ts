@@ -38,6 +38,36 @@ function createConfiguration(values: Record<string, unknown>) {
 }
 
 describe('RoleGuard', () => {
+  it('ignores the enterprise file until workspace trust is granted, then reloads it', async () => {
+    let trusted = false;
+    const readConfigFile = vi.fn().mockResolvedValue(JSON.stringify({
+      enterpriseMode: true, role: 'viewer', enforcedPerformanceMode: 'high-scale',
+      lockedProfiles: ['p1'], disabledFeatures: ['ai'], defaultEnvironmentSets: [{ name: 'Set', profiles: ['p1'] }]
+    }));
+    const guard = new RoleGuard({ debug: vi.fn(), warn: vi.fn() }, {
+      getConfiguration: () => createConfiguration({ 'enterprise.role': 'admin' }) as never,
+      isWorkspaceTrusted: () => trusted, getWorkspaceRoot: () => '/workspace', readConfigFile
+    });
+    await guard.applyContexts();
+    expect(readConfigFile).not.toHaveBeenCalled();
+    expect(guard.isEnterpriseModeEnabled()).toBe(false);
+    expect(guard.getRole()).toBe('admin');
+    expect(guard.resolvePerformanceMode()).toBe('standard');
+    expect(guard.isProfileLocked('p1')).toBe(false);
+    expect(guard.getFeatureGuard('ai').allowed).toBe(true);
+    expect(guard.getDefaultEnvironmentSetSeeds()).toEqual([]);
+    expect(guard.getEnterpriseFileSettings()).toEqual({ enterpriseMode: undefined, role: undefined });
+    trusted = true;
+    await guard.applyContexts();
+    expect(readConfigFile).toHaveBeenCalledOnce();
+    expect(guard.isEnterpriseModeEnabled()).toBe(true);
+    expect(guard.getRole()).toBe('viewer');
+    expect(guard.resolvePerformanceMode()).toBe('high-scale');
+    expect(guard.isProfileLocked('p1')).toBe(true);
+    expect(guard.getFeatureGuard('ai').allowed).toBe(false);
+    expect(guard.getDefaultEnvironmentSetSeeds()).toEqual([{ name: 'Set', profiles: ['p1'] }]);
+  });
+
   it('applies viewer restrictions when enterprise mode is enabled', async () => {
     const guard = new RoleGuard(
       {

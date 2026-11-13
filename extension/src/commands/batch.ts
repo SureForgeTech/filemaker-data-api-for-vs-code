@@ -151,11 +151,6 @@ export function registerBatchCommands(deps: RegisterBatchCommandsDeps): vscode.D
           return;
         }
 
-        const canUpdate = await roleGuard.assertFeature('batchUpdate', 'Batch update from CSV/JSON');
-        if (!canUpdate) {
-          return;
-        }
-
         const contextArg = parseLayoutArg(arg);
         const profile = await resolveProfileFromArg(contextArg, profileStore, true);
         if (!profile) {
@@ -217,6 +212,17 @@ export function registerBatchCommands(deps: RegisterBatchCommandsDeps): vscode.D
           let overwriteChanged: boolean | undefined;
           const rowsWithModId = entries.filter((entry) => entry.modId !== undefined).length;
           if (!dryRunSelection.value) {
+            if (!settingsService.isRecordEditEnabled()) {
+              vscode.window.showInformationMessage('Record editing is disabled by settings. Batch update is unavailable.');
+              return;
+            }
+            if (
+              !(await roleGuard.assertFeature('batchUpdate', 'Batch update from CSV/JSON')) ||
+              !(await roleGuard.assertFeature('recordEdit', 'Batch update from CSV/JSON')) ||
+              !(await roleGuard.assertFeature('writeOperations', 'Batch update from CSV/JSON'))
+            ) {
+              return;
+            }
             let server = profile.serverUrl;
             try { server = new URL(server).host; } catch { /* Keep the supplied address when it is not a URL. */ }
             const confirmation = await vscode.window.showWarningMessage(

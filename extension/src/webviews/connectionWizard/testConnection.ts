@@ -2,6 +2,8 @@ import * as vscode from 'vscode';
 import type { ConnectionProfile } from '../../types/fm';
 import { validateDatabaseName, validateServerUrl } from '../../utils/jsonValidate';
 import { toUserErrorMessage } from '../../utils/errorUx';
+import type { FMClient } from '../../services/fmClient';
+import { SecretStore } from '../../services/secretStore';
 import { FMClientError } from '../../services/errors';
 import { reviewAndTrustCertificate } from '../../services/certificateTrust';
 import { describeNetworkFailure } from '../../utils/networkErrors';
@@ -24,6 +26,13 @@ export async function handleTestConnection(ctx: WizardContext, data: WizardFormD
   // The test runs under a throwaway id with throwaway secrets, so it can never
   // read, overwrite or clear what is saved for a real profile.
   const testId = `test-connection-${crypto.randomUUID()}`;
+  const memory = new Map<string, string>();
+  const temporary = new SecretStore({
+    get: async (key: string) => memory.get(key),
+    store: async (key: string, value: string) => { memory.set(key, value); },
+    delete: async (key: string) => { memory.delete(key); }
+  });
+  let client: FMClient | undefined;
 
   try {
     const serverValidation = validateServerUrl(data.serverUrl);
@@ -92,12 +101,15 @@ export async function handleTestConnection(ctx: WizardContext, data: WizardFormD
       );
     }
 
+    // The extension hands the wizard a lazy client wrapper whose methods answer asynchronously, so
+    // this may be a promise; the real class returns the client directly.
+    client = await Promise.resolve(ctx.fmClient.createIsolatedClient(temporary));
     if (data.authMode === 'direct') {
       tempProfile.username = data.username?.trim();
-      await ctx.secretStore.setPassword(testId, secret);
+      await temporary.setPassword(testId, secret);
     } else {
       tempProfile.proxyEndpoint = proxyEndpoint;
-      await ctx.secretStore.setProxyApiKey(testId, secret);
+      await temporary.setProxyApiKey(testId, secret);
     }
 
     // Test Connection is a ladder, so the message says which rung failed: reach the Data API
@@ -109,24 +121,24 @@ export async function handleTestConnection(ctx: WizardContext, data: WizardFormD
       if (data.authMode === 'direct') {
         rung = 'server';
         await postTestProgress(ctx, 'Step 1 of 3: reaching the Data API (TLS and product info)…');
-        const info = await ctx.fmClient.getProductInfo(tempProfile);
+        const info = await client.getProductInfo(tempProfile);
         product = [info.name, info.version].filter(Boolean).join(' ');
 
         rung = 'databases';
         await postTestProgress(ctx, 'Step 2 of 3: listing the hosted databases…');
-        hosted = await ctx.fmClient.listHostedDatabases(tempProfile);
+        hosted = await client.listHostedDatabases(tempProfile);
       }
 
       rung = 'sign-in';
       await postTestProgress(ctx, data.authMode === 'direct' ? 'Step 3 of 3: signing in…' : 'Opening session…');
       // A test is the user asking for a sign-in, so it goes ahead even if automatic ones are paused.
-      await ctx.fmClient.createSession(tempProfile, { userInitiated: true });
+      await client.createSession(tempProfile, { userInitiated: true });
     } catch (error) {
       throw explainTestFailure(error, rung, hosted);
     }
 
     await postTestProgress(ctx, 'Cleaning up…');
-    await ctx.fmClient.deleteSession(tempProfile);
+    await client.deleteSession(tempProfile);
 
     const notes: string[] = [];
     if (hosted && !hosted.some((name) => name.toLowerCase() === tempProfile.database.toLowerCase())) {
@@ -167,15 +179,9 @@ export async function handleTestConnection(ctx: WizardContext, data: WizardFormD
           : undefined
     });
   } finally {
-    try {
-      await ctx.secretStore.deletePassword(testId);
-      await ctx.secretStore.deleteProxyApiKey(testId);
-      await ctx.secretStore.deleteSessionToken(testId);
-      // The throwaway test profile must not linger in the client's pause and health tables.
-      ctx.fmClient.forgetProfile?.(testId);
-    } catch (error) {
-      ctx.logger.warn('Could not remove temporary test credentials.', { error });
-    }
+    memory.clear();
+    // The isolated client and all temporary tokens die with this test.
+    client?.forgetProfile(testId);
   }
 }
 

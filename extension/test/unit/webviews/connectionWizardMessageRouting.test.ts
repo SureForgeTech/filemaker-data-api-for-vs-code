@@ -98,6 +98,7 @@ function open(overrides: Overrides = {}) {
     clearAuthPause: vi.fn(),
     invalidateProfileCache: vi.fn()
   };
+  Object.assign(fmClient, { createIsolatedClient: vi.fn(() => fmClient) });
   const logger = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
 
   (ConnectionWizardPanel as unknown as { currentPanel: unknown }).currentPanel = undefined;

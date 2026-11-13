@@ -1,4 +1,5 @@
-import type * as vscode from 'vscode';
+import * as vscode from 'vscode';
+import type { SecretStore } from './secretStore';
 
 import type { ConnectionProfile, SavedQuery } from '../types/fm';
 import { FMClientError } from './errors';
@@ -8,15 +9,19 @@ import { validateDatabaseName, validateProfileId, validateServerUrl } from '../u
 const PROFILES_KEY = 'filemakerDataApiTools.profiles';
 const ACTIVE_PROFILE_KEY = 'filemakerDataApiTools.activeProfileId';
 const SAVED_QUERIES_KEY = 'filemakerDataApiTools.savedQueries';
+const SECRET_STORAGE_TIMEOUT_MS = 5000;
 
 export class ProfileStore {
   private readonly changeListeners = new Set<() => void>();
 
   private observedState: string;
+  private migration: Promise<void> | undefined;
+  private readonly credentialWarnings = new Set<string>();
 
   public constructor(
     private readonly globalState: vscode.Memento,
-    private readonly workspaceState: vscode.Memento
+    private readonly workspaceState: vscode.Memento,
+    private readonly secrets?: Pick<SecretStore, 'getPassword' | 'setPassword'>
   ) {
     this.observedState = this.profileState();
   }
@@ -56,7 +61,73 @@ export class ProfileStore {
   }
 
   public async listProfiles(): Promise<ConnectionProfile[]> {
+    await this.migrateUrlCredentials();
     return this.listProfilesSync();
+  }
+
+  private async migrateUrlCredentials(): Promise<void> {
+    if (this.migration) return this.migration;
+    this.migration = this.removeUrlCredentials();
+    try {
+      await this.migration;
+    } finally {
+      this.migration = undefined;
+    }
+  }
+
+  private async removeUrlCredentials(): Promise<void> {
+    const raw = this.globalState.get<unknown>(PROFILES_KEY, []);
+    if (!Array.isArray(raw)) return;
+    const migrated = new Map<string, ConnectionProfile>();
+    for (const value of raw) {
+      const normalized = normalizeProfile(value);
+      if (!normalized) continue;
+      const original = value as ConnectionProfile;
+      const snapshot = JSON.stringify(value);
+      const url = new URL(original.serverUrl);
+      if (!url.username && !url.password) continue;
+      if (!this.credentialWarnings.has(normalized.id)) {
+        this.credentialWarnings.add(normalized.id);
+        void vscode.window.showWarningMessage(
+          'A saved FileMaker server address contains credentials. Re-enter or confirm the credential in Edit Connection Profile before connecting.'
+        );
+      }
+      // Never overwrite a separately saved password or discard one we could not save.
+      if (url.password) {
+        // A URL password is not a proxy API key. Keep it recoverable in the raw entry.
+        const secrets = this.secrets;
+        if (original.authMode !== 'direct' || !secrets) continue;
+        try {
+          if (await withSecretStorageTimeout(() => secrets.getPassword(normalized.id)) === undefined) {
+            const password = decodeURIComponent(url.password);
+            // A wizard save may have completed while the first read was pending.
+            if (await withSecretStorageTimeout(() => secrets.getPassword(normalized.id)) === undefined) {
+              await withSecretStorageTimeout(() => secrets.setPassword(normalized.id, password));
+              // Disabled persistence can resolve a write without storing anything.
+              if (await withSecretStorageTimeout(() => secrets.getPassword(normalized.id)) === undefined) continue;
+            }
+          }
+        } catch {
+          // Leave persisted credentials intact so migration can be retried.
+          continue;
+        }
+      }
+      migrated.set(snapshot, normalized);
+    }
+    // Secret storage yields to other profile writers. Only replace unchanged profiles.
+    const current = this.globalState.get<unknown>(PROFILES_KEY, []);
+    if (!Array.isArray(current)) return;
+    let changed = false;
+    const profiles = current.map((value) => {
+      const normalized = migrated.get(JSON.stringify(value));
+      if (!normalized) return value;
+      changed = true;
+      return normalized;
+    });
+    if (changed) {
+      await this.globalState.update(PROFILES_KEY, profiles);
+      this.fireChange();
+    }
   }
 
   /** The stored profiles without waiting; a webview needs them before its first paint. */
@@ -78,22 +149,38 @@ export class ProfileStore {
 
   public async upsertProfile(profile: ConnectionProfile): Promise<void> {
     const normalizedProfile = validateConnectionProfile(profile);
-    const profiles = await this.listProfiles();
-    const existingIndex = profiles.findIndex((item) => item.id === normalizedProfile.id);
+    await this.migrateUrlCredentials();
+    const rawProfiles = this.globalState.get<unknown>(PROFILES_KEY, []);
+    const profiles = Array.isArray(rawProfiles) ? [...rawProfiles] : [];
+    const existing = profiles.filter((item) => normalizeProfile(item)?.id === normalizedProfile.id);
+    // Migration is the only path allowed to strip persisted credentials. If it failed
+    // (or the raw entry changed while it waited), apply edits without losing that URL.
+    const preserveCredentials = existing.some((item) => {
+      const url = new URL((item as ConnectionProfile).serverUrl);
+      return Boolean(url.username || url.password);
+    });
+    let replaced = false;
+    const updated = profiles.flatMap((item) => {
+      if (normalizeProfile(item)?.id !== normalizedProfile.id) return [item];
+      if (preserveCredentials) {
+        // Keep every duplicate until migration succeeds; each may hold credentials.
+        return [{ ...normalizedProfile, serverUrl: (item as ConnectionProfile).serverUrl }];
+      }
+      if (replaced) return [];
+      replaced = true;
+      return [normalizedProfile];
+    });
+    if (existing.length === 0) updated.push(normalizedProfile);
 
-    if (existingIndex >= 0) {
-      profiles[existingIndex] = normalizedProfile;
-    } else {
-      profiles.push(normalizedProfile);
-    }
-
-    await this.globalState.update(PROFILES_KEY, profiles);
+    await this.globalState.update(PROFILES_KEY, updated);
     this.fireChange();
   }
 
   public async removeProfile(profileId: string): Promise<void> {
-    const profiles = await this.listProfiles();
-    const filtered = profiles.filter((profile) => profile.id !== profileId);
+    await this.migrateUrlCredentials();
+    const rawProfiles = this.globalState.get<unknown>(PROFILES_KEY, []);
+    const profiles = Array.isArray(rawProfiles) ? rawProfiles : [];
+    const filtered = profiles.filter((profile) => normalizeProfile(profile)?.id !== profileId);
     await this.globalState.update(PROFILES_KEY, filtered);
 
     const activeProfileId = this.getActiveProfileId();
@@ -142,6 +229,18 @@ export class ProfileStore {
   }
 }
 
+async function withSecretStorageTimeout<T>(operation: () => Promise<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => reject(new Error('Secret storage timed out.')), SECRET_STORAGE_TIMEOUT_MS);
+  });
+  try {
+    return await Promise.race([operation(), timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 function normalizeProfile(value: unknown): ConnectionProfile | undefined {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return undefined;
@@ -151,7 +250,11 @@ function normalizeProfile(value: unknown): ConnectionProfile | undefined {
     // Reading is lenient about a user name or password in the address: a profile saved
     // that way before it was rejected must stay visible so it can be fixed, not vanish
     // (and be dropped for good the next time the list is written back).
-    return validateConnectionProfile(value as ConnectionProfile, { allowCredentialsInUrl: true });
+    const profile = validateConnectionProfile(value as ConnectionProfile, { allowCredentialsInUrl: true });
+    const url = new URL(profile.serverUrl);
+    url.username = '';
+    url.password = '';
+    return { ...profile, serverUrl: url.toString().replace(/\/+$/, '') };
   } catch {
     return undefined;
   }

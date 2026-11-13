@@ -184,7 +184,10 @@ export async function requestNoAuth<TResponse extends Record<string, unknown>>(
 }
 
 export function buildEndpoint(profile: ConnectionProfile, path: string): string {
-  const normalizedServer = profile.serverUrl.replace(/\/+$/, '');
+  const server = new URL(profile.serverUrl);
+  server.username = '';
+  server.password = '';
+  const normalizedServer = server.toString().replace(/\/+$/, '');
   const normalizedBasePath = normalizePath(profile.apiBasePath ?? '/fmi/data');
   const version = (profile.apiVersionPath ?? 'vLatest').replace(/^\/+|\/+$/g, '');
   const database = encodeURIComponent(profile.database);
