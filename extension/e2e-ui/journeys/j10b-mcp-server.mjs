@@ -595,11 +595,14 @@ export async function run(ctx) {
       (ctx.extraRoots ??= []).push(ws2);
       fs.writeFileSync(path.join(ws2, 'README.md'), '# second workspace\n');
       const known = new Set(s.app.windows());
-      spawnSync(
+      const opened = spawnSync(
         ctx.vscode.cli,
-        ['--user-data-dir', s.ud, '--extensions-dir', s.ex, '--new-window', ws2],
-        { env: safeEnv({ HOME: s.home }), encoding: 'utf8' }
+        ['--user-data-dir', s.ud, '--extensions-dir', s.ex, '--no-sandbox',
+          '--disable-workspace-trust', '--new-window', ws2],
+        { env: safeEnv({ HOME: s.home }), encoding: 'utf8', timeout: 15000 }
       );
+      assert(opened.status === 0,
+        `second-window CLI failed (${opened.status}): ${opened.error?.message ?? ''} ${opened.stdout} ${opened.stderr}`);
       let page2;
       for (let i = 0; i < 60 && !page2; i += 1) {
         await sleep(500);
@@ -610,17 +613,27 @@ export async function run(ctx) {
       await page2
         .locator('.statusbar-item', { hasText: /FileMaker/ })
         .first()
-        .waitFor({ timeout: 45000 })
-        .catch(() => {});
-      await sleep(5000);
+        .waitFor({ timeout: 45000 });
       const s2 = Object.create(s);
       s2.page = page2;
+      s2.ws = ws2;
       try {
+        const win = await s.app.browserWindow(page2);
+        try {
+          await win.evaluate((w) => {
+            if (w.isMinimized()) w.restore();
+            w.show();
+            w.focus();
+            w.webContents.focus();
+          });
+        } finally { await win.dispose(); }
+        await page2.bringToFront();
+        await page2.waitForFunction(() => document.hasFocus(), null, { timeout: 15000 });
         await s2.dismissStartupOverlays().catch(() => {});
+        assert(!(await s2.modalVisible()), `unexpected second-window modal: ${await s2.modalText()}`);
         await page2
           .screenshot({ path: ctx.report.nextShot(J, 'second-window'), scale: 'css' })
           .catch(() => {});
-        await page2.bringToFront().catch(() => {});
         await s2.cmd('FileMaker: Start/Stop AI Server for External Tools');
         await s2.waitModal(20000);
         await s2.modal('Start Here');
