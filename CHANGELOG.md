@@ -37,10 +37,14 @@ PR title prefix matches the highest-tier label added:
 ### [SECURITY]
 
 - [SECURITY] AI approval dialogs show hidden Unicode characters as visible escapes, preserving supplementary characters exactly so the proposed names and values remain distinguishable.
-- FM Web preview refuses unexpected or edited runtime files and workspace npm configuration. A named regeneration confirmation is required to delete them. Preview runs a fresh private template copy with install scripts disabled and empty npm config files.
+- [SECURITY] FM Web preview leaves workspace npm configuration and edited or added runtime files untouched, lists ignored runtime files, and runs a clean private template copy with install scripts disabled and empty npm config files. Deleting runtime files requires named confirmation in the explicit generation command.
+- [SECURITY] FM Web preview finds Node.js and npm on Windows without a shell and stops the whole preview process tree before removing its private files.
+- [SECURITY] FM Web preview recognizes its own comment-only env file after a VS Code restart without reporting it as unexpected.
+- [SECURITY] FM Web preview preserves proxy settings and extra CA certificates for installs on enterprise networks while continuing to exclude npm and Node injection settings.
+- [SECURITY] FM Web preview waits for private-file cleanup on shutdown with a time limit and removes only old temporary preview folders carrying its ownership marker.
 - Layout Mode and preview script confirmations visibly escape hidden characters, show parameter lengths, and refuse values too long to show in full. Layout Mode shows the layout that will actually run.
 - Plugin consent visibly escapes filenames containing newlines or hidden characters; approval hashes still use the original names and bytes.
-- FM Web preview keeps the bridge token on the server. A single-use launch link grants a private session cookie; requests without it and requests with the wrong Host are refused.
+- FM Web preview keeps the bridge token on the server. A single-use launch link grants a private session cookie; application requests reaching the preview proxy without it or with the wrong Host are refused. Next development endpoints, including HMR, are outside this cookie gate.
 
 - FM Web preview listens only on 127.0.0.1:3000, and the bridge refuses missing origins and origins outside that preview port.
 - FM Web preview script buttons ask for confirmation in VS Code with the exact script, escaped parameter and connection host. Oversized confirmation values are refused, and repeated prompts are throttled.

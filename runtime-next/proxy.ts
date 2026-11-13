@@ -1,8 +1,11 @@
-// fmweb-managed: runtime template v9. Preview session security; keep this file identical to the shipped template.
+// fmweb-managed: runtime template v10. Preview session security; keep this file identical to the shipped template.
 import { NextRequest, NextResponse } from 'next/server';
 import { consumeLaunchCode, previewHostAllowed, previewSessionAllowed, SESSION_COOKIE } from './lib/preview-security';
 
-/** All paths, including static assets, require the private preview session. */
+/** Requests reaching this proxy require the private preview session.
+ * Next dev handles HMR and some /__nextjs_* endpoints before application routing;
+ * those endpoints are outside this cookie gate. The dev server stays loopback-only.
+ */
 export async function proxy(request: NextRequest): Promise<NextResponse> {
   let response: NextResponse;
   if (!previewHostAllowed(request)) {

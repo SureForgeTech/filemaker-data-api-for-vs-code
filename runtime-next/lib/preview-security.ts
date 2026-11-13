@@ -1,4 +1,4 @@
-// fmweb-managed: runtime template v9. Preview session security; keep this file identical to the shipped template.
+// fmweb-managed: runtime template v10. Preview session security; keep this file identical to the shipped template.
 // Server only: never import this module from a client component.
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { open } from 'node:fs/promises';

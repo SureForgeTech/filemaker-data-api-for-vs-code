@@ -46,7 +46,7 @@ export function registerFmWebProjectCommands(
 
   let preview: FmWebPreviewProcess | undefined;
   let previewStarting = false;
-  context.subscriptions?.push({ dispose: () => preview?.dispose() });
+  context.subscriptions?.push({ dispose: () => { void preview?.dispose().catch(() => undefined); } });
 
   return [
     vscode.commands.registerCommand('filemakerDataApiTools.initializeFmWebProject', async () => {
@@ -161,6 +161,17 @@ export function registerFmWebProjectCommands(
       }
 
       try {
+        const files = await fmWebRuntimeGenerator.inspectPreviewFiles();
+        if (files.length) {
+          const listing = files.map((file) => displayText(file, Infinity)).join('\n');
+          if (listing.length > 12000) throw new Error('Too many runtime files to show safely. Regenerate fewer files at a time.');
+          const choice = await vscode.window.showWarningMessage(
+            `Regenerate the runtime from the shipped template? This deletes exactly these files or folders (including their contents):\n\n${listing}`,
+            { modal: true }, 'Regenerate from template'
+          );
+          if (choice !== 'Regenerate from template') return;
+          await fmWebRuntimeGenerator.removePreviewFiles(files);
+        }
         const summary = await fmWebRuntimeGenerator.generateRuntimeAppTemplate();
         vscode.window.showInformationMessage(
           `Generated Next.js runtime template in .fmweb/generated/runtime-next (${summary.created.length} created, ${summary.updated.length} updated, ${summary.skipped.length} skipped).`
@@ -232,23 +243,12 @@ export function registerFmWebProjectCommands(
       if (previewStarting) return;
       previewStarting = true;
       try {
-        preview?.dispose();
+        await preview?.dispose();
         preview = undefined;
         await fmBridgeServer.stop();
-        const offending = await fmWebRuntimeGenerator.inspectPreviewFiles();
-        if (offending.length) {
-          const listing = offending.map((file) => displayText(file, Infinity)).join('\n');
-          if (listing.length > 12000) throw new Error('Too many unexpected preview files to show safely. Remove the generated runtime and workspace .npmrc files manually, then regenerate.');
-          const choice = await vscode.window.showWarningMessage(
-            `The preview cannot run these unexpected or edited files:\n\n${listing}\n\nRegenerate from template deletes exactly the listed files or folders (including their contents). Parent .npmrc files listed above will also be deleted.`,
-            { modal: true }, 'Regenerate from template'
-          );
-          if (choice !== 'Regenerate from template') { await fmWebRuntimeGenerator.clearBridgeEnv(); return; }
-          await fmWebRuntimeGenerator.removePreviewFiles(offending);
-        }
-        await fmWebRuntimeGenerator.generateRuntimeAppTemplate();
-        const remaining = await fmWebRuntimeGenerator.inspectPreviewFiles();
-        if (remaining.length) throw new Error(`Preview files changed; start again to review: ${remaining.map((file) => displayText(file, Infinity)).join(', ')}`);
+        const ignored = await fmWebRuntimeGenerator.inspectPreviewFiles();
+        const listing = ignored.map((file) => displayText(file, Infinity)).join('\n');
+        if (listing.length > 12000) throw new Error('Too many ignored runtime files to show safely in the preview confirmation.');
         const layouts = new Map<string, Buffer>();
         for (const layout of await fmWebRuntimeGenerator.listLayoutDefinitions()) {
           const generated = await fmWebRuntimeGenerator.generateLayoutPage(layout.id);
@@ -256,19 +256,18 @@ export function registerFmWebProjectCommands(
         }
         const runtimeRoot = fmWebRuntimeGenerator.getGeneratedRuntimeRoot();
         const answer = await vscode.window.showWarningMessage(
-          `Start the FM Web preview?\n\nA fresh private temporary copy of the shipped template will run these commands:\n${PREVIEW_INSTALL_DESCRIPTION}\n${PREVIEW_DEV_DESCRIPTION}\n\nBoth npm commands use pinned empty --userconfig and --globalconfig files, an explicit --prefix and private cache, and a cleared configuration environment. The dev script in the template package.json runs Next on 127.0.0.1:3000; pre/post scripts are disabled. Dependencies are downloaded from registry.npmjs.org. No install scripts run.\n\nThe runtime checked was:\n${displayText(runtimeRoot, Infinity)}\n\nThe extension opens your browser with a one-time private launch link.`,
+          `Start the FM Web preview?\n\nA fresh private temporary copy of the shipped template will run these commands:\n${PREVIEW_INSTALL_DESCRIPTION}\n${PREVIEW_DEV_DESCRIPTION}\n\nBoth npm commands use pinned empty --userconfig and --globalconfig files, an explicit --prefix and private cache, and a cleared configuration environment. The dev script in the template package.json runs Next on 127.0.0.1:3000; pre/post scripts are disabled. Dependencies are downloaded from registry.npmjs.org. No install scripts run.\n\nThe runtime checked was:\n${displayText(runtimeRoot, Infinity)}\n\nWorkspace npm configuration and .env overrides are ignored. Your runtime files are left untouched.${ignored.length ? `\nThese edited or added files are ignored in the private preview:\n${listing}` : ''}\n\nThe extension opens your browser with a one-time private launch link.`,
           { modal: true }, 'Run'
         );
         if (answer !== 'Run') { await fmWebRuntimeGenerator.clearBridgeEnv(); return; }
         const bridge = await fmBridgeServer.ensureStarted();
-        await fmWebRuntimeGenerator.writeBridgeEnv(bridge.baseUrl, fmBridgeServer.getSessionToken());
         const token = fmBridgeServer.getSessionToken();
         if (!token) throw new Error('Bridge session is not ready.');
         preview = new FmWebPreviewProcess();
         await preview.start(await fmWebRuntimeGenerator.previewTemplateFiles(), layouts, bridge.baseUrl, token);
         vscode.window.showInformationMessage('FM Web preview is ready in your browser. Restarting it invalidates the previous launch and session.');
       } catch (error) {
-        preview?.dispose();
+        await preview?.dispose().catch(() => logger.warn('Private preview cleanup did not finish; it will be retried on shutdown.'));
         preview = undefined;
         await fmBridgeServer.stop();
         await showCommandError(error, {
@@ -283,13 +282,13 @@ export function registerFmWebProjectCommands(
   ];
 }
 
-/** Files the extension keeps current were edited, so they were left alone and the preview may fail. */
+/** Explain why explicit generation preserved edited managed files. */
 function warnAboutEditedManagedFiles(files: string[] | undefined): void {
   if (!files || files.length === 0) {
     return;
   }
   void vscode.window.showWarningMessage(
-    `These generated preview files were edited (or are symbolic links), so they were not updated: ${files.join(', ')}. The preview cannot reach the FileMaker bridge until they match the current template; delete them and run the command again to get fresh copies.`
+    `These generated preview files were edited (or are symbolic links), so they were not updated: ${files.join(', ')}. Preview uses a clean temporary copy. Your edits remain available for manual use.`
   );
 }
 
