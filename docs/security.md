@@ -251,12 +251,25 @@ Do not open a public issue. Follow the [security policy](../SECURITY.md).
 
 ## FileMaker request and batch budgets
 
-Every direct and proxy HTTP exchange has a wall-clock deadline set by
-`filemaker.requestTimeoutMs` (15 seconds by default), as well as the socket
-inactivity timeout. Receiving headers or dripping body bytes does not extend the
-deadline. Caller cancellation still stops the request. Sign-in, sign-out, server
-discovery and session retirement use these limits too (retirement uses at most
-three seconds).
+Every direct and proxy HTTP exchange is time-limited, and the limit depends on
+the kind of request. The base value is `filemaker.requestTimeoutMs` (15 seconds
+by default).
+
+- **Sign-in, sign-out, server discovery, metadata and ordinary requests** have a
+  wall-clock deadline. Receiving headers or dripping body bytes does not extend
+  it.
+- **Downloads and large reads** renew the deadline each time 64 KiB of body
+  arrives, so a healthy slow transfer finishes and a stalled or dripping one
+  stops.
+- **Uploads** have no wall-clock deadline, because the HTTP client reports upload
+  progress before the bytes reach the server. They stop on the socket inactivity
+  timeout (nothing written for the base time) and on caller cancellation. A very
+  slow link can still be stopped by the inactivity timeout late in a large
+  upload.
+- **Every transfer** also has a 30 minute ceiling.
+
+Caller cancellation still stops any request. Session retirement uses at most
+three seconds.
 
 Responses are limited to 64 MiB after decompression per HTTP request. Smaller
 explicit limits used by AI tools still apply. Large exports can use smaller
