@@ -2,7 +2,7 @@
 
 [![Marketplace version](https://vsmarketplacebadges.dev/version/SureForgeTech.filemaker-data-api-tools.svg)](https://marketplace.visualstudio.com/items?itemName=SureForgeTech.filemaker-data-api-tools) [![Last commit](https://img.shields.io/github/last-commit/SureForgeTech/filemaker-data-api-for-vs-code)](https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/commits/main) [![License: MIT](https://img.shields.io/github/license/SureForgeTech/filemaker-data-api-for-vs-code)](https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/blob/main/LICENSE)
 
-For Claris FileMaker Server (Data API). FileMaker Cloud sign-in with a Claris ID is not supported yet.
+For Claris FileMaker Server (Data API). FileMaker Cloud sign-in with a Claris ID is not supported yet, and Cloud has not been tried.
 
 Connect to any FileMaker Data API server and run queries, browse schema, edit records, and export results — without leaving VS Code.
 
@@ -12,7 +12,7 @@ Connect to any FileMaker Data API server and run queries, browse schema, edit re
 
 Version **1.9.0** adds new related portal rows to Create Record on direct connections. It mostly improves safety: batch updates follow write rules, old saved addresses lose embedded credentials safely, and server responses and the source-checkout FM Web preview have tighter limits. Read the [upgrade notes](https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/blob/main/extension/UPGRADE.md) for the new prompts and settings rules.
 
-One real FileMaker server was exercised on **2026-10-21**, but its version was not recorded. No server version has a completed recorded smoke test; see [Compatibility](https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/blob/main/extension/docs/COMPATIBILITY.md). FileMaker Cloud sign-in with a Claris ID is **not supported**.
+We have used it against one of our own FileMaker Servers and a built-in mock of the Data API, and we would love more people to try it on other server versions and setups and tell us what they find. See [Compatibility](https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/blob/main/extension/docs/COMPATIBILITY.md), and [open an issue](https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/issues) with anything you notice. FileMaker Cloud sign-in with a Claris ID is not supported yet, and Cloud has not been tried.
 
 ## What it does
 
@@ -77,12 +77,12 @@ Capture schema snapshots and compare them to see which fields were added, remove
 
 ## Requirements
 
-- FileMaker Server with the **Data API** enabled, reachable over HTTPS. FileMaker Cloud sign-in with a Claris ID is not supported yet.
+- FileMaker Server with the **Data API** enabled, reachable over HTTPS. FileMaker Cloud sign-in with a Claris ID is not supported yet, and Cloud has not been tried.
 - A FileMaker account whose privilege set has the **`fmrest`** extended privilege.
 - A server certificate your computer trusts. For FileMaker Server's default certificate, a private authority or a self-signed certificate, the connection wizard lets you review the certificate and trust exactly that one (or set a CA file). Trusting a fingerprint works on direct connections with VS Code's default proxy setting too. A required proxy is refused for a pinned connection; custom CA profiles keep their existing routing (see the User Guide, Certificates).
 - VS Code 1.96 or newer on a macOS, Windows or Linux desktop, with a folder open (virtual workspaces such as github.dev are not supported). The AI server for MCP clients does not run in remote windows (SSH, WSL, Dev Containers, Codespaces).
 
-See [Compatibility](https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/blob/main/extension/docs/COMPATIBILITY.md) for server versions, operating systems and what we have tested so far. We test against our own FileMaker Server and a mock of the Data API built from Claris's documentation, and reports from other server versions and setups are very welcome: open an issue with what you find.
+See [Compatibility](https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/blob/main/extension/docs/COMPATIBILITY.md) for server versions, operating systems and what we have tested so far. We use our own FileMaker Server and a mock of the Data API built from Claris's documentation, and reports from other server versions and setups are very welcome: [open an issue](https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/issues) with what you find.
 
 ## Install
 

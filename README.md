@@ -8,7 +8,7 @@ Install it from the Marketplace: search for **FileMaker Data API Tools** (publis
 
 Version **1.9.0** adds new related portal rows to Create Record on direct connections. It mostly improves safety: batch updates follow write rules, old saved addresses lose embedded credentials safely, and server responses and the source-checkout FM Web preview have tighter limits. Read the [upgrade notes](extension/UPGRADE.md) for the new prompts and settings rules.
 
-We have tested it against our own FileMaker Server and a built-in mock of the Data API. We would love more people to try it on other server versions and setups and tell us what they find: see [Compatibility](extension/docs/COMPATIBILITY.md) and open an issue with anything you notice. FileMaker Cloud sign-in with a Claris ID is not supported yet.
+We have used it against one of our own FileMaker Servers and a built-in mock of the Data API. We would love more people to try it on other server versions and setups and tell us what they find: see [Compatibility](extension/docs/COMPATIBILITY.md) and [open an issue](https://github.com/SureForgeTech/filemaker-data-api-for-vs-code/issues) with anything you notice. FileMaker Cloud sign-in with a Claris ID is not supported yet, and Cloud has not been tried.
 
 ## Documentation
 
