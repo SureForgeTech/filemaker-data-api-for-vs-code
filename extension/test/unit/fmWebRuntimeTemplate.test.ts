@@ -537,10 +537,10 @@ describe('FM Web runtime template', () => {
     const target = path.join(gen.getGeneratedRuntimeRoot(), 'shared/src/field-standards.ts');
     await mkdir(path.dirname(target), { recursive: true });
     await writeFile(target, shipped.replace(/\r?\n/g, '\r\n'));
-    expect((await gen.generateRuntimeAppTemplate()).updated).toContain(path.join('shared', 'src/field-standards.ts'));
+    expect((await gen.generateRuntimeAppTemplate()).updated).toContain('shared/src/field-standards.ts');
     expect(await readFile(target, 'utf8')).toBe(updated);
     await writeFile(target, shipped + '\n// local customization\n');
-    expect((await gen.generateRuntimeAppTemplate()).needsManualUpdate).toContain(path.join('shared', 'src/field-standards.ts'));
+    expect((await gen.generateRuntimeAppTemplate()).needsManualUpdate).toContain('shared/src/field-standards.ts');
     expect(await readFile(target, 'utf8')).toBe(shipped + '\n// local customization\n');
   });
 
