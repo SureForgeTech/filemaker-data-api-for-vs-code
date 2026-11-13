@@ -22,7 +22,7 @@ function setup() {
     return { id: '12345678-abcd' };
   }) };
   const roleGuard = { assertFeature: vi.fn().mockResolvedValue(true), resolvePerformanceMode: vi.fn().mockReturnValue('balanced') };
-  const settings = { isBatchEnabled: vi.fn().mockReturnValue(true), getBatchMaxRecords: vi.fn().mockReturnValue(250), getBatchConcurrency: vi.fn().mockReturnValue(3) };
+  const settings = { isRecordEditEnabled: vi.fn().mockReturnValue(true), isBatchEnabled: vi.fn().mockReturnValue(true), getBatchMaxRecords: vi.fn().mockReturnValue(250), getBatchConcurrency: vi.fn().mockReturnValue(3) };
   const log = logger();
   registerBatchCommands({ profileStore: profiles as never, fmClient: client as never, batchService: batchService as never,
     jobRunner: jobRunner as never, roleGuard: roleGuard as never, settingsService: settings as never, logger: log as never });
@@ -80,6 +80,24 @@ describe('batch commands', () => {
     await command('batchUpdateFromFile')(arg);
     expect(roleGuard.assertFeature).toHaveBeenCalledWith('batchUpdate', 'Batch update from CSV/JSON');
     expect(profiles.getProfile).not.toHaveBeenCalled();
+    expect(vscode.window.showOpenDialog).not.toHaveBeenCalled();
+    expect(jobRunner.startJob).not.toHaveBeenCalled();
+  });
+
+  it('refuses batch updates when record editing is switched off', async () => {
+    const { settings, jobRunner } = setup();
+    settings.isRecordEditEnabled.mockReturnValue(false);
+    await command('batchUpdateFromFile')(arg);
+    expect(vscode.window.showInformationMessage).toHaveBeenCalledWith(expect.stringContaining('Record editing is disabled'));
+    expect(vscode.window.showOpenDialog).not.toHaveBeenCalled();
+    expect(jobRunner.startJob).not.toHaveBeenCalled();
+  });
+
+  it.each(['recordEdit', 'writeOperations'])('enforces %s before choosing a batch source', async (feature) => {
+    const { roleGuard, jobRunner } = setup();
+    roleGuard.assertFeature.mockImplementation(async (requested: string) => requested !== feature);
+    await command('batchUpdateFromFile')(arg);
+    expect(roleGuard.assertFeature).toHaveBeenCalledWith(feature, 'Batch update from CSV/JSON');
     expect(vscode.window.showOpenDialog).not.toHaveBeenCalled();
     expect(jobRunner.startJob).not.toHaveBeenCalled();
   });

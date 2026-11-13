@@ -18,6 +18,14 @@ PR title prefix matches the highest-tier label added:
 
 ## Unreleased
 
+- [SECURITY] Batch updates respect the record editing switch and enterprise record and write policies.
+- [SECURITY] Running batch jobs stop with a clear reason when offline mode or policy blocks further work.
+- [SECURITY] Trusting a server certificate respects locked profiles and enterprise write policy.
+- [SECURITY] Changing a connection's AI access respects enterprise write policy.
+- [SECURITY] Untrusted workspaces cannot apply enterprise policy from filemaker.config.json.
+- [SECURITY] Offline schema metadata is ignored in untrusted workspaces and checked against its stored hash before use.
+- [SECURITY] Environment comparison and layout comparison refuse untrusted workspaces.
+- [SECURITY] Snippet authorization defaults, schema hash algorithms and bridge request limits can only be set in User settings.
 - [SECURITY] Record editing, creation and container uploads respect the enterprise write switch; open Record Editor and Script Runner panels recheck policy before writes. Write AI Context respects AI-off settings, enterprise policy and offline mode.
 - [SECURITY] Saved server addresses lose embedded credentials, preserving an existing saved password and asking you to confirm it. Test Connection keeps temporary credentials in memory, and removing a profile attempts to close its server session before clearing secrets.
 - [SECURITY] Logs mask more token formats, and Connect warns once per profile each session when a remote connection uses unencrypted HTTP.

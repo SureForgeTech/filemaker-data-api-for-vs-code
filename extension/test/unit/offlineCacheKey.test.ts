@@ -1,16 +1,16 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import type * as vscode from 'vscode';
 
 // We need to test the cacheKey function indirectly through the OfflineModeService
 // since cacheKey is a private module function. We test by verifying round-trip behavior.
 
 import { OfflineModeService } from '../../src/offline/offlineModeService';
-import { mkdir } from 'fs/promises';
+import { mkdir, mkdtemp, readFile, writeFile, rm } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { randomUUID } from 'crypto';
 
-function createTestService(workspaceRoot: string): OfflineModeService {
+function createTestService(workspaceRoot: string, isWorkspaceTrusted = () => true, algorithm = 'sha256'): OfflineModeService {
   return new OfflineModeService(
     { warn: () => {} },
     {
@@ -19,17 +19,68 @@ function createTestService(workspaceRoot: string): OfflineModeService {
         ({
           get: (key: string, defaultValue: unknown) => {
             if (key === 'offline.mode') return false;
-            if (key === 'schema.hashAlgorithm') return 'sha256';
+            if (key === 'schema.hashAlgorithm') return algorithm;
             return defaultValue;
           },
           update: async () => {}
         }) as unknown as vscode.WorkspaceConfiguration,
-      isWorkspaceTrusted: () => true
+      isWorkspaceTrusted
     }
   );
 }
 
 describe('offline cache key consistency', () => {
+  it('does not resolve or read workspace cache paths before trust is granted', async () => {
+    const getWorkspaceRoot = vi.fn().mockReturnValue('/workspace');
+    const service = new OfflineModeService({ warn: vi.fn() }, {
+      getWorkspaceRoot, isWorkspaceTrusted: () => false
+    });
+    const profile = { id: 'p', name: 'Test', serverUrl: 'https://example.test', database: 'DB', authMode: 'direct' as const };
+    expect(await service.getCachedLayoutMetadata(profile, ' Layout ')).toBeUndefined();
+    expect(getWorkspaceRoot).not.toHaveBeenCalled();
+  });
+
+  it.each(['untrusted', 'metadata', 'payload hash', 'index hash', 'missing hash'])('refuses %s cache entries', async (change) => {
+    const root = await mkdtemp(join(tmpdir(), 'fm-cache-policy-'));
+    let trusted = true;
+    const service = createTestService(root, () => trusted);
+    const profile = { id: 'p', name: 'Test', serverUrl: 'https://example.test', database: 'DB', authMode: 'direct' as const };
+    try {
+      await service.cacheLayoutMetadata(profile, ' Layout ', { fieldMetaData: [{ name: ' Field ' }] });
+      const dir = join(root, '.vscode/filemaker/offline-metadata');
+      const [entry] = await service.listCacheEntries();
+      const path = join(dir, entry!.fileName);
+      const payload = JSON.parse(await readFile(path, 'utf8'));
+      if (change === 'untrusted') trusted = false;
+      if (change === 'metadata') payload.metadata = { fieldMetaData: [{ name: 'Planted' }] };
+      if (change === 'payload hash') payload.hash = '0'.repeat(64);
+      if (change === 'missing hash') delete payload.hash;
+      if (change === 'index hash') {
+        const indexPath = join(dir, 'index.json');
+        const index = JSON.parse(await readFile(indexPath, 'utf8'));
+        index.items[0].hash = '0'.repeat(64);
+        await writeFile(indexPath, JSON.stringify(index));
+      }
+      await writeFile(path, JSON.stringify(payload));
+      expect(await service.getCachedLayoutMetadata(profile, ' Layout ')).toBeUndefined();
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it.each(['sha256', 'sha512'])('accepts an intact cache using %s and preserves exact names', async (algorithm) => {
+    const root = await mkdtemp(join(tmpdir(), 'fm-cache-policy-'));
+    const service = createTestService(root, () => true, algorithm);
+    const profile = { id: 'p', name: 'Test', serverUrl: 'https://example.test', database: 'DB', authMode: 'direct' as const };
+    const metadata = { fieldMetaData: [{ name: ' Field ' }] };
+    try {
+      await service.cacheLayoutMetadata(profile, ' Layout ', metadata);
+      expect(await service.getCachedLayoutMetadata(profile, ' Layout ')).toMatchObject({ metadata });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('should retrieve cached metadata using the same profile/layout combination', async () => {
     const root = join(tmpdir(), `fm-test-${randomUUID()}`);
     await mkdir(root, { recursive: true });

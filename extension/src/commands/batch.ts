@@ -149,8 +149,15 @@ export function registerBatchCommands(deps: RegisterBatchCommandsDeps): vscode.D
           return;
         }
 
-        const canUpdate = await roleGuard.assertFeature('batchUpdate', 'Batch update from CSV/JSON');
-        if (!canUpdate) {
+        if (!settingsService.isRecordEditEnabled()) {
+          vscode.window.showInformationMessage('Record editing is disabled by settings. Batch update is unavailable.');
+          return;
+        }
+        if (
+          !(await roleGuard.assertFeature('batchUpdate', 'Batch update from CSV/JSON')) ||
+          !(await roleGuard.assertFeature('recordEdit', 'Batch update from CSV/JSON')) ||
+          !(await roleGuard.assertFeature('writeOperations', 'Batch update from CSV/JSON'))
+        ) {
           return;
         }
 

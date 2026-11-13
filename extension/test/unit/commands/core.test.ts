@@ -185,6 +185,23 @@ describe('registerCoreCommands', () => {
     }
   );
 
+  it.each(['locked', 'writeOperations'])('refuses certificate trust when %s policy blocks profile changes', async (restriction) => {
+    const deps = createMockDeps();
+    Object.assign(deps.profileStore, { getProfile: vi.fn().mockResolvedValue({ id: 'p1', name: 'Test' }) });
+    Object.assign(deps.roleGuard, {
+      isProfileLocked: vi.fn().mockReturnValue(restriction === 'locked'),
+      assertFeature: vi.fn().mockResolvedValue(restriction !== 'writeOperations')
+    });
+    const review = vi.spyOn(certificateTrust, 'reviewAndTrustCertificate').mockResolvedValue(undefined);
+    registerCoreCommands(deps);
+    const run = vi.mocked(vscode.commands.registerCommand).mock.calls.find(([id]) => id === 'filemakerDataApiTools.trustServerCertificate')![1];
+    await run({ profileId: 'p1' });
+    expect(review).not.toHaveBeenCalled();
+    expect((deps.profileStore as { upsertProfile: ReturnType<typeof vi.fn> }).upsertProfile).not.toHaveBeenCalled();
+    if (restriction === 'locked') expect(vscode.window.showWarningMessage).toHaveBeenCalledWith(expect.stringContaining('locked'));
+    else expect((deps.roleGuard as { assertFeature: ReturnType<typeof vi.fn> }).assertFeature).toHaveBeenCalledWith('writeOperations', expect.any(String));
+  });
+
   it('offers to connect after trusting under override, without asking for a settings change', async () => {
     const deps = createMockDeps();
     const profile = { id: 'p1', name: 'LAN', authMode: 'direct' as const, serverUrl: 'https://192.0.2.1', database: 'Sales', username: 'tester' };

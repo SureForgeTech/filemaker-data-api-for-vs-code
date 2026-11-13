@@ -249,6 +249,13 @@ export function registerCoreCommands(deps: RegisterCoreCommandDeps): vscode.Disp
       if (!profile) {
         return;
       }
+      if (roleGuard.isProfileLocked(profile.id)) {
+        vscode.window.showWarningMessage('This profile is locked by enterprise configuration.');
+        return;
+      }
+      if (!(await roleGuard.assertFeature('writeOperations', 'Trust Server Certificate'))) {
+        return;
+      }
       const networkCode = (arg as { networkCode?: string } | undefined)?.networkCode;
       const decision = await reviewAndTrustCertificate(profile, {
         networkCode,

@@ -174,7 +174,7 @@ export class OfflineModeService {
     hash: string;
     capturedAt: string;
   } | undefined> {
-    if (!this.getCacheDir()) {
+    if (!this.isWorkspaceTrusted() || !this.getCacheDir()) {
       return undefined;
     }
 
@@ -202,9 +202,16 @@ export class OfflineModeService {
         return undefined;
       }
 
+      const algorithm = this.getConfiguration().get<string>('schema.hashAlgorithm', 'sha256');
+      const hash = hashObjectWithAlgorithm(parsed.metadata, algorithm);
+      if (parsed.hash !== hash || match.hash !== hash) {
+        this.logger.warn('Offline metadata cache hash mismatch; cached metadata was ignored.');
+        return undefined;
+      }
+
       return {
         metadata: parsed.metadata,
-        hash: typeof parsed.hash === 'string' ? parsed.hash : match.hash,
+        hash,
         capturedAt: typeof parsed.capturedAt === 'string' ? parsed.capturedAt : match.capturedAt
       };
     } catch (error) {

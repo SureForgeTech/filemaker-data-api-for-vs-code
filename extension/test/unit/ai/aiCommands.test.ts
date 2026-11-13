@@ -7,6 +7,7 @@ import { AiStatusBar, auditLogPath, registerAiToolCommands } from '../../../src/
 import { makeHarness } from './harness';
 
 describe('AI commands', () => {
+  let roleGuard: { isProfileLocked: ReturnType<typeof vi.fn>; assertFeature: ReturnType<typeof vi.fn> };
   let update: ReturnType<typeof vi.fn>;
   let profileStore: { getProfile: ReturnType<typeof vi.fn>; listProfiles: ReturnType<typeof vi.fn>; upsertProfile: ReturnType<typeof vi.fn>; getActiveProfileId: ReturnType<typeof vi.fn> };
   let h: ReturnType<typeof makeHarness>;
@@ -37,12 +38,13 @@ describe('AI commands', () => {
     audit = { read: vi.fn(async () => '{"tool":"a"}\n') };
     controller = new AiToolsController(h.service, { lm: undefined });
     const statusBar = new AiStatusBar({ service: h.service, controller, profileStore: profileStore as never, reportHiddenFieldsProblem: vi.fn() });
+    roleGuard = { isProfileLocked: vi.fn().mockReturnValue(false), assertFeature: vi.fn().mockResolvedValue(true) };
     registerAiToolCommands({
       service: h.service,
       controller,
       audit: audit as never,
       profileStore: profileStore as never,
-      roleGuard: { isProfileLocked: () => false } as never,
+      roleGuard: roleGuard as never,
       statusBar
     });
     (vscode as unknown as { ConfigurationTarget: { Global: number } }).ConfigurationTarget.Global = 1;
@@ -145,6 +147,15 @@ describe('AI commands', () => {
     expect(advice).toMatch(/dedicated account/);
     expect(advice).toContain('ai_reader');
     expect(update).toHaveBeenCalledWith('ai.connection', 'p1', 1);
+  });
+
+  it('refuses AI access changes when writeOperations is denied', async () => {
+    roleGuard.assertFeature.mockResolvedValue(false);
+    vi.mocked(vscode.window.showQuickPick).mockResolvedValueOnce({ profile: h.profile } as never);
+    await command('filemakerDataApiTools.setAiAccess')();
+    expect(roleGuard.assertFeature).toHaveBeenCalledWith('writeOperations', expect.any(String));
+    expect(profileStore.upsertProfile).not.toHaveBeenCalled();
+    expect(update).not.toHaveBeenCalled();
   });
 
   it('choosing None clears access and does not touch the connection setting', async () => {

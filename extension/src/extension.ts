@@ -321,6 +321,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     ])
       .then(([{ BatchService }, registry]) => {
         loadedBatchService = new BatchService(fmClient, {
+          roleGuard,
           getMaxRecords: () => {
             const configured = settingsService.getBatchMaxRecords();
             return roleGuard.resolvePerformanceMode() === 'high-scale'

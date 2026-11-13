@@ -84,6 +84,10 @@ export function registerEnterpriseCommands(deps: RegisterEnterpriseCommandsDeps)
     }),
 
     vscode.commands.registerCommand('filemakerDataApiTools.compareEnvironments', async (arg: unknown) => {
+      if (!vscode.workspace.isTrusted) {
+        vscode.window.showWarningMessage('Environment comparison is disabled in an untrusted workspace.');
+        return;
+      }
       const environmentSet = await resolveEnvironmentSet(arg, environmentSetStore);
       if (!environmentSet) {
         return;
@@ -112,6 +116,10 @@ export function registerEnterpriseCommands(deps: RegisterEnterpriseCommandsDeps)
     vscode.commands.registerCommand(
       'filemakerDataApiTools.diffLayoutAcrossEnvironments',
       async (arg: unknown) => {
+        if (!vscode.workspace.isTrusted) {
+          vscode.window.showWarningMessage('Environment comparison is disabled in an untrusted workspace.');
+          return;
+        }
         const parsed = parseSetAndLayoutArg(arg);
         const environmentSet = await resolveEnvironmentSet(parsed, environmentSetStore);
         if (!environmentSet) {
@@ -167,6 +175,10 @@ export function registerEnterpriseCommands(deps: RegisterEnterpriseCommandsDeps)
           let result = lastCompareResult;
 
           if (environmentSet) {
+            if (!vscode.workspace.isTrusted) {
+              vscode.window.showWarningMessage('Environment comparison is disabled in an untrusted workspace.');
+              return;
+            }
             const profiles = await resolveProfilesForSet(environmentSet, profileStore);
             result = await compareService.compareEnvironmentSet(environmentSet, profiles, {
               concurrency: settingsService.getBatchConcurrency(),
