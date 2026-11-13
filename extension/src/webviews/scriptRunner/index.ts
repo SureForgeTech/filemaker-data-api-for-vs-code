@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 
+import { RoleGuard } from '../../enterprise/roleGuard';
 import { FMClientError } from '../../services/errors';
 import type { FMClient } from '../../services/fmClient';
 import type { Logger } from '../../services/logger';
@@ -235,6 +236,14 @@ export class ScriptRunnerPanel {
         type: 'unsupported',
         message: 'Offline mode is enabled; script execution is disabled.'
       });
+      return;
+    }
+
+    const policy = new RoleGuard(this.logger);
+    await policy.refresh();
+    const guard = policy.getFeatureGuard('scriptRunner');
+    if (!guard.allowed) {
+      await this.postError(`Script execution is unavailable. ${guard.reason ?? 'Restricted by policy.'}`);
       return;
     }
 

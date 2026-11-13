@@ -37,6 +37,11 @@ function open(runScript: ReturnType<typeof vi.fn>) {
   const html = (vi.mocked(vscode.window.createWebviewPanel).mock.results.at(-1)?.value as { webview: { html: string } }).webview.html;
   const run = async () => {
     onMessage?.({ type: 'runScript', payload: { profileId: 'p1', layout: 'Contacts', scriptName: 'Go' } });
+    // The handler reads the enterprise policy from disk before it runs the script, which takes
+    // longer on slow machines, so wait for its answer instead of a fixed pause.
+    for (let i = 0; i < 400 && !posted.some((message) => message.type === 'scriptResult' || message.type === 'error'); i += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
     await new Promise((resolve) => setTimeout(resolve, 5));
   };
   return { html, posted, run };

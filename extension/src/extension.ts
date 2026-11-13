@@ -197,7 +197,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     });
   }
 
-  const profileStore = new ProfileStore(context.globalState, context.workspaceState);
   const secretFallbackMode = settingsService.getSecretsFallbackMode();
   const secretStore = new SecretStore(context.secrets, {
     fallbackMode: secretFallbackMode,
@@ -213,6 +212,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       void vscode.window.showWarningMessage(text);
     }
   });
+  const profileStore = new ProfileStore(context.globalState, context.workspaceState, secretStore);
+  await profileStore.listProfiles();
   const offlineModeService = new OfflineModeService(logger);
   const environmentSetStore = new EnvironmentSetStore(context.workspaceState);
   const savedQueriesStore = new SavedQueriesStore(context.globalState, context.workspaceState, {
@@ -320,6 +321,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     ])
       .then(([{ BatchService }, registry]) => {
         loadedBatchService = new BatchService(fmClient, {
+          roleGuard,
           getMaxRecords: () => {
             const configured = settingsService.getBatchMaxRecords();
             return roleGuard.resolvePerformanceMode() === 'high-scale'

@@ -60,7 +60,7 @@ export class SecretStore {
   private fallbackNotified = false;
 
   public constructor(
-    private readonly secrets: vscode.SecretStorage,
+    private readonly secrets: Pick<vscode.SecretStorage, 'get' | 'store' | 'delete'>,
     options: SecretStoreOptions = {}
   ) {
     this.fallbackMode = options.fallbackMode ?? 'vscode-only';

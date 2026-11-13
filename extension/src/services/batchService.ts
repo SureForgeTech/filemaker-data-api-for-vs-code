@@ -1,5 +1,9 @@
 import { extname } from 'path';
 
+import * as vscode from 'vscode';
+import { RoleGuard } from '../enterprise/roleGuard';
+import { isFeatureEnabled, isOfflineModeOn } from '../utils/policySetting';
+
 import type { FMClient } from './fmClient';
 import { FMClientError } from './errors';
 import { AdaptiveConcurrency } from '../performance/adaptiveConcurrency';
@@ -31,6 +35,7 @@ import { fieldType, metadataForField, readOnlyFieldKind } from '../utils/fieldAc
 import { stableStringify } from '../utils/hash';
 
 interface BatchServiceOptions {
+  roleGuard?: Pick<RoleGuard, 'getFeatureGuard'>;
   getMaxRecords?: () => number;
   getConcurrency?: () => number;
   getDryRunDefault?: () => boolean;
@@ -41,6 +46,7 @@ interface BatchServiceOptions {
 }
 
 export class BatchService {
+  private readonly roleGuard: Pick<RoleGuard, 'getFeatureGuard'>;
   private readonly getMaxRecords: () => number;
   private readonly getConcurrency: () => number;
   private readonly getDryRunDefault: () => boolean;
@@ -49,12 +55,33 @@ export class BatchService {
   private readonly circuitBreakerRegistry?: CircuitBreakerRegistry;
 
   public constructor(private readonly fmClient: FMClient, options?: BatchServiceOptions) {
+    this.roleGuard = options?.roleGuard ?? new RoleGuard({ debug: () => {}, warn: () => {} });
     this.getMaxRecords = options?.getMaxRecords ?? (() => 10_000);
     this.getConcurrency = options?.getConcurrency ?? (() => 4);
     this.getDryRunDefault = options?.getDryRunDefault ?? (() => true);
     this.getPerformanceMode = options?.getPerformanceMode ?? (() => 'standard');
     this.getNeutralizeFormulas = options?.getNeutralizeFormulas ?? (() => true);
     this.circuitBreakerRegistry = options?.circuitBreakerRegistry;
+  }
+
+  private getBatchRefusal(write: boolean, dryRun = false): string | undefined {
+    if (!vscode.workspace.isTrusted) return 'Batch operations are disabled in an untrusted workspace.';
+    const configuration = vscode.workspace.getConfiguration('filemaker');
+    if (!dryRun && isOfflineModeOn(configuration)) return 'Offline mode is enabled; batch operations are disabled.';
+    if (!isFeatureEnabled(configuration, 'features.batch.enabled')) return 'Batch operations are disabled by settings.';
+    if (write) {
+      if (!isFeatureEnabled(configuration, 'features.recordEdit.enabled')) return 'Record editing is disabled by settings. Batch update is unavailable.';
+      for (const feature of ['batchUpdate', 'recordEdit', 'writeOperations'] as const) {
+        const guard = this.roleGuard.getFeatureGuard(feature);
+        if (!guard.allowed) return `Batch update is unavailable. ${guard.reason ?? 'Feature is restricted by policy.'}`;
+      }
+    }
+    return undefined;
+  }
+
+  private assertBatchAllowed(write: boolean, dryRun = false): void {
+    const reason = this.getBatchRefusal(write, dryRun);
+    if (reason) throw new BatchPolicyError(reason);
   }
 
   public getDefaultBatchUpdateOptions(): BatchUpdateOptions {
@@ -71,6 +98,7 @@ export class BatchService {
     options: BatchExportOptions,
     job?: JobContext
   ): Promise<BatchExportResult> {
+    this.assertBatchAllowed(false);
     const maxRecords = normalizeMaxRecords(options.maxRecords || this.getMaxRecords());
     const performanceMode = this.getPerformanceMode();
     const pageSize = normalizePageSize(options.pageSize, performanceMode);
@@ -122,6 +150,7 @@ export class BatchService {
           break;
         }
 
+        this.assertBatchAllowed(false);
         const remaining = maxRecords - exported;
         const limit = Math.min(pageSize, remaining);
         const page = await this.fmClient.findRecords(profile, layout, {
@@ -136,6 +165,7 @@ export class BatchService {
         }
 
         for (const record of page.data) {
+          this.assertBatchAllowed(false);
           if (format === 'jsonl') {
             const note = portalNotes(record);
             await jsonlWriter?.append(note ? { ...record, exportNote: note } : record);
@@ -145,7 +175,10 @@ export class BatchService {
             pendingCsv.push(record);
             if (pendingCsv.length >= 100) {
               await startCsv(pendingCsv);
-              for (const pending of pendingCsv) await csvWriter!.append(exportRow(pending, meta, noteColumn));
+              for (const pending of pendingCsv) {
+                this.assertBatchAllowed(false);
+                await csvWriter!.append(exportRow(pending, meta, noteColumn));
+              }
               pendingCsv.length = 0;
             }
           }
@@ -167,13 +200,16 @@ export class BatchService {
       // exactly maxRecords rows is complete).
       if (exported >= maxRecords && !job?.isCancellationRequested()) {
         try {
+          this.assertBatchAllowed(false);
           const probe = await this.fmClient.findRecords(profile, layout, { ...request, limit: 1, offset });
           truncated = (probe?.data?.length ?? 0) > 0;
-        } catch {
+        } catch (error) {
+          if (error instanceof BatchPolicyError) throw error;
           truncated = true; // could not tell; say the export may be incomplete
         }
       }
 
+      this.assertBatchAllowed(false);
       const cancelled = job?.isCancellationRequested() ?? false;
       if (cancelled) {
         exported = 0;
@@ -183,7 +219,10 @@ export class BatchService {
       } else {
         if (format === 'csv' && !csvWriter) {
           await startCsv(pendingCsv);
-          for (const pending of pendingCsv) await csvWriter!.append(exportRow(pending, meta, noteColumn));
+          for (const pending of pendingCsv) {
+            this.assertBatchAllowed(false);
+            await csvWriter!.append(exportRow(pending, meta, noteColumn));
+          }
         }
         await jsonlWriter?.close();
         await csvWriter?.close();
@@ -215,13 +254,18 @@ export class BatchService {
     job?: JobContext
   ): Promise<BatchUpdateResult> {
     const dryRun = options?.dryRun ?? this.getDryRunDefault();
+    this.assertBatchAllowed(!dryRun, dryRun);
     const configuredConcurrency = clampConcurrency(options?.concurrency ?? this.getConcurrency());
     const performanceMode = this.getPerformanceMode();
     const maxConcurrency = performanceMode === 'high-scale' ? Math.max(2, configuredConcurrency) : configuredConcurrency;
     const total = entries.length;
 
     let csvFields: ReturnType<typeof extractFieldsFromMetadata> = [];
-    try { csvFields = extractFieldsFromMetadata(await this.fmClient.getLayoutMetadata(profile, layout)); }
+    try {
+      if (!isOfflineModeOn(vscode.workspace.getConfiguration('filemaker'))) {
+        csvFields = extractFieldsFromMetadata(await this.fmClient.getLayoutMetadata(profile, layout));
+      }
+    }
     catch { job?.log('warn', 'Layout metadata unavailable. Read-only columns cannot be identified; CSV values will be sent as strings.'); }
     if (!csvFields.length) job?.log('warn', 'No field types available. CSV values will be sent as strings.');
     if (csvFields.some((field) => /^(recordId|modId)$/i.test(field.name)) && entries.some((entry) => entry.sourceFormat === 'csv' && (entry.csvRecordColumn ?? 'recordId') === 'recordId')) {
@@ -309,6 +353,11 @@ export class BatchService {
 
     const scheduleNext = (): void => {
       while (!job?.isCancellationRequested() && stoppedReason === undefined && queue.length > 0 && inFlight.size < adaptive.getLimit()) {
+        stoppedReason = this.getBatchRefusal(true);
+        if (stoppedReason !== undefined) {
+          job?.log('warn', stoppedReason);
+          return;
+        }
         if (!breaker.canRequest()) {
           return;
         }
@@ -416,6 +465,7 @@ export class BatchService {
 
     while (attempt < 3) {
       if (job?.isCancellationRequested()) throw lastFailure ?? new Error('Update cancelled before it was sent.');
+      this.assertBatchAllowed(true);
       const startedAt = Date.now();
       try {
         if (entry.modId !== undefined && entry.modId !== '') {
@@ -477,6 +527,8 @@ function sameWrittenValue(left: unknown, right: unknown, numeric: boolean): bool
   return stableStringify(normalize(left)) === stableStringify(normalize(right));
 }
 
+class BatchPolicyError extends Error {}
+
 class UnconfirmedUpdateError extends FMClientError {
   public constructor() {
     super('Could not confirm: the first attempt may have succeeded. Reload this record and check its values before trying again.', { code: '306' });
@@ -519,6 +571,7 @@ const ACCOUNT_WIDE_CODES = new Set(['9', '205', '207']);
 
 /** The account cannot do this at all: stop instead of failing every remaining record the same way. */
 function stopsTheJob(error: unknown): boolean {
+  if (error instanceof BatchPolicyError) return true;
   if (!(error instanceof FMClientError)) {
     return false;
   }

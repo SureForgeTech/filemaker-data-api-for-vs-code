@@ -68,12 +68,13 @@ async function setup(options: { editing?: typeof saved; knownProfiles?: Array<Re
   (ConnectionWizardPanel as unknown as { currentPanel: unknown }).currentPanel = undefined;
 
   const secrets = new SecretStore(new InMemorySecretStorage() as never);
+  let testSecrets = secrets;
   const passwordSeenByClient: Array<string | undefined> = [];
   const profileIdsSeenByClient: string[] = [];
   const createSession = vi.fn(async (profile: { id: string }) => {
     profileIdsSeenByClient.push(profile.id);
-    passwordSeenByClient.push(await secrets.getPassword(profile.id));
-    await secrets.setSessionToken(profile.id, 'token-from-test');
+    passwordSeenByClient.push(await testSecrets.getPassword(profile.id));
+    await testSecrets.setSessionToken(profile.id, 'token-from-test');
     return 'token-from-test';
   });
   const deleteSession = vi.fn(async () => undefined);
@@ -84,11 +85,18 @@ async function setup(options: { editing?: typeof saved; knownProfiles?: Array<Re
   };
   const logger = { warn: vi.fn(), info: vi.fn(), error: vi.fn(), debug: vi.fn() };
 
+  const client = {
+    createSession, deleteSession,
+    getProductInfo: vi.fn(async () => ({ name: 'FileMaker Server', version: '21.0.1' })),
+    listHostedDatabases: vi.fn(async () => undefined), forgetProfile: vi.fn()
+  };
+  Object.assign(client, { createIsolatedClient: (temporary: SecretStore) => { testSecrets = temporary; return client; } });
+
   ConnectionWizardPanel.createOrShow(
     { extensionUri: { fsPath: '/ext' }, extension: { id: 'x.y' } } as never,
     profileStore as never,
     secrets,
-    { createSession, deleteSession, getProductInfo: vi.fn(async () => ({ name: 'FileMaker Server', version: '21.0.1' })), listHostedDatabases: vi.fn(async () => undefined) } as never,
+    client as never,
     logger as never,
     options.editing as never
   );

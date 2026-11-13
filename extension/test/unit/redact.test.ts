@@ -118,3 +118,31 @@ it.each(['request failed: api_key=private-value', 'api_key=private-value&other=o
   expect(redactString(text)).toContain('***');
   expect(redactString(redactString(text))).toBe(redactString(text));
 });
+
+it.each([
+  ['https://example.test/#access_token=private-value&state=ok', 'https://example.test/#access_token=***&state=ok'],
+  ['token: private-value\nname: visible', 'token: ***\nname: visible'],
+  ['{token: "private-value", name: "visible"}', '{token: ***, name: "visible"}'],
+  ["{ token: 'private-value' }", '{ token: *** }'],
+  ['Authorization=Bearer%20private-value', 'Authorization=Bearer ***'],
+  ['DELETE /sessions%2Fprivate-value', 'DELETE /sessions%2F***'],
+  ['sessions%2fprivate-value', 'sessions%2f***'],
+  ...['jwt', 'auth', 'key', 'fmsid'].map((key) => [`/x?${key}=private-value&page=2`, `/x?${key}=***&page=2`])
+])('redacts additional secret form %s', (input, expected) => {
+  expect(redactString(input!)).toBe(expected);
+  expect(redactString(redactString(input!))).toBe(expected);
+});
+
+it.each(['token count: 2', '{ name: "visible" }', 'GET /x?author=A&monkey=B&jwtVersion=1', 'a key to the city', 'name: Ada\ncount: 2'])('preserves non-secret text %s', (input) => {
+  expect(redactString(input)).toBe(input);
+});
+
+
+it('handles an empty encoded or whitespace authorization value without slow backtracking', () => {
+  for (const separator of [' ', '%20']) {
+    const input = `Authorization=Bearer${separator.repeat(100_000)}`;
+    const start = Date.now();
+    expect(redactString(input)).toBe(input);
+    expect(Date.now() - start).toBeLessThan(500);
+  }
+});

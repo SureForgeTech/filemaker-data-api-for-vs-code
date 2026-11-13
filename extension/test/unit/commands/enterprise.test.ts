@@ -51,6 +51,28 @@ describe('enterprise commands', () => {
     expect(store.upsertEnvironmentSet).not.toHaveBeenCalled();
   });
 
+  it.each(['compareEnvironments', 'diffLayoutAcrossEnvironments'])('%s refuses an untrusted workspace before resolving connections', async (name) => {
+    const { profiles, store, service } = await setup();
+    (vscode.workspace as { isTrusted: boolean }).isTrusted = false;
+    await command(name)(arg);
+    expect(vscode.window.showWarningMessage).toHaveBeenCalledWith(expect.stringContaining('untrusted workspace'));
+    expect(store.getEnvironmentSet).not.toHaveBeenCalled();
+    expect(profiles.listProfiles).not.toHaveBeenCalled();
+    expect(service.compareEnvironmentSet).not.toHaveBeenCalled();
+    expect(service.diffLayoutAcrossEnvironments).not.toHaveBeenCalled();
+    expect(EnvironmentComparePanel.createOrShow).not.toHaveBeenCalled();
+  });
+
+  it('refuses to rerun a comparison through report export in an untrusted workspace', async () => {
+    const { profiles, service } = await setup();
+    (vscode.workspace as { isTrusted: boolean }).isTrusted = false;
+    await command('exportEnvironmentComparisonReport')(arg);
+    expect(vscode.window.showWarningMessage).toHaveBeenCalledWith(expect.stringContaining('untrusted workspace'));
+    expect(profiles.listProfiles).not.toHaveBeenCalled();
+    expect(service.compareEnvironmentSet).not.toHaveBeenCalled();
+    expect(vscode.window.showSaveDialog).not.toHaveBeenCalled();
+  });
+
   it('requires at least two configured profiles', async () => {
     const { profiles, store } = await setup();
     profiles.listProfiles.mockResolvedValue([profile]);

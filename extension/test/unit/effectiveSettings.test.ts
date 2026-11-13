@@ -35,7 +35,12 @@ const manifest = {
         'filemaker.typegen.outputDir',
         'filemaker.batch.maxRecords',
         'filemaker.batch.concurrency',
-        'filemaker.batch.dryRunDefault'
+        'filemaker.batch.dryRunDefault',
+        'filemaker.snippets.includeAuthByDefault',
+        'filemaker.schema.hashAlgorithm',
+        'filemaker.fmWeb.bridge.rateLimitPerSecond',
+        'filemaker.fmWeb.bridge.rateLimitBurst',
+        'filemaker.fmWeb.bridge.requestBudget'
       ]
     }
   }

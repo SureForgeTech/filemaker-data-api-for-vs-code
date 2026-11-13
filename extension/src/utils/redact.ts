@@ -1,11 +1,11 @@
 const SECRET_KEY_PATTERN = /(authorization|password|token|secret|api[-_]?key|session|cookie)/i;
 
-const BEARER_OR_BASIC_PATTERN = /\b(Bearer|Basic)\s+[A-Za-z0-9\-._~+/]+=*/gi;
+const BEARER_OR_BASIC_PATTERN = /\b(Bearer|Basic)(?:\s|%20)+[A-Za-z0-9\-._~+/]+=*/gi;
 
 // The key patterns bound how much text may sit around the keyword, so a long run of word
 // characters cannot make the match quadratic (a hostile server can return such text).
 const QUERY_PARAM_PATTERN =
-  /((?:^|[?&])[\w.-]{0,40}?(?:token|password|passwd|api[_-]?key|session|secret|signature)[\w.-]{0,40}=)([^&#\s]+)/gi;
+  /((?:^|[?&#])(?:[\w.-]{0,40}?(?:token|password|passwd|api[_-]?key|session|secret|signature)[\w.-]{0,40}|jwt|auth|key|fmsid)=)([^&#\s]+)/gi;
 
 /** API keys also appear as assignments in otherwise unstructured error text. */
 const API_KEY_ASSIGNMENT_PATTERN = /\b(api[_-]?key[ \t]*=[ \t]*)([^&#\s]+)/gi;
@@ -22,10 +22,14 @@ const SINGLE_QUOTED_PAIR_PATTERN =
 const HEADER_LINE_PATTERN = /\b((?:set-)?cookie|(?:proxy-)?authorization|x-fm-data-access-token)([ \t]*:[ \t]*)(?![ \t])(?!(?:(?:Bearer|Basic)[ \t]+)?\*\*\*(?:[ \t]+(?:(?:Bearer|Basic)[ \t]+)?\*\*\*)*[ \t]*(?:[\r\n]|$))[^\r\n]+/gi;
 
 /** The FileMaker Data API puts the session token in the path: `DELETE /sessions/<token>`. A layout called "sessions" is left alone. */
-const SESSION_PATH_PATTERN = /(?<!\/layouts)(\/sessions\/)(?!\{token\})[^/\s?#"'`]+/gi;
+const SESSION_PATH_PATTERN = /(?<!\/layouts)(\/sessions\/|\bsessions%2f)(?!\{token\})[^/\s?#"'`]+/gi;
 
 /** `https://user:password@host` or `https://token@host` */
 const URL_USERINFO_PATTERN = /(\b[a-z][a-z0-9+.-]{0,15}:\/\/)[^/\s?#]*@/gi;
+
+/** YAML and unquoted inspect keys, with quoted or plain scalar values. */
+const UNQUOTED_PAIR_PATTERN =
+  /((?:^|[\s{,])[\w.-]{0,64}?(?:password|passwd|token|secret|api[_-]?key|session)[\w.-]{0,64}[ \t]*:[ \t]*)(?:"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|[^\s,}\]]+)/gi;
 
 export function redactString(input: string): string {
   return input
@@ -36,7 +40,8 @@ export function redactString(input: string): string {
     .replace(URL_USERINFO_PATTERN, '$1***@')
     .replace(JSON_PAIR_PATTERN, (_match, key: string) => `${key}"***"`)
     .replace(SINGLE_QUOTED_PAIR_PATTERN, (_match, key: string) => `${key}'***'`)
-    .replace(HEADER_LINE_PATTERN, '$1$2***');
+    .replace(HEADER_LINE_PATTERN, '$1$2***')
+    .replace(UNQUOTED_PAIR_PATTERN, '$1***');
 }
 
 export function redactValue(value: unknown): unknown {
