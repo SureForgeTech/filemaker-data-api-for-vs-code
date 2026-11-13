@@ -313,6 +313,16 @@ describe('FM Web runtime template', () => {
     ).toContain(current);
   });
 
+  it('records the generated runtime manifest hash so future refreshes recognize this release', async () => {
+    const gen = generator();
+    await gen.generateRuntimeAppTemplate();
+    const generated = await readFile(path.join(gen.getGeneratedRuntimeRoot(), 'package.json'));
+    expect(
+      MANAGED_TEMPLATE_FILES['package.json'],
+      'package.json: add the hash of the generated copy (keep the older ones)'
+    ).toContain(normalizedHash(generated));
+  });
+
   it('records every current shared source hash so future refreshes recognize this release', async () => {
     for (const [file, hashes] of Object.entries(SHIPPED_SHARED_HASHES)) {
       let content = await readFile(path.resolve(extensionDir, '..', 'shared', file));

@@ -49,6 +49,8 @@ PR title prefix matches the highest-tier label added:
 
 ### [FIX]
 
+- [FIX] Generated app updates recognize the current dependency manifests while preserving edited files and previously shipped versions.
+
 - Batch CSV export preserves Unicode line and paragraph separators without failing on newer VS Code versions.
 
 ### [INTERNAL]
