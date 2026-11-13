@@ -18,6 +18,8 @@ export interface RequestOptions {
   signal?: AbortSignal;
   /** Refuse a response body larger than this (axios maxContentLength). */
   maxResponseBytes?: number;
+  /** Renew the deadline on substantial byte progress for record reads and container transfers. */
+  transfer?: boolean;
 }
 
 /** @internal */

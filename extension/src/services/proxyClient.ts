@@ -324,7 +324,7 @@ export class ProxyClient {
           maxRedirects: 0,
           ...httpsTransportFor(profile, endpoint)
         }
-      ));
+      ), undefined, ['getRecord', 'findRecords', 'uploadContainer'].includes(action));
 
       const responseData = response.data;
       if (responseData === undefined || responseData === null || typeof responseData === 'string') {

@@ -79,10 +79,11 @@ export function isPlainJsonFileName(value: unknown): value is string {
 
 /** A suggested export basename only; the original database name is kept in requests and data. */
 export function safeFileName(name: string): string {
-  const safe = name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)/g, '')
-    .slice(0, 60);
+  let safe = name
+    .replace(/[^A-Za-z0-9_.-]+/g, '-')
+    .replace(/\.{2,}/g, '-')
+    .replace(/(^[.-]+|[.-]+$)/g, '');
+  const extension = safe.match(/\.[A-Za-z0-9]{1,10}$/)?.[0] ?? '';
+  if (safe.length > 60) safe = safe.slice(0, 60 - extension.length) + extension;
   return WINDOWS_RESERVED_NAMES.test(safe) ? `_${safe}` : safe || 'export';
 }

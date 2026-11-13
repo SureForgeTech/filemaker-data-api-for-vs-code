@@ -105,7 +105,7 @@ describe('Schema Diff: message routing', () => {
         { title: string; defaultUri: { fsPath: string }; filters: Record<string, string[]> }
       ];
       expect(options.title).toBe('Export schema diff JSON');
-      expect(options.defaultUri.fsPath).toBe('schema-diff-contacts.json');
+      expect(options.defaultUri.fsPath).toBe('schema-diff-Contacts.json');
       expect(options.filters).toEqual({ JSON: ['json'] });
       expect(vscode.workspace.fs.writeFile).toHaveBeenCalledTimes(1);
       const [uri, bytes] = vi.mocked(vscode.workspace.fs.writeFile).mock.calls[0] as [unknown, Buffer];
@@ -115,7 +115,7 @@ describe('Schema Diff: message routing', () => {
     });
 
     it.each([
-      ['../ Layout/Name\\x\0', 'layout-name-x'], ['..', 'export'], ['CON', '_con'], ['LPT1', '_lpt1']
+      ['../ Layout/Name\\x\0', 'Layout-Name-x'], ['..', 'export'], ['CON', '_CON'], ['LPT1', '_LPT1']
     ])('uses a safe default path for layout %j without changing the exported name', async (layout, safe) => {
       panel.close();
       panel = open({ ...diff, layout });

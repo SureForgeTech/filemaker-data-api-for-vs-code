@@ -4,6 +4,8 @@ import type { AddressInfo } from 'net';
 import nock from 'nock';
 import { describe, expect, it, vi } from 'vitest';
 import { requestNoAuth, requestWithAuth, requestWithAuthRaw } from '../../src/services/fmClient/transport';
+import { getRecord, listRecords, findRecords } from '../../src/services/fmClient/records';
+import { uploadContainer } from '../../src/services/fmClient/containers';
 import { requestServerLevel } from '../../src/services/fmClient/server';
 import type { ClientContext } from '../../src/services/fmClient/context';
 import { createSelfTestClient } from '../../src/services/serverSelfTestClient';
@@ -155,5 +157,94 @@ describe('hostile FileMaker response budgets', () => {
     expect(result.response).toEqual(body.response);
     await expect(requestWithAuth(client, profile, { method: 'GET', path: '/layouts', maxResponseBytes: 1024 })).rejects.toBeInstanceOf(Error);
     expect(failures).toEqual([expect.objectContaining({ code: 'ERR_BAD_RESPONSE', message: expect.stringContaining('maxContentLength') })]);
+  });
+});
+
+const transfers = ['upload', 'get', 'list', 'find', 'proxy upload', 'proxy get', 'proxy find'] as const;
+type Transfer = typeof transfers[number];
+async function transfer(kind: Transfer, http: ReturnType<typeof axios.create>, signal?: AbortSignal) {
+  const client = context(http, 15_000);
+  client.withHistory = (_history, run) => run({ operation: 'transfer', requestId: 'r', reauthCount: 0, cacheHit: false, endpoint: '' });
+  client.requestWithAuth = (target, request, retry, trace) => requestWithAuth(client, target, request, retry, trace);
+  const proxy = new ProxyClient({ getProxyApiKey: async () => undefined }, logger, 15_000, http);
+  const target = { ...profile, authMode: 'proxy' as const, proxyEndpoint: profile.serverUrl + '/proxy' };
+  const file = { fileName: 'Invoices.bin', content: Buffer.alloc(1024 * 1024), contentType: 'application/octet-stream' };
+  if (kind === 'proxy upload') return proxy.uploadContainer(target, ' Layout ', '1', ' Field ', file, { signal });
+  if (kind === 'proxy get') return proxy.getRecord(target, ' Layout ', '1', signal);
+  if (kind === 'proxy find') return proxy.findRecords(target, ' Layout ', { query: [{ ' Field ': '*' }] }, signal);
+  if (kind === 'upload') return uploadContainer(client, profile, ' Layout ', '1', ' Field ', file, { signal });
+  if (kind === 'get') return getRecord(client, profile, ' Layout ', '1', { signal });
+  if (kind === 'list') return listRecords(client, profile, ' Layout ', {}, { signal });
+  return findRecords(client, profile, ' Layout ', { query: [{ ' Field ': '*' }] }, { signal });
+}
+
+function transferAdapter(kind: Transfer, bytesPerSecond: number, finishMs = 19_000, progressSeconds = Infinity) {
+  return axios.create({ adapter: (config) => new Promise((resolve, reject) => {
+    let loaded = 0;
+    let ticks = 0;
+    const progress = kind.includes('upload') ? config.onUploadProgress : config.onDownloadProgress;
+    const tick = setInterval(() => { if (++ticks > progressSeconds) return; loaded += bytesPerSecond; progress?.({ loaded, bytes: bytesPerSecond, lengthComputable: false }); }, 1000);
+    const finish = setTimeout(() => {
+      clearInterval(tick);
+      const record = { recordId: '1', fieldData: { ' Field ': 'value' } };
+      const result = { recordId: '1', data: [record] };
+      resolve({ data: kind.startsWith('proxy') ? { ok: true, data: { record, result } }
+        : { response: result, messages: [{ code: '0', message: 'OK' }] }, status: 200, statusText: 'OK', headers: {}, config });
+    }, finishMs);
+    config.signal?.addEventListener?.('abort', () => {
+      clearInterval(tick); clearTimeout(finish);
+      reject(new CanceledError('cancelled', config));
+    }, { once: true });
+  }) });
+}
+
+describe('transfer progress deadlines', () => {
+  it.each(transfers)('lets a large progressing %s finish beyond the default deadline', async (kind) => {
+    vi.useFakeTimers();
+    try {
+      // Model over 100 MiB of actual byte progress without allocating a huge fixture.
+      const outcome = transfer(kind, transferAdapter(kind, 8 * 1024 * 1024)).then(() => 'completed', () => 'aborted');
+      await vi.advanceTimersByTimeAsync(19_000);
+      expect(await outcome).toBe('completed');
+      expect(vi.getTimerCount()).toBe(0);
+    } finally { vi.useRealTimers(); }
+  });
+
+  it.each(transfers)('aborts a stalled or one-byte-per-second %s', async (kind) => {
+    vi.useFakeTimers();
+    try {
+      for (const bytes of [0, 1]) {
+        const outcome = transfer(kind, transferAdapter(kind, bytes)).then(() => 'completed', (error: unknown) => error);
+        await vi.advanceTimersByTimeAsync(15_000);
+        expect(await outcome).toMatchObject({ kind: 'timeout' });
+        expect(vi.getTimerCount()).toBe(0);
+      }
+    } finally { vi.useRealTimers(); }
+  });
+
+  it.each(transfers)('times out %s after its earlier progress stops', async (kind) => {
+    vi.useFakeTimers();
+    try {
+      let settled = false;
+      const outcome = transfer(kind, transferAdapter(kind, 8 * 1024 * 1024, 30_000, 2))
+        .then(() => 'completed', (error: unknown) => error).finally(() => { settled = true; });
+      await vi.advanceTimersByTimeAsync(16_000);
+      expect(settled).toBe(false);
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(await outcome).toMatchObject({ kind: 'timeout' });
+      expect(vi.getTimerCount()).toBe(0);
+    } finally { vi.useRealTimers(); }
+  });
+
+  it.each(transfers)('retains user cancellation after %s progress extends the deadline', async (kind) => {
+    vi.useFakeTimers();
+    try {
+      const caller = new AbortController();
+      const outcome = transfer(kind, transferAdapter(kind, 8 * 1024 * 1024), caller.signal).then(() => 'completed', (error: unknown) => error);
+      await vi.advanceTimersByTimeAsync(16_000);
+      caller.abort();
+      expect(await outcome).toMatchObject({ kind: 'cancellation' });
+      expect(vi.getTimerCount()).toBe(0);
+    } finally { vi.useRealTimers(); }
   });
 });

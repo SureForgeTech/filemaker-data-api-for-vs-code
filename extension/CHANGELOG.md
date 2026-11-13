@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- [SECURITY] Large record reads and container transfers can finish beyond the request deadline while making steady progress; stalled and trickling transfers still time out.
+- [SECURITY] Batch update confirmation accepts saved server addresses that are not parseable URLs.
+- [SECURITY] Error notifications keep bracketed codes and file paths readable while breaking injected links.
+- [SECURITY] FM Web refreshes recognize the current shared container-link safety code without overwriting local edits.
+- [SECURITY] Suggested export filenames keep their original case and extension while removing unsafe path characters.
+- [SECURITY] Offline cache and snapshot folders ignore themselves in Git; teams that deliberately commit snapshots must remove the folder's `.gitignore`.
+
 - [SECURITY] Error messages stay short and on one line, escape display markup, and remain inside code fences in copied error reports.
 - [SECURITY] Environment comparison exports keep hostile names inside their Markdown table cells.
 - [SECURITY] Record Editor and Record Viewer only open container links on the selected connection’s server address.

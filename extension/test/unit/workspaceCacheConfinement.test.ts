@@ -85,7 +85,7 @@ describe.skipIf(process.platform === 'win32')('offline metadata cache confinemen
     const service = offlineService(workspace);
     await service.cacheLayoutMetadata(profile, 'Contacts', { a: 1 });
     const dir = join(workspace, '.vscode', 'filemaker', 'offline-metadata');
-    const [payloadName] = (await readdir(dir)).filter((name) => name !== 'index.json');
+    const [payloadName] = (await readdir(dir)).filter((name) => name !== 'index.json' && name !== '.gitignore');
     const secret = join(outside, 'secret.json');
     await writeFile(secret, JSON.stringify({ metadata: { stolen: true }, hash: 'h', capturedAt: 'c' }));
     await rm(join(dir, payloadName as string));
@@ -94,6 +94,24 @@ describe.skipIf(process.platform === 'win32')('offline metadata cache confinemen
     const warn = vi.fn();
     expect(await offlineService(workspace, warn).getCachedLayoutMetadata(profile, 'Contacts')).toBeUndefined();
     expect(warn).toHaveBeenCalled();
+  });
+
+  it('checks the indexed payload for links before reading, with the git ignore file present', async () => {
+    const { workspace, outside } = await fixture();
+    await offlineService(workspace).cacheLayoutMetadata(profile, 'Contacts', { a: 1 });
+    const dir = join(workspace, '.vscode', 'filemaker', 'offline-metadata');
+    expect(await readFile(join(dir, '.gitignore'), 'utf8')).toBe('*\n!.gitignore\n');
+    const index = JSON.parse(await readFile(join(dir, 'index.json'), 'utf8'));
+    const payload = join(dir, index.items[0].fileName);
+    const secret = join(outside, 'secret.json');
+    await writeFile(secret, JSON.stringify({ metadata: { stolen: true }, hash: 'h', capturedAt: 'c' }));
+    await rm(payload);
+    await symlink(secret, payload);
+    const warn = vi.fn();
+    expect(await offlineService(workspace, warn).getCachedLayoutMetadata(profile, 'Contacts')).toBeUndefined();
+    expect(warn).toHaveBeenCalledWith('Failed to read offline metadata cache file.', expect.objectContaining({
+      fileName: index.items[0].fileName, error: expect.objectContaining({ message: expect.stringContaining('symbolic link') })
+    }));
   });
 
   it('does not read an index outside the workspace through a linked index.json', async () => {

@@ -217,8 +217,10 @@ export function registerBatchCommands(deps: RegisterBatchCommandsDeps): vscode.D
           let overwriteChanged: boolean | undefined;
           const rowsWithModId = entries.filter((entry) => entry.modId !== undefined).length;
           if (!dryRunSelection.value) {
+            let server = profile.serverUrl;
+            try { server = new URL(server).host; } catch { /* Keep the supplied address when it is not a URL. */ }
             const confirmation = await vscode.window.showWarningMessage(
-              `Execute batch update for ${entries.length} records on ${displayText(layout)}? Profile ${displayText(profile.name)}, server ${displayText(new URL(profile.serverUrl).host)}.\nRollback guidance: keep a pre-update export and rerun updates with previous values to revert.`,
+              `Execute batch update for ${entries.length} records on ${displayText(layout)}? Profile ${displayText(profile.name)}, server ${displayText(server)}.\nRollback guidance: keep a pre-update export and rerun updates with previous values to revert.`,
               { modal: true },
               'Execute'
             );

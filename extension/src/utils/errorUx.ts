@@ -271,10 +271,10 @@ export function renderErrorReport(
     lines.push(`- **HTTP status:** ${normalized.status}`);
   }
   if (normalized.code) {
-    lines.push(`- **Code:** ${displayErrorMessage(normalized.code)}`);
+    lines.push(`- **Code:** ${markdownErrorMessage(normalized.code)}`);
   }
   if (normalized.networkCode) {
-    lines.push(`- **Network code:** ${displayErrorMessage(normalized.networkCode)}`);
+    lines.push(`- **Network code:** ${markdownErrorMessage(normalized.networkCode)}`);
   }
   if (normalized.endpoint) {
     lines.push(`- **Endpoint:** ${redactString(normalized.endpoint)}`);
@@ -368,6 +368,11 @@ function extractStack(raw: unknown): string | undefined {
 }
 
 function displayErrorMessage(value: string): string {
+  // Notifications are plain text; break link syntax without adding visible escape characters.
+  return errorMessageText(errorMessageText(value).replace(/\]\(/g, '] ('));
+}
+
+function markdownErrorMessage(value: string): string {
   return errorMessageText(value).replace(/[\\[\]<>`]/g, (character) => `\\${character}`);
 }
 

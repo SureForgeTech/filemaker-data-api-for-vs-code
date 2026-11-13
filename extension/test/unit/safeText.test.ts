@@ -1,8 +1,26 @@
 import { describe, expect, it } from 'vitest';
 
-import { commentText, distinctFileName, isPlainJsonFileName, singleQuotedText, snippetPlaceholderText } from '../../src/utils/safeText';
+import { commentText, distinctFileName, isPlainJsonFileName, safeFileName, singleQuotedText, snippetPlaceholderText } from '../../src/utils/safeText';
 
 describe('safeText', () => {
+  it.each(['Invoices.jsonl', 'Sales.JSON', 'Mixed_Case-Report.csv'])('preserves the case and extension of %s', (name) => {
+    expect(safeFileName(name)).toBe(name);
+  });
+
+  it('keeps the extension when shortening a long suggested filename', () => {
+    const name = safeFileName('Invoices'.repeat(20) + '.jsonl');
+    expect(name).toHaveLength(60);
+    expect(name).toMatch(/^Invoices.*\.jsonl$/);
+  });
+
+  it.each(['../Invoices.jsonl', 'a/../b\\Report.csv', 'x\0\n.jsonl', '..', 'CON.jsonl', 'LPT1'])('confines suggested filename %j', (name) => {
+    const safe = safeFileName(name);
+    expect(safe).not.toMatch(/[\\/\p{C}]/u);
+    expect(safe).not.toContain('..');
+    expect(safe).not.toMatch(/^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i);
+    expect(safe).not.toBe('');
+  });
+
   it('keeps text inside a comment: no line breaks and no early block-comment end', () => {
     const text = commentText('A */ evil(); /*\nB\r\nC\u2028D\u2029E');
     expect(text).not.toMatch(/[\n\r\u2028\u2029]/);

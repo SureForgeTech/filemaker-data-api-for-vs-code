@@ -113,7 +113,7 @@ describe('batch commands', () => {
   });
 
   it.each([
-    ['../ Layout/Name\\x\0', 'layout-name-x'], ['..', 'export'], ['CON', '_con'], ['LPT1', '_lpt1']
+    ['../ Layout/Name\\x\0', 'Layout-Name-x'], ['..', 'export'], ['CON', '_CON'], ['LPT1', '_LPT1']
   ])('uses a safe default export filename for %j while keeping the exact layout', async (name, safe) => {
     const { tasks, batchService } = setup();
     exportInputs();
@@ -243,6 +243,19 @@ describe('batch commands', () => {
     const context = { log: vi.fn() };
     await expect(tasks[0]!(context as never)).resolves.toMatchObject({ successCount: 1, failureCount: 0 });
     expect(context.log).toHaveBeenCalledWith('warn', expect.stringMatching(/preview.*could not be opened/i));
+  });
+
+  it('executes a confirmed batch with an unparsable profile URL', async () => {
+    const { profiles, tasks, batchService } = setup();
+    const target = { ...profile, serverUrl: 'bare-hostname' };
+    profiles.getProfile.mockResolvedValue(target);
+    updateInputs(false);
+    vi.mocked(vscode.window.showWarningMessage).mockResolvedValueOnce('Execute' as never).mockResolvedValueOnce('Continue' as never);
+    await command('batchUpdateFromFile')(arg);
+    expect(vscode.window.showWarningMessage).toHaveBeenCalledWith(expect.stringContaining(`server ${displayText(target.serverUrl)}.`), { modal: true }, 'Execute');
+    expect(tasks).toHaveLength(1);
+    await tasks[0]!({ log: vi.fn() } as never);
+    expect(batchService.batchUpdate).toHaveBeenCalledWith(target, layout, entries, { dryRun: false, concurrency: 3 }, expect.anything());
   });
 
   it.each([undefined, 'Cancel', 'Execute'])('requires a destructive modal before executing updates (%s)', async (choice) => {

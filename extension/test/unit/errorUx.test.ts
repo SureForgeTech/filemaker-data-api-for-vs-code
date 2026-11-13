@@ -41,19 +41,19 @@ describe('showErrorWithDetails', () => {
     { label: 'client error', error: new FMClientError('Request failed: Basic Y2xpZW50LXNlY3JldA=='),
       expected: 'Request failed: Basic ***', secrets: ['Y2xpZW50LXNlY3JldA=='] },
     { label: 'plain FileMaker message', error: new FMClientError('FileMaker API error [101]: Record is missing'),
-      expected: 'FileMaker API error [101]: Record is missing', displayExpected: 'FileMaker API error \\[101\\]: Record is missing', secrets: [] },
+      expected: 'FileMaker API error [101]: Record is missing', secrets: [] },
     { label: 'FileMaker response', error: {
       isAxiosError: true, message: 'Request failed', response: {
         status: 500, data: { messages: [{ code: '9999', message: 'A plain FileMaker message.' }] }
       }
     }, expected: 'FileMaker API error (HTTP 500) [9999]: A plain FileMaker message.',
-    displayExpected: 'FileMaker API error (HTTP 500) \\[9999\\]: A plain FileMaker message.', secrets: [] }
+    secrets: [] }
   ])('redacts $label on all normalized message surfaces', async (testCase) => {
     const { error, expected, secrets } = testCase;
     vi.mocked(vscode.window.showErrorMessage).mockResolvedValue(undefined);
     await showErrorWithDetails(error);
     const toast = vi.mocked(vscode.window.showErrorMessage).mock.calls[0]![0];
-    expect(toast).toBe('displayExpected' in testCase ? testCase.displayExpected : expected);
+    expect(toast).toBe(expected);
     expect(normalizeError(error).message).toBe(expected);
     expect(toUserErrorMessage(error, '')).toBe(toast);
     for (const secret of secrets) expect(toast).not.toContain(secret);
@@ -68,9 +68,10 @@ describe('showErrorWithDetails', () => {
     await showErrorWithDetails(error);
     const toast = vi.mocked(vscode.window.showErrorMessage).mock.calls[0]![0];
     expect(toast).not.toMatch(/[\r\n]/);
-    expect(toast).toContain('\\[Re-enter your password\\]');
-    expect(toast).toContain('\\`\\`\\`');
-    expect(toast).toContain('\\<img\\>');
+    expect(toast).toContain('[Re-enter your password] (https://evil)');
+    expect(toast).not.toContain('](https://evil)');
+    expect(toast).toContain('```');
+    expect(toast).toContain('<img>');
     expect(toUserErrorMessage(error)).toBe(toast);
     const report = action === 'Details…'
       ? (vi.mocked(vscode.workspace.openTextDocument).mock.calls[0]![0] as { content: string }).content
@@ -80,9 +81,24 @@ describe('showErrorWithDetails', () => {
     expect(report).not.toContain('\n# Injected heading');
   });
 
-  it('escapes existing backslashes before display markup so they cannot undo the escaping', () => {
-    expect(toUserErrorMessage(new Error('\\[click\\](https://evil) \\<img>')))
-      .toBe('\\\\\\[click\\\\\\](https://evil) \\\\\\<img\\>');
+  it('keeps bracketed codes, Windows paths and angle brackets readable in plain text', () => {
+    const message = String.raw`[212] C:\Invoices\Report.jsonl <field>`;
+    expect(toUserErrorMessage(new Error(message))).toBe(message);
+    expect(toUserErrorMessage(new Error('[click](https://evil)'))).toBe('[click] (https://evil)');
+  });
+
+  it('keeps plain error text bounded after breaking many injected links', () => {
+    const toast = toUserErrorMessage(new Error('[x](https://evil)\n'.repeat(100_000)));
+    expect(toast.length).toBeLessThanOrEqual(1025);
+    expect(toast).not.toContain('](');
+    expect(toast).not.toMatch(/[\r\n]/);
+  });
+
+  it('still escapes markup in Markdown report codes', () => {
+    const report = renderErrorReport({ kind: 'server', message: 'failed', isRetryable: false,
+      code: '[click](https://evil)', networkCode: '<img>' });
+    expect(report).toContain(String.raw`**Code:** \[click\](https://evil)`);
+    expect(report).toContain(String.raw`**Network code:** \<img\>`);
   });
 
   it('uses fences longer than hostile backtick runs in report messages, details and stacks', () => {

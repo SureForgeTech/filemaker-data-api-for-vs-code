@@ -94,6 +94,7 @@ export async function uploadContainer(
             `/records/${encodeURIComponent(normalizedRecordId)}` +
             `/containers/${encodeURIComponent(normalizedFieldName)}/${fieldRepetition}`,
           data: multipart.body,
+          transfer: true,
           headers: {
             'Content-Type': multipart.contentType,
             'Content-Length': String(multipart.body.byteLength)

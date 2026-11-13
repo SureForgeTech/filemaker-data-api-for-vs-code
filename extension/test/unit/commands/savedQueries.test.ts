@@ -206,10 +206,10 @@ describe('saved query commands', () => {
     const [writtenUri, bytes] = vi.mocked(vscode.workspace.fs.writeFile).mock.calls[0]!;
     expect(writtenUri).toBe(uri);
     expect(JSON.parse(Buffer.from(bytes).toString())).toEqual({ schemaVersion: 1, queries: [query] });
-    expect(vscode.window.showSaveDialog).toHaveBeenCalledWith(expect.objectContaining({ defaultUri: expect.objectContaining({ fsPath: 'query-with-spaces.json' }) }));
+    expect(vscode.window.showSaveDialog).toHaveBeenCalledWith(expect.objectContaining({ defaultUri: expect.objectContaining({ fsPath: 'Query-with-spaces.json' }) }));
   });
 
-  it.each([['CON', '_con'], ['..', 'export']])('uses a safe export name for saved query %j', async (name, safe) => {
+  it.each([['CON', '_CON'], ['..', 'export']])('uses a safe export name for saved query %j', async (name, safe) => {
     setup();
     vi.mocked(vscode.window.showQuickPick)
       .mockResolvedValueOnce({ query: { ...query, name } } as never)

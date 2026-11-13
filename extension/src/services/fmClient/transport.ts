@@ -45,7 +45,7 @@ export async function requestWithAuth<TResponse extends Record<string, unknown>>
     };
 
     const response = await withRequestLimits(client.timeoutMs, request.signal,
-      (limits) => client.httpClient.request<unknown>({ ...config, ...limits }), request.maxResponseBytes);
+      (limits) => client.httpClient.request<unknown>({ ...config, ...limits }), request.maxResponseBytes, request.transfer);
     return parseDataApiEnvelope<TResponse>(response);
   } catch (error) {
     const axiosError = error as AxiosError;
@@ -114,7 +114,7 @@ export async function requestWithAuthRaw<TResponse extends Record<string, unknow
     };
 
     const response = await withRequestLimits(client.timeoutMs, request.signal,
-      (limits) => client.httpClient.request<unknown>({ ...config, ...limits }), request.maxResponseBytes);
+      (limits) => client.httpClient.request<unknown>({ ...config, ...limits }), request.maxResponseBytes, request.transfer);
     const headers = normalizeHeaders(response.headers as Record<string, unknown>);
     if (response.status === 304) {
       return {
