@@ -70,6 +70,51 @@ describe('legacy profile URL credential hygiene', () => {
     expect(global.get(key)).toEqual(current);
   });
 
+  it.each(['missing', 'write failure'])('preserves unmigrated credentials across unrelated writes with %s secret storage', async (failure) => {
+    const global = new InMemoryMemento();
+    const other = { ...profile, id: 'other', serverUrl: 'https://other.example.test' };
+    const removed = { ...other, id: 'removed' };
+    const added = { ...other, id: 'added' };
+    await global.update(key, [profile, other, removed]);
+    const secrets = new SecretStore(new InMemorySecretStorage() as never);
+    const write = vi.spyOn(secrets, 'setPassword').mockRejectedValue(new Error('unavailable'));
+    const store = new ProfileStore(global as never, new InMemoryMemento() as never, failure === 'missing' ? undefined : secrets);
+
+    await store.listProfiles();
+    await store.upsertProfile(added);
+    expect(global.get(key)).toEqual([profile, other, removed, added]);
+    const edited = { ...other, name: 'Edited' };
+    await store.upsertProfile(edited);
+    expect(global.get(key)).toEqual([profile, edited, removed, added]);
+    await store.removeProfile(removed.id);
+    expect(global.get(key)).toEqual([profile, edited, added]);
+
+    write.mockRestore();
+    await new ProfileStore(global as never, new InMemoryMemento() as never, secrets).listProfiles();
+    expect(await secrets.getPassword(profile.id)).toBe('url password');
+    expect(global.get<Array<{ serverUrl: string }>>(key)?.[0]?.serverUrl).toBe('https://fm.example.test');
+  });
+
+  it.each(['', 'wizard password'])('preserves a password saved while migration is reading secrets (%s)', async (password) => {
+    const global = new InMemoryMemento();
+    await global.update(key, [profile]);
+    const secrets = new SecretStore(new InMemorySecretStorage() as never);
+    let release!: () => void;
+    const staleRead = new Promise<undefined>((resolve) => { release = () => resolve(undefined); });
+    vi.spyOn(secrets, 'getPassword').mockImplementationOnce(() => staleRead);
+    const write = vi.spyOn(secrets, 'setPassword');
+    const store = new ProfileStore(global as never, new InMemoryMemento() as never, secrets);
+
+    const migration = store.listProfiles();
+    await secrets.setPassword(profile.id, password);
+    release();
+    await migration;
+
+    expect(await secrets.getPassword(profile.id)).toBe(password);
+    expect(write).toHaveBeenCalledExactlyOnceWith(profile.id, password);
+    expect(global.get<Array<{ serverUrl: string }>>(key)?.[0]?.serverUrl).toBe('https://fm.example.test');
+  });
+
   it('does not put a URL password into the proxy key or overwrite a proxy credential', async () => {
     const global = new InMemoryMemento();
     await global.update(key, [{ ...profile, authMode: 'proxy' }]);

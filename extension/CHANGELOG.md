@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- [SECURITY] Adding, editing or removing another profile preserves legacy server passwords until secure storage is available.
+- [SECURITY] Legacy offline schema caches without a recorded hash algorithm accept the configured algorithm and still reject altered content.
+- [SECURITY] Migrating a password from a saved server address preserves a password saved during the migration.
+- [SECURITY] Trust Server Certificate and Set AI Access are unavailable in offline mode, like other write actions.
 - [SECURITY] Batch dry runs remain available when writes are disabled or offline mode is on; offline previews do not contact the server.
 - [SECURITY] Offline schema caches keep working after the hash algorithm setting changes, while altered content is still rejected.
 - [SECURITY] Removing credentials from saved server addresses preserves profiles added or edited during the migration.

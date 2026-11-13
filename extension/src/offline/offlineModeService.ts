@@ -204,9 +204,14 @@ export class OfflineModeService {
         return undefined;
       }
 
-      const algorithm = parsed.hashAlgorithm ?? 'sha256';
-      const hash = hashObjectWithAlgorithm(parsed.metadata, algorithm);
-      if (parsed.hash !== hash || match.hash !== hash) {
+      const algorithms = parsed.hashAlgorithm === undefined
+        ? ['sha256', this.getConfiguration().get<string>('schema.hashAlgorithm', 'sha256')]
+        : [parsed.hashAlgorithm];
+      const metadata = parsed.metadata;
+      const hash = algorithms
+        .map((algorithm) => hashObjectWithAlgorithm(metadata, algorithm))
+        .find((candidate) => parsed.hash === candidate && match.hash === candidate);
+      if (hash === undefined) {
         this.logger.warn('Offline metadata cache hash mismatch; cached metadata was ignored.');
         return undefined;
       }

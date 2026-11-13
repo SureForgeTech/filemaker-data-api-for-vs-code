@@ -30,6 +30,28 @@ function createTestService(workspaceRoot: string, isWorkspaceTrusted = () => tru
 }
 
 describe('offline cache key consistency', () => {
+  it('accepts a legacy cache under the configured sha512 algorithm and still rejects edits', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'fm-cache-legacy-algorithm-'));
+    const profile = { id: 'p', name: 'Test', serverUrl: 'https://example.test', database: 'DB', authMode: 'direct' as const };
+    const metadata = { fieldMetaData: [{ name: ' Field ' }] };
+    try {
+      const service = createTestService(root, () => true, 'sha512');
+      await service.cacheLayoutMetadata(profile, ' Layout ', metadata);
+      const [entry] = await service.listCacheEntries();
+      const path = join(root, '.vscode/filemaker/offline-metadata', entry!.fileName);
+      const payload = JSON.parse(await readFile(path, 'utf8'));
+      delete payload.hashAlgorithm;
+      await writeFile(path, JSON.stringify(payload));
+      expect(await service.getCachedLayoutMetadata(profile, ' Layout ')).toMatchObject({ metadata, hash: entry!.hash });
+
+      payload.metadata.fieldMetaData[0].name = 'Altered';
+      await writeFile(path, JSON.stringify(payload));
+      expect(await service.getCachedLayoutMetadata(profile, ' Layout ')).toBeUndefined();
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it.each(['sha256', 'sha512', 'legacy'])('verifies %s caches after the algorithm setting changes and still rejects edits', async (algorithm) => {
     const root = await mkdtemp(join(tmpdir(), 'fm-cache-algorithm-'));
     const profile = { id: 'p', name: 'Test', serverUrl: 'https://example.test', database: 'DB', authMode: 'direct' as const };

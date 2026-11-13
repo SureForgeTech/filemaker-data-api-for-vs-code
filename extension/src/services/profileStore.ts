@@ -96,7 +96,11 @@ export class ProfileStore {
         if (!this.secrets) continue;
         try {
           if (await this.secrets.getPassword(normalized.id) === undefined) {
-            await this.secrets.setPassword(normalized.id, decodeURIComponent(url.password));
+            const password = decodeURIComponent(url.password);
+            // A wizard save may have completed while the first read was pending.
+            if (await this.secrets.getPassword(normalized.id) === undefined) {
+              await this.secrets.setPassword(normalized.id, password);
+            }
           }
         } catch {
           // Leave persisted credentials intact so migration can be retried.
@@ -140,8 +144,10 @@ export class ProfileStore {
 
   public async upsertProfile(profile: ConnectionProfile): Promise<void> {
     const normalizedProfile = validateConnectionProfile(profile);
-    const profiles = await this.listProfiles();
-    const existingIndex = profiles.findIndex((item) => item.id === normalizedProfile.id);
+    await this.migrateUrlCredentials();
+    const rawProfiles = this.globalState.get<unknown>(PROFILES_KEY, []);
+    const profiles = Array.isArray(rawProfiles) ? [...rawProfiles] : [];
+    const existingIndex = profiles.findIndex((item) => normalizeProfile(item)?.id === normalizedProfile.id);
 
     if (existingIndex >= 0) {
       profiles[existingIndex] = normalizedProfile;
@@ -154,8 +160,10 @@ export class ProfileStore {
   }
 
   public async removeProfile(profileId: string): Promise<void> {
-    const profiles = await this.listProfiles();
-    const filtered = profiles.filter((profile) => profile.id !== profileId);
+    await this.migrateUrlCredentials();
+    const rawProfiles = this.globalState.get<unknown>(PROFILES_KEY, []);
+    const profiles = Array.isArray(rawProfiles) ? rawProfiles : [];
+    const filtered = profiles.filter((profile) => normalizeProfile(profile)?.id !== profileId);
     await this.globalState.update(PROFILES_KEY, filtered);
 
     const activeProfileId = this.getActiveProfileId();
