@@ -99,7 +99,7 @@ export const MANAGED_TEMPLATE_FILES: Record<string, string[]> = {
   'app/api/bridge/[route]/route.ts': [],
   'lib/preview-security.ts': [],
   'proxy.ts': [],
-  'package.json': ['01f94b699e9d6c9939b2bb1a49028f028c7ba29e2f9f53bd2160318edbecb991', '6d184961fb6759b90115ff94d15dac9455b401917d2d1527b7d3b98531b67ee8', 'c170e5afd10b11e6a02c5914756407fce984f6d925766c0a68077cd0515af9b8', 'd34857f30034d25a7e99534409b0c92311a77c73a1c3cf8ebef16cf5df6be258', 'ccc47856df9562b307f16fcdcce8505b0ad72c8c3e5ec29ba66c906d79ea936e', '9045c17af4565e76b46df29dbbed9c4a15d7747c5c2dc28ebf268fbf3543c9a5', 'f7a732254c8e9214fec1bb1871e10e46ad50e394e44097409be7ce89c53f31ce'],
+  'package.json': ['01f94b699e9d6c9939b2bb1a49028f028c7ba29e2f9f53bd2160318edbecb991', '6d184961fb6759b90115ff94d15dac9455b401917d2d1527b7d3b98531b67ee8', 'c170e5afd10b11e6a02c5914756407fce984f6d925766c0a68077cd0515af9b8', 'd34857f30034d25a7e99534409b0c92311a77c73a1c3cf8ebef16cf5df6be258', 'ccc47856df9562b307f16fcdcce8505b0ad72c8c3e5ec29ba66c906d79ea936e', '9045c17af4565e76b46df29dbbed9c4a15d7747c5c2dc28ebf268fbf3543c9a5', 'f7a732254c8e9214fec1bb1871e10e46ad50e394e44097409be7ce89c53f31ce', '88151dafb5ffe032e8c1105614361126df43671cee33cc4ab45fca43767e23ff'],
   'vitest.config.ts': [
     // The raw template file, which is what an app generated before the shared alias was rewritten
     // carries. The raw file of the template in use is appended at runtime, not listed here.

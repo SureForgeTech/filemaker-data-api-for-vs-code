@@ -462,10 +462,11 @@ describe('FM Web runtime template', () => {
     const gen = generator();
     await gen.generateRuntimeAppTemplate();
     const generated = await readFile(path.join(gen.getGeneratedRuntimeRoot(), 'package.json'));
+    const current = normalizedHash(generated);
     expect(
       MANAGED_TEMPLATE_FILES['package.json'],
-      'package.json: add the hash of the generated copy (keep the older ones)'
-    ).toContain(normalizedHash(generated));
+      `package.json: add the hash of the generated copy (keep the older ones): ${current}`
+    ).toContain(current);
   });
 
   it('records every current shared source hash so future refreshes recognize this release', async () => {
