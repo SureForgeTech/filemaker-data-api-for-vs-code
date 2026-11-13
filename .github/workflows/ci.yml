@@ -7,6 +7,7 @@ on:
     tags:
       - 'v*'
   pull_request:
+  workflow_dispatch:
   schedule:
     - cron: '0 8 * * 1'
 
@@ -204,7 +205,7 @@ jobs:
   # Run the slow real-desktop journeys on a weekly schedule and before tagged releases, not on
   # every PR. The tag package job depends on this strict run before it can publish.
   e2e-ui:
-    if: github.event_name == 'schedule' || startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'schedule' || startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     permissions:

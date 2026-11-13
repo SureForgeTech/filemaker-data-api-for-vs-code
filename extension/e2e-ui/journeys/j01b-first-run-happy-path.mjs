@@ -135,14 +135,17 @@ export async function run(ctx) {
     async () => {
       await ensureProfileCommands(s);
       await s.closeAllEditors();
+      await s.dismissToasts();
       await s.cmd('FileMaker: Connect');
       await s.page.waitForTimeout(800);
       if (await s.pickerOpen()) await s.pick(PROFILE);
-      const toast = await s.waitToast(/onnected to/i, { timeout: 30000 });
+      const toast = await s.waitToast(/Connected to "First Run Mock"/i, { timeout: 30000 });
       assert(toast.includes(PROFILE), `toast: "${toast}"`);
+      // Connect keeps its temporary status item until the optional layout picker closes.
+      if (await s.pickerOpen()) await s.escape();
       const headline = await s.statusItem(/FileMaker:/);
       assert(
-        (headline ?? '').includes(PROFILE),
+        (headline ?? '').includes(PROFILE) && !/Connecting/i.test(headline ?? ''),
         `status bar: "${headline ?? '(no FileMaker item)'}"`
       );
       return `toast: "${toast}" | status bar: "${headline}"`;
@@ -185,5 +188,22 @@ export async function run(ctx) {
     }
   );
 
+  await s.step(
+    J,
+    'remove the smoke profile before the other journeys',
+    'First Run Mock is disconnected and removed from Connections',
+    async () => {
+      await s.closeAllEditors();
+      await s.cmd('FileMaker: Disconnect');
+      await s.waitToast(/Disconnected from "First Run Mock"/i);
+      await s.cmd('FileMaker: Remove Connection Profile');
+      await s.pick(PROFILE);
+      await s.modal('Remove');
+      await s.waitToast(/Removed profile "First Run Mock"/i);
+      await s.openFileMakerSidebar();
+      const rows = await s.treeRows();
+      assert(!rows.some((row) => row.includes(PROFILE)), `smoke profile remains: ${rows.join(' | ')}`);
+    }
+  );
   await s.closeAllEditors();
 }

@@ -47,7 +47,9 @@ export async function createCsvStreamWriter(path: string, options: CsvStreamWrit
     }
     if (spool) {
       optionalUsed ||= Boolean(row.get(options.optionalColumn!));
-      await spool.writeFile(JSON.stringify([...row]) + '\n', 'utf8');
+      // Newer Node readline also splits at Unicode separators; keep each JSON row on one line.
+      const json = JSON.stringify([...row]).replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
+      await spool.writeFile(json + '\n', 'utf8');
     } else await file.write(columns!.map((key) => row.get(key) ?? '').join(',') + lineEnding);
   };
   const flush = async () => {

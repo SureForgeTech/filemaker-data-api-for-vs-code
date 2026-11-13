@@ -81,7 +81,7 @@ export async function run(ctx) {
       open: async () => {
         const wv = await openQueryBuilder(s, 'Customers');
         await wv.locator('#jsonTab').click();
-        await wv.locator('#findJson').fill('[{}]');
+        await wv.locator('#findJson').fill('[{"CustomerID":"*"}]');
         await wv.locator('#limitInput').fill('30');
         await wv.locator('#runButton').click();
         await wv.locator('.results-table').first().waitFor({ timeout: 20000 });

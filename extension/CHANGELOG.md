@@ -6,6 +6,7 @@
 - [SECURITY] Saved server addresses lose embedded credentials, preserving an existing saved password and asking you to confirm it. Test Connection keeps temporary credentials in memory, and removing a profile attempts to close its server session before clearing secrets.
 - [SECURITY] Logs mask more token formats, and Connect warns once per profile each session when a remote connection uses unencrypted HTTP.
 
+- [FIX] Batch CSV export preserves Unicode line and paragraph separators without failing on newer VS Code versions.
 - [INTERNAL] The mock Data API answers the `productInfo` and `databases` calls that **Test Connection** makes, so Test Connection passes all three steps against the mock. The documentation that said the mock lacked them is corrected, a new first-run journey (test the connection, save the profile, connect, run the first query) runs against the mock on every pull request, and a test keeps the documentation in step with what the mock does.
 - Create Record can add new portal rows alongside a parent record on direct connections. Existing related rows are not edited; proxy connections show that portal-row creation is unavailable. This is mock-tested; real-server compatibility remains unverified.
 

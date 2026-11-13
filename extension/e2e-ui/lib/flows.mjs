@@ -1,5 +1,7 @@
 // Reusable user flows built on Session primitives.
 import { assert, markAsserted } from './session.mjs';
+import fs from 'node:fs';
+import path from 'node:path';
 
 /** Create a direct-auth profile through the wizard (test, then save). Returns when the wizard says "saved". */
 export async function createProfile(
@@ -132,6 +134,30 @@ export async function answerFileDialog(s, absPath, { timeout = 10000 } = {}) {
     const b = await s.modalButtons();
     await s.modal(b.find((x) => /replace|overwrite|yes/i.test(x)) ?? b[0]);
   }
+}
+
+/** Batch export prompts, including the CSV choice after the save dialog. */
+export async function batchExport(s, layout, findJson, out) {
+  fs.rmSync(out, { force: true });
+  await s.closeAllEditors();
+  await s.dismissToasts();
+  await s.cmd('FileMaker: Batch Export (Find)');
+  await answerPickers(s, ['Mock Quality', layout]);
+  await s.inputBox(findJson, { timeout: 15000, prompt: /Find query JSON/ });
+  await s.inputBox('', { timeout: 10000, prompt: /Sort JSON/ });
+  await answerFileDialog(s, out, { timeout: 15000 });
+  if (path.extname(out).toLowerCase() === '.csv') await s.pick('Standard CSV');
+  await s.waitToast(/Started job/i, { timeout: 15000 });
+  for (let i = 0; i < 60 && !fs.existsSync(out); i += 1) await s.page.waitForTimeout(500);
+  if (!fs.existsSync(out)) {
+    // A start toast says nothing about success. Preserve the actual job error/output path in the report.
+    await s.cmd('FileMaker: Show Jobs');
+    await s.pick(`Batch Export ${layout}`);
+    await s.pick('View details');
+    const { text } = await s.helper('activeDocumentText');
+    throw new Error(`No export at ${out}. Job details: ${text}`);
+  }
+  markAsserted();
 }
 
 const wtext = async (wv, sel) =>

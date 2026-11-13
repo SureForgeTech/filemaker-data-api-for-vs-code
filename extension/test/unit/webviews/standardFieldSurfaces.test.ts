@@ -361,6 +361,43 @@ describe.skipIf(!JSDOM)('standard field presentation in browser webviews', () =>
     }
   });
 
+  it('Products mock metadata gives Name a tall text box and Category a menu in Editor and Viewer', () => {
+    // Call the real mock engine without opening a socket or a VS Code window.
+    const metadata = JSON.parse(execFileSync(process.execPath, ['--input-type=module', '-e', `
+      import { createEngine } from './extension/test/mock-server/lib/engine.mjs';
+      const engine = createEngine();
+      const base = '/fmi/data/vLatest/databases/Quality';
+      const login = await engine.dispatch({ method: 'POST', pathname: base + '/sessions',
+        headers: { host: 'localhost', authorization: 'Basic ' + Buffer.from('tester:testpass1').toString('base64') } });
+      const result = await engine.dispatch({ method: 'GET', pathname: base + '/layouts/Products',
+        headers: { host: 'localhost', authorization: 'Bearer ' + login.json.response.token } });
+      if (result.status !== 200) throw new Error('Products metadata unavailable');
+      process.stdout.write(JSON.stringify(result.json.response));
+    `], { cwd: root, encoding: 'utf8' })) as Record<string, unknown>;
+    const presentation = designerLayoutMetadata('Products', metadata).fields;
+    expect(presentation.find((field) => field.name === 'Name')?.maxLength).toBe(0);
+    const values = { SKU: 'E2E-NEW-1', Name: 'Created from the UI', Category: 'Hardware', Price: '11.5' };
+    for (const surface of ['recordEditor', 'recordViewer'] as const) {
+      const page = loadPage(html(surface), read(`extension/src/webviews/${surface}/ui/index.js`));
+      page.send({ type: 'recordLoaded', payload: { record: { recordId: '1', fieldData: values },
+        fields: presentation, presentationFields: presentation } });
+      const container = surface === 'recordEditor' ? '#fieldEditor' : '#fieldDataContainer';
+      const name = page.document.querySelectorAll(`${container} textarea[aria-label="Name"]`)[0]!;
+      expect(name?.value, surface).toBe(values.Name);
+      const nameRow = Array.from(page.document.querySelectorAll(`${container} tr`))
+        .find((row) => row.querySelector('[aria-label="Name"]'))!;
+      assertSize(nameRow, 240, 96);
+      const priceRow = Array.from(page.document.querySelectorAll(`${container} tr`))
+        .find((row) => row.querySelector('[aria-label="Price"]'))!;
+      assertSize(priceRow, 120, 34); // Non-text metadata still gets a single line.
+      expect(page.document.querySelectorAll(`${container} select[aria-label="Category"]`)[0]?.value, surface).toBe('Hardware');
+      if (surface === 'recordViewer') {
+        expect(name.getAttribute('readonly')).not.toBeNull();
+        expect(nameRow.querySelector('.fm-field-label')?.contains(nameRow.querySelector('button'))).toBe(true);
+      }
+    }
+  });
+
   it('Query Builder keeps FileMaker find operators and wildcards exactly as typed', () => {
     for (const [field, value] of [['Text', '=exact'], ['Drop', '>5'], ['Checks', '*empty'], ['Text', '*"a b"'], ['Text', 'a...b']] as const) {
       const page = loadPage(html('queryBuilder'), read('extension/src/webviews/queryBuilder/ui/findForm.js') + '\n' + read('extension/src/webviews/queryBuilder/ui/resultModel.js') + '\n' + read('extension/src/webviews/queryBuilder/ui/index.js'));

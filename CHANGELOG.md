@@ -32,7 +32,7 @@ PR title prefix matches the highest-tier label added:
 
 ### [FIX]
 
-- None.
+- Batch CSV export preserves Unicode line and paragraph separators without failing on newer VS Code versions.
 
 ### [INTERNAL]
 

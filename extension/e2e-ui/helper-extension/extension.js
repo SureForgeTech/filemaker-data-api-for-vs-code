@@ -147,12 +147,14 @@ function activate(context) {
   const seen = new Set();
   const timer = setInterval(async () => {
     for (const name of fs.readdirSync(path.join(dir, 'requests'))) {
-      if (seen.has(name) || !name.endsWith('.json')) continue;
+      if (seen.has(name) || !name.endsWith('.json') || fs.existsSync(path.join(dir, 'responses', name))) continue;
       seen.add(name);
       let id = name.replace(/\.json$/, '');
       let out;
       try {
         const req = JSON.parse(fs.readFileSync(path.join(dir, 'requests', name), 'utf8'));
+        // Windows share this directory. A new host must not replay another workspace's tool calls.
+        if (req.workspacePath !== vscode.workspace.workspaceFolders?.[0]?.uri.fsPath) continue;
         out = { ok: true, data: await handle(req) };
       } catch (e) {
         out = { ok: false, error: String(e && e.message ? e.message : e) };

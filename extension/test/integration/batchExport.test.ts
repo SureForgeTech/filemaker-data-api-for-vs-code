@@ -1,4 +1,4 @@
-import { mkdtemp, readFile } from 'fs/promises';
+import { mkdtemp, readFile, rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
@@ -42,6 +42,40 @@ async function createClient() {
 }
 
 describe('batch export + update integration (mocked HTTP)', () => {
+  it('exports exactly 200 CSV rows at the cap when the probe returns HTTP 500 / FileMaker 401 (N4)', async () => {
+    const profile = createProfile();
+    const client = await createClient();
+    const root = await mkdtemp(join(tmpdir(), 'fm-batch-n4-'));
+    const outputPath = join(root, 'big.csv');
+    const scope = nock(server)
+      .post(`${apiBase}/sessions`)
+      .reply(200, { response: { token: 'batch-token' }, messages: [{ code: '0', message: 'OK' }] })
+      .get(`${apiBase}/layouts/Big`)
+      .reply(200, { response: { fieldMetaData: [{ name: 'Label', result: 'text' }] }, messages: [{ code: '0', message: 'OK' }] });
+    for (const offset of [1, 101]) {
+      scope.post(`${apiBase}/layouts/Big/_find`, { query: [{ Label: '*' }], limit: 100, offset })
+        .reply(200, {
+          response: { data: Array.from({ length: 100 }, (_, i) => ({ recordId: String(offset + i), modId: '0', fieldData: { Label: `row-${offset + i}` } })) },
+          messages: [{ code: '0', message: 'OK' }]
+        });
+    }
+    scope.post(`${apiBase}/layouts/Big/_find`, { query: [{ Label: '*' }], limit: 1, offset: 201 })
+      .reply(500, { response: {}, messages: [{ code: '401', message: 'No records match the request' }] });
+    try {
+      const result = await new BatchService(client).batchExportFind(profile, 'Big', { query: [{ Label: '*' }] }, {
+        outputPath, format: 'csv', maxRecords: 200
+      });
+      expect(result).toMatchObject({ exportedRecords: 200, truncated: false, format: 'csv' });
+      const lines = (await readFile(outputPath, 'utf8')).trimEnd().split('\n');
+      expect(lines).toHaveLength(201);
+      expect(lines[0]).toBe('recordId,modId,Label');
+      expect(lines[200]).toBe('200,0,row-200');
+      scope.done();
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('exports paginated find results to JSONL', async () => {
     const profile = createProfile();
     const client = await createClient();
