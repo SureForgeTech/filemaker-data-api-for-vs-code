@@ -16,6 +16,8 @@ import type { ConnectionProfile } from '../../../src/types/fm';
 // Expected outputs were captured from aiToolService.ts before extracting its pure helpers.
 // Keep the seed and inputs stable: hashes keep long outputs small while checking every byte.
 // The full output table was also compared directly before and after extraction.
+// The four text/6 hashes include the approved security correction: U+103FF is now
+// shown losslessly as \\ud800\\udfff, rather than the invalid JSON escape \\u103ff.
 const expected = JSON.parse(readFileSync(new URL('./fixtures/aiPureOutputs.json', import.meta.url), 'utf8')) as Record<string, string>;
 const cases: Array<{ name: string; run: () => unknown }> = [];
 const add = (name: string, run: () => unknown): void => { cases.push({ name, run }); };

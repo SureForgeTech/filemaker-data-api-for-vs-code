@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- [SECURITY] AI approval dialogs show hidden Unicode characters as visible escapes, preserving supplementary characters exactly so the proposed names and values remain distinguishable.
 - [SECURITY] FM Web preview refuses unexpected or edited runtime files and workspace npm configuration. A named regeneration confirmation is required to delete them. Preview runs a fresh private template copy with install scripts disabled and empty npm config files.
 - [SECURITY] Layout Mode and preview script confirmations visibly escape hidden characters, show parameter lengths, and refuse values too long to show in full. Layout Mode shows the layout that will actually run.
 - [SECURITY] Plugin consent visibly escapes filenames containing newlines or hidden characters; approval hashes still use the original names and bytes.

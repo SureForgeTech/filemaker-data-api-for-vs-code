@@ -103,6 +103,9 @@ describe('preview commands are hidden when the installation has no runtime templ
 
     function register(generateRuntimeAppTemplate: () => Promise<unknown>) {
       const createTerminal = vi.fn();
+      const inspectPreviewFiles = vi.fn(generateRuntimeAppTemplate);
+      const stop = vi.fn(async () => undefined);
+      const ensureStarted = vi.fn();
       (vscode.window as unknown as { createTerminal: unknown }).createTerminal = createTerminal;
       registerFmWebProjectCommands({
         context: {} as never,
@@ -110,15 +113,16 @@ describe('preview commands are hidden when the installation has no runtime templ
         fmClient: {} as never,
         schemaService: {} as never,
         fmWebProjectService: {} as never,
-        fmWebRuntimeGenerator: { generateRuntimeAppTemplate } as never,
-        fmBridgeServer: {} as never,
+        // Inspection now resolves the template before generation can run.
+        fmWebRuntimeGenerator: { generateRuntimeAppTemplate, inspectPreviewFiles } as never,
+        fmBridgeServer: { stop, ensureStarted } as never,
         roleGuard: { assertFeature: vi.fn(async () => true) } as never,
         logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() } as never,
         refreshExplorer: vi.fn()
       });
       const handler = (id: string) =>
         vi.mocked(vscode.commands.registerCommand).mock.calls.filter(([name]) => name === id).pop()?.[1] as () => Promise<void>;
-      return Object.assign(handler, { createTerminal });
+      return Object.assign(handler, { createTerminal, inspectPreviewFiles, stop, ensureStarted });
     }
 
     for (const command of NEEDS_TEMPLATE) {
@@ -131,6 +135,12 @@ describe('preview commands are hidden when the installation has no runtime templ
         expect(shown).toMatch(/not available in this installation/);
         expect(shown).toMatch(/Marketplace extension does not include/);
         expect(handler.createTerminal).not.toHaveBeenCalled();
+        expect(handler.ensureStarted).not.toHaveBeenCalled();
+        expect(vscode.window.showWarningMessage).not.toHaveBeenCalled();
+        if (command === 'filemakerDataApiTools.startFmWebPreviewServer') {
+          expect(handler.inspectPreviewFiles).toHaveBeenCalledOnce();
+          expect(handler.stop).toHaveBeenCalledTimes(2); // initial shutdown and error cleanup
+        }
       });
     }
   });

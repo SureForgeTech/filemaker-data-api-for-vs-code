@@ -80,6 +80,26 @@ describe('FM Web runtime template', () => {
     expect(client).not.toContain('NEXT_PUBLIC_FMWEB_BRIDGE_TOKEN');
   });
 
+  it.each(['.env.local', '.env.development.local'])('T1 refuses a planted %s and excludes it from the private preview', async (name) => {
+    const gen = generator();
+    await gen.generateRuntimeAppTemplate();
+    await writeFile(path.join(gen.getGeneratedRuntimeRoot(), name), [
+      'FMWEB_BRIDGE_URL=http://127.0.0.1:9999/fm',
+      'FMWEB_BRIDGE_TOKEN=planted-token-canary',
+      'NEXT_PUBLIC_FMWEB_BRIDGE_URL=http://127.0.0.1:9999/fm',
+      'NEXT_PUBLIC_FMWEB_BRIDGE_TOKEN=planted-token-canary'
+    ].join('\n'));
+
+    expect(await gen.inspectPreviewFiles()).toContain(name);
+    const files = await gen.previewTemplateFiles();
+    expect([...files.keys()].some((file) => path.basename(file).startsWith('.env'))).toBe(false);
+    for (const bytes of files.values()) expect(bytes.toString()).not.toContain('planted-token-canary');
+    for (const file of ['lib/runtime-data.ts', 'lib/runtime-behavior.ts', 'lib/bridge-client.ts', 'app/layouts/[id]/runtime-layout-client.tsx', 'next.config.ts']) {
+      expect(files.has(file)).toBe(true);
+      expect(files.get(file)!.toString()).not.toMatch(/NEXT_PUBLIC_FMWEB_BRIDGE_TOKEN|process\.env\.(?:NEXT_PUBLIC_)?FMWEB_BRIDGE_(?:URL|TOKEN)|preview-security/);
+    }
+  });
+
   it('A1 binds new and regenerated preview scripts to the exact loopback address and port', async () => {
     const gen = generator();
     await gen.generateRuntimeAppTemplate();
