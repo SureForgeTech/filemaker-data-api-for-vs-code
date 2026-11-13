@@ -45,6 +45,9 @@
     },
     "eslint": {
       "minimatch": "11.0.8"
+    },
+    "typedoc": {
+      "minimatch": "6.2.3"
     }
   }
 }
