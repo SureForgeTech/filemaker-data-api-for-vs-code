@@ -79,6 +79,9 @@ PR title prefix matches the highest-tier label added:
 - FM Web preview script buttons ask for confirmation in VS Code with the exact script, escaped parameter and connection host. Oversized confirmation values are refused, and repeated prompts are throttled.
 - Cancelling FM Web preview startup stops the bridge and removes its saved address and token without removing unrelated env settings.
 - FM Web layout URL actions refuse schemes other than HTTP and HTTPS. Script and layout names and script parameters reach the preview bridge unchanged.
+- [SECURITY] Patch vulnerable glob matching in publishing and compatible development tools.
+
+- None.
 
 ## 1.8.0 (2026-11-02)
 
