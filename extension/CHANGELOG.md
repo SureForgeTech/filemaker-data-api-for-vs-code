@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- [SECURITY] FM Web preview recognizes unchanged template files on Windows and shows relative file names with forward slashes.
 - [SECURITY] FM Web preview cleans up private files after Windows stop failures and can start again after a preview exits.
 - [SECURITY] FM Web preview keeps old temporary folders while their owning VS Code process is still running in another window.
 - [SECURITY] FM Web preview warns and skips layouts with edited or linked generated files while starting the remaining layouts.

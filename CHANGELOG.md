@@ -18,6 +18,7 @@ PR title prefix matches the highest-tier label added:
 
 ## Unreleased
 
+- [SECURITY] FM Web preview recognizes unchanged template files on Windows and shows relative file names with forward slashes.
 - [SECURITY] Editing a profile preserves its legacy server password until secure storage confirms it is saved; stalled storage no longer blocks profile changes indefinitely.
 - [SECURITY] Adding, editing or removing another profile preserves legacy server passwords until secure storage is available.
 - [SECURITY] Legacy offline schema caches without a recorded hash algorithm accept the configured algorithm and still reject altered content.

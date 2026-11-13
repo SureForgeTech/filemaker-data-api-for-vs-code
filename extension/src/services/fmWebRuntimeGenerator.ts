@@ -240,6 +240,16 @@ export async function publishPreviewAvailability(
 
 const PREVIEW_ENV_MARKER = '# Preview credentials are passed only to the private server process.\n';
 
+/** Preview keys and displayed relative names always use forward slashes. */
+export function toPosixRelative(name: string): string {
+  return name.replace(/\\/g, '/');
+}
+
+export function isExpectedPreviewDirectory(name: string, expected: Iterable<string>): boolean {
+  const prefix = `${toPosixRelative(name)}/`;
+  return [...expected].some((file) => toPosixRelative(file).startsWith(prefix));
+}
+
 export class FmWebRuntimeGenerator {
   public constructor(
     private readonly context: vscode.ExtensionContext,
@@ -266,10 +276,10 @@ export class FmWebRuntimeGenerator {
       files.set(name, content);
     }
     const shared = path.join(root, '..', 'shared');
-    for (const name of ['package.json', ...(await collectFiles(path.join(shared, 'src'), path.join(shared, 'src'))).map((file) => path.join('src', file))]) {
+    for (const name of ['package.json', ...(await collectFiles(path.join(shared, 'src'), path.join(shared, 'src'))).map((file) => `src/${file}`)]) {
       let content = await readFile(path.join(shared, name));
       if (name === 'package.json') content = Buffer.from(`${JSON.stringify({ ...withoutMonorepoTooling(JSON.parse(content.toString())), main: 'src/index.ts', types: 'src/index.ts', scripts: {} }, null, 2)}\n`);
-      files.set(path.join('shared', name), content);
+      files.set(`shared/${name}`, content);
     }
     return files;
   }
@@ -292,9 +302,9 @@ export class FmWebRuntimeGenerator {
       })) {
         if (entry.name === 'node_modules' || entry.name === '.next') continue;
         const full = path.join(dir, entry.name);
-        const name = path.relative(root, full);
+        const name = toPosixRelative(path.relative(root, full));
         const info = await lstat(full);
-        if (info.isDirectory() && [...expected.keys()].some((file) => file.startsWith(`${name}${path.sep}`))) {
+        if (info.isDirectory() && isExpectedPreviewDirectory(name, expected.keys())) {
           await visit(full);
         } else if (!info.isFile() || !expected.has(name) || info.size !== expected.get(name)!.length || !(await readFile(full)).equals(expected.get(name)!)) {
           bad.push(name);
@@ -308,15 +318,16 @@ export class FmWebRuntimeGenerator {
   /** Called only after a modal names every deletion; rescan to avoid accepting a stale list. */
   public async removePreviewFiles(files: string[]): Promise<void> {
     const root = this.getGeneratedRuntimeRoot();
-    if (files.some((name) => !path.resolve(root, name).startsWith(`${root}${path.sep}`))) {
+    const names = files.map(toPosixRelative);
+    if (names.some((name) => !name || name.includes('..') || name.includes('\0') || name.startsWith('/') || /(?:^|\/)[a-z]:/i.test(name) || !path.resolve(root, name).startsWith(`${root}${path.sep}`))) {
       throw new Error('Cannot remove files outside the generated runtime folder.');
     }
-    if (files.some((name) => name.split(path.sep).some((part) => part === 'node_modules' || part === '.next'))) {
+    if (names.some((name) => name.split('/').some((part) => part === 'node_modules' || part === '.next'))) {
       throw new Error('Cannot remove dependency or build folders.');
     }
     const current = await this.inspectPreviewFiles();
-    if (JSON.stringify(current) !== JSON.stringify(files)) throw new Error('Preview files changed. Start again to review the new list.');
-    for (const name of files) {
+    if (JSON.stringify(current) !== JSON.stringify(names)) throw new Error('Preview files changed. Start again to review the new list.');
+    for (const name of names) {
       const target = path.resolve(root, name);
       await this.assertSafeFolder(path.dirname(target));
       await rm(target, { recursive: true, force: true });
@@ -349,7 +360,7 @@ export class FmWebRuntimeGenerator {
     for (const relativePath of templateFiles) {
       const sourcePath = path.join(templateRoot, relativePath);
       const outputPath = path.join(outputRoot, relativePath);
-      const managedKey = relativePath.split(path.sep).join('/');
+      const managedKey = relativePath;
       const sourceContent = await readFile(sourcePath);
       const content = relativePath === 'package.json'
         ? Buffer.from(`${JSON.stringify({
@@ -410,10 +421,10 @@ export class FmWebRuntimeGenerator {
     const sharedRoot = path.join(templateRoot, '..', 'shared');
     const sharedOutput = path.join(outputRoot, 'shared');
     // path-join disposition: the shared package folder and the names the template lists; the target is confined by assertSafeOutputFolder.
-    const sharedFiles = ['package.json', ...await collectFiles(path.join(sharedRoot, 'src'), path.join(sharedRoot, 'src')).then((files) => files.map((file) => path.join('src', file)))];
+    const sharedFiles = ['package.json', ...await collectFiles(path.join(sharedRoot, 'src'), path.join(sharedRoot, 'src')).then((files) => files.map((file) => `src/${file}`))];
     for (const file of sharedFiles) {
       const target = path.join(sharedOutput, file);
-      const reported = path.join('shared', file);
+      const reported = `shared/${file}`;
       let content = await readFile(path.join(sharedRoot, file));
       if (file === 'package.json') {
         const pkg = JSON.parse(content.toString('utf8'));
@@ -431,7 +442,7 @@ export class FmWebRuntimeGenerator {
       if (present) {
         const existingHash = present.isFile() ? normalizedHash(await readFile(target)) : undefined;
         const current = existingHash === normalizedHash(content);
-        if (!current && existingHash && SHIPPED_SHARED_HASHES[file.split(path.sep).join('/')]?.includes(existingHash)) {
+        if (!current && existingHash && SHIPPED_SHARED_HASHES[file]?.includes(existingHash)) {
           await writeManagedFile(target, content);
           updated.push(reported);
           continue;
@@ -634,7 +645,7 @@ async function collectFiles(rootDir: string, currentDir: string): Promise<string
       continue;
     }
 
-    result.push(path.relative(rootDir, fullPath));
+    result.push(toPosixRelative(path.relative(rootDir, fullPath)));
   }
 
   return result.sort((left, right) => left.localeCompare(right));

@@ -123,7 +123,7 @@ describe('private preview process', () => {
     await writeFile(path.join(root, 'app', 'user-page.tsx'), '// keep my page');
     await writeFile(path.join(root, 'next.config.ts'), '// keep my config');
     await writeFile(path.join(root, '.env.local'), 'NEXT_PUBLIC_CUSTOM=keep-me');
-    expect(await generator.inspectPreviewFiles()).toEqual(['.env.local', path.join('app', 'user-page.tsx'), 'next.config.ts'].sort());
+    expect(await generator.inspectPreviewFiles()).toEqual(['.env.local', 'app/user-page.tsx', 'next.config.ts'].sort());
     const process = preview();
     await process.start(await generator.previewTemplateFiles(), new Map(), 'http://127.0.0.1:1234/fm', 'dummy-secret');
     const privateRoot = calls[0]!.options.cwd as string;
