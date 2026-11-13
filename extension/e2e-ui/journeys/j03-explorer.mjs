@@ -25,6 +25,7 @@ export async function run(ctx) {
     'FileMaker: Connect',
     'a picker names profile, database and server; "Connected to" notice; status bar shows the profile',
     async () => {
+      await s.dismissToasts(); // a previous journey's Connected toast cannot satisfy this step
       await s.cmd('FileMaker: Connect');
       await s.page.waitForTimeout(700);
       const prompted = await s.pickerOpen();
@@ -33,10 +34,12 @@ export async function run(ctx) {
         items = await s.pickerItems();
         await s.pick('Mock Quality');
       }
-      const t = await s.waitToast(/onnected to/i, { timeout: 25000 });
+      const t = await s.waitToast(/Connected to "Mock Quality"/i, { timeout: 25000 });
+      // Finish Connect's optional layout prompt and dispose its temporary status item.
+      if (await s.pickerOpen()) await s.escape();
       await s.page.waitForTimeout(1500);
       const sb = await s.statusItem(/FileMaker:/);
-      assert(/Mock Quality|Connected/i.test(sb ?? ''), `status bar: ${sb}`);
+      assert(/Mock Quality/.test(sb ?? '') && !/Connecting/i.test(sb ?? ''), `status bar: ${sb}`);
       return `${t} | picker (${prompted ? 'shown' : 'not shown'}): ${items.join(' / ')} | status: ${sb}`;
     }
   );

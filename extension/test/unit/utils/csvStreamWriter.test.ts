@@ -70,6 +70,23 @@ describe('createCsvStreamWriter', () => {
     );
   });
 
+  it.each(['', 'portal truncated'])('preserves Unicode separators in spooled CSV (portal note: %j)', async (note) => {
+    const file = join(dir, 'unicode.csv');
+    const field = 'line\u2028paragraph\u2029';
+    const value = '山田🚀\u2028middle\u2029' + 'x'.repeat(70_000) + '\r\n"end"';
+    const writer = await createCsvStreamWriter(file, {
+      columns: [field, 'note'], optionalColumn: 'note'
+    });
+    await writer.append({ [field]: value, note });
+    await writer.append({ [field]: 'last\u2029row\u2028' });
+    await writer.close();
+    expect(await readFile(file, 'utf8')).toBe(
+      field + (note ? ',note' : '') + '\n' +
+      '"' + value.replace(/"/g, '""') + '"' + (note ? ',' + note : '') + '\n' +
+      'last\u2029row\u2028' + (note ? ',' : '') + '\n'
+    );
+  });
+
   it('produces an empty file when no rows are written and no columns preset', async () => {
     const file = join(dir, 'out.csv');
     const writer = await createCsvStreamWriter(file);
