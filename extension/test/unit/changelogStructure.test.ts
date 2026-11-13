@@ -60,13 +60,12 @@ it('records offline cache ignores and transfer limits once with accurate snapsho
     expect(deadlines[0]).toMatch(/30 minute(?:s| ceiling)/);
     expect(deadlines[0]).toMatch(/stalled/i);
   }
+  // The next release starts empty: no entries in the extension changelog, five empty sections in the ledger.
   const extensionUnreleased = readExtension('CHANGELOG.md').split('\n## Unreleased\n')[1]?.split('\n## ')[0] ?? '';
-  expect(extensionUnreleased.match(/^- \[SECURITY\] .+$/gm)).toHaveLength(13);
+  expect(extensionUnreleased.trim()).toBe('');
   const unreleased = readRoot('CHANGELOG.md').split('\n## Unreleased\n')[1]?.split('\n## ')[0] ?? '';
-  expect(unreleased.match(/^- None\.$/gm)).toHaveLength(4);
-  const securityNotes = unreleased.split('### [SECURITY]')[1] ?? '';
-  expect(securityNotes.match(/^- .+/gm)).toHaveLength(13);
-  expect(securityNotes.trim()).toBe(extensionUnreleased.trim().replace(/^- \[SECURITY\] /gm, '- '));
+  expect(unreleased.match(/^- None\.$/gm)).toHaveLength(5);
+  expect(unreleased.match(/^- (?!None\.).+/gm)).toBeNull();
 });
 
 const releaseDocs = (files: string[]) => files.map((file) => readRoot(file));

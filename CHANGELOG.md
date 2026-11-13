@@ -36,19 +36,7 @@ PR title prefix matches the highest-tier label added:
 
 ### [SECURITY]
 
-- Clarify that the remote HTTP warning does not pause connection and exempts loopback addresses.
-- Explain that oversized-response limit text is in Details under the redacted stack trace, while the notice names the failed action.
-- Explain how to regenerate the FM Web preview with 1.8.0 after rolling back.
-- Correct timeout wording and explain that uploads omit elapsed seconds.
-- Clarify which record reads renew deadlines and the two minute maximum base timeout setting.
-- Clarify that offline cache folders ignore their own contents in Git while their ignore file and schema snapshots can be committed.
-- Explain username-only cleanup, direct-auth URL password migration and warnings for retained saved addresses.
-- Clarify that removing a profile attempts to close the server session.
-- Explain that batch dry runs still need batch operations enabled, workspace trust and the row cap.
-- Document the Windows Node.js and npm file layout needed to start the FM Web preview.
-- Update the release guidance for the local v1.8.0 tag and the reported GitHub release assets.
-- Clarify that stale preview cleanup checks both an age over one day and the owning extension-host process id.
-- Document the preview script prompt cooldown and the bounded Windows stop operation.
+- None.
 
 ## 1.9.0 (2026-11-13)
 
