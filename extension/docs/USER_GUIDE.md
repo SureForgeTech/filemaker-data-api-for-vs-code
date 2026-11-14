@@ -898,10 +898,11 @@ In a trusted folder, a team can also put `.vscode/filemaker.config.json` in a re
   "role": "viewer",
   "lockedProfiles": ["<profile id>"],
   "disabledFeatures": ["batchUpdate", "scriptRunner"],
-  "enforcedPerformanceMode": "standard",
   "defaultEnvironmentSets": [{ "name": "All", "profiles": ["<profile id>"] }]
 }
 ```
+
+`filemaker.performance.mode` is a User setting only; `enforcedPerformanceMode` in this file is ignored. A workspace may lower `filemaker.connect.maxRetries` below your User value (default 3), but cannot raise it.
 
 The feature names for `disabledFeatures` are `recordEdit`, `batchUpdate`, `environmentExport`, `pluginInstall`, `scriptRunner`, `writeOperations` and `ai`.
 
@@ -1090,7 +1091,7 @@ Open Settings (`Cmd+,` / `Ctrl+,`) and search for `filemaker`; make sure the **U
 | `filemaker.requestTimeoutMs` | `15000` | Per workspace | Base request timeout in milliseconds; maximum 120000 ms (2 minutes). Fixed for other requests and connection setup; only record GET and find reads renew after each 64 KiB. Upload deadlines grow with size. Transfers stop after at most 30 minutes; settings cannot raise that ceiling or the 64 MiB response cap. |
 | `filemaker.defaultApiBasePath` | `"/fmi/data"` | Per workspace | API path used when a profile does not set one. |
 | `filemaker.defaultApiVersionPath` | `"vLatest"` | Per workspace | Data API version segment used when a profile does not set one. |
-| `filemaker.connect.maxRetries` | `3` | Per workspace | Retries of a failed sign-in on network or server errors. 0 turns retry off. |
+| `filemaker.connect.maxRetries` | `3` | Workspace can only lower | Retries of a failed sign-in on network or server errors. 0 turns retry off. |
 | `filemaker.connect.backoffInitialMs` | `1000` | Per workspace | Delay before the first sign-in retry, in milliseconds. |
 | `filemaker.connect.backoffMaxMs` | `30000` | Per workspace | Longest delay between sign-in retries, in milliseconds. |
 | `filemaker.connect.backoffMultiplier` | `2` | Per workspace | Factor by which the retry delay grows. |
@@ -1120,7 +1121,7 @@ Open Settings (`Cmd+,` / `Ctrl+,`) and search for `filemaker`; make sure the **U
 | `filemaker.features.recordEdit.enabled` | `true` | Workspace can only make this stricter; ignored until you trust the folder | Turns the Record Editor write-back and container upload off when false. |
 | `filemaker.containerUploadMaxBytes` | `104857600` | Per workspace | Largest file Upload to Container accepts, in bytes (default 100 MB). |
 | `filemaker.features.batch.enabled` | `true` | Workspace can only make this stricter; ignored until you trust the folder | Turns batch export and update off when false. |
-| `filemaker.performance.mode` | `"standard"` | Per workspace | `standard` or `high-scale`. High-scale writes batch exports as JSONL. |
+| `filemaker.performance.mode` | `"standard"` | User settings only | `standard` or `high-scale`. High-scale writes batch exports as JSONL. |
 
 **Schema**
 

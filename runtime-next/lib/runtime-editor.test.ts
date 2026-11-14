@@ -68,6 +68,20 @@ function change(name: string, value: string): void {
 }
 
 describe('FM Web record editor', () => {
+  it.each([
+    ['https://fm.example.test', 'https://fm.example.test/photo.png', true],
+    ['https://fm.example.test', 'https://evil.test/photo.png', false],
+    [undefined, 'https://fm.example.test/photo.png', false]
+  ])('passes the trusted origin through the client to container controls (%s, %s)', async (serverOrigin, value, allowed) => {
+    fields.Photo = value;
+    await act(async () => root.render(React.createElement(RuntimeLayoutClient, { layout, serverOrigin })));
+    expect(Boolean(host.querySelector('img'))).toBe(allowed);
+    if (!allowed) {
+      expect(host.querySelector('a')).toBeNull();
+      expect(host.textContent).toContain(value);
+    }
+  });
+
   it('loads records, keeps viewing read-only, saves only changed fields with the loaded modId, and cancels drafts', async () => {
     await mount();
     expect(calls[0].route).toBe('find');

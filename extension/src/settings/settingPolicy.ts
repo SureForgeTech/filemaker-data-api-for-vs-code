@@ -14,6 +14,8 @@ export type SettingKind =
   | 'stricter-bool'
   /** The enterprise role: a workspace may only lower it. */
   | 'stricter-role'
+  /** A workspace may only lower a numeric limit. */
+  | 'stricter-number'
   /** A list where every scope adds to the others (a workspace can add, never remove). */
   | 'stricter-union'
   /** An ordinary setting a workspace may set (VS Code ignores some of them in Restricted Mode). */
@@ -37,6 +39,8 @@ export const POLICY_SETTINGS: readonly PolicySetting[] = [
   { key: 'features.ai.enabled', kind: 'stricter-bool', restrictedValue: false },
   { key: 'enterprise.mode', kind: 'stricter-bool', restrictedValue: true },
   { key: 'enterprise.role', kind: 'stricter-role' },
+  { key: 'connect.maxRetries', kind: 'stricter-number' },
+  { key: 'performance.mode', kind: 'user-only' },
   { key: 'ai.hiddenFields', kind: 'stricter-union' },
   { key: 'ai.enabled', kind: 'user-only' },
   { key: 'ai.allowWrites', kind: 'user-only' },
@@ -69,7 +73,7 @@ export function badgeFor(kind: SettingKind | undefined): string {
   if (kind === 'user-only') {
     return BADGE_USER_ONLY;
   }
-  return kind === 'stricter-bool' || kind === 'stricter-role' || kind === 'stricter-union'
+  return kind === 'stricter-bool' || kind === 'stricter-role' || kind === 'stricter-number' || kind === 'stricter-union'
     ? BADGE_STRICTER
     : BADGE_WORKSPACE;
 }
@@ -263,6 +267,17 @@ export function explainSetting(input: ExplainInput): Explanation {
           `This workspace sets ${setting.key} to ${fmt(workspaceValue)} but your ${baselineLabel} value is ` +
           `${fmt(baseline)}, and a workspace can only lower the role, so it stays ${fmt(effective)}.`;
         noticeReason = 'a workspace can only lower the role';
+      }
+      break;
+    }
+    case 'stricter-number': {
+      if (!same(effective, baseline)) {
+        source = same(effective, values.workspaceFolder) ? 'Workspace Folder' : 'Workspace';
+      }
+      if (hasWorkspace && !same(workspaceValue, effective)) {
+        ignored = true;
+        reason = `A workspace can only lower the retry limit, so it stays ${fmt(effective)}.`;
+        noticeReason = 'a workspace can only lower the retry limit';
       }
       break;
     }

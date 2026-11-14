@@ -8,6 +8,8 @@ import {
   type LayoutDefinition
 } from '../../fmweb/layoutSchema';
 
+import { FMClientError } from '../../services/errors';
+import { extractScriptErrors } from '../../services/responseGuard';
 import type { FMClient } from '../../services/fmClient';
 import type { Logger } from '../../services/logger';
 import type { ProfileStore } from '../../services/profileStore';
@@ -239,14 +241,19 @@ export class LayoutModePanel {
 
       if (!result.ok) {
         this.logger.warn('Layout behavior execution reported a non-ok result.', {
-          payload,
-          result
+          scriptName: payload.behavior.scriptName,
+          layout: payload.fmLayoutName ?? payload.layoutName,
+          codes: extractScriptErrors(toRecord(result.detail)?.response).map(({ code }) => code).filter((code) => /^\d+$/.test(code))
         });
       }
 
       await this.postBehaviorResult(result);
     } catch (error) {
-      this.logger.error('Failed to execute layout behavior binding.', { error, payload });
+      this.logger.error('Failed to execute layout behavior binding.', {
+        scriptName: payload.behavior.scriptName,
+        layout: payload.fmLayoutName ?? payload.layoutName,
+        code: error instanceof FMClientError ? error.code : undefined
+      });
       await this.postBehaviorResult({
         ok: false,
         action: payload.behavior.type ?? 'unknown',

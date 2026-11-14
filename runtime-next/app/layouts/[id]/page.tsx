@@ -1,5 +1,5 @@
-// fmweb-managed: runtime template v10. Field presentation uses the shared designer rules.
-import { standardFieldsCss } from '@fmweb/shared';
+// fmweb-managed: runtime template v11. Field presentation uses the shared designer rules.
+import { serverOrigin, standardFieldsCss } from '@fmweb/shared';
 import { notFound } from 'next/navigation';
 import type { JSX } from 'react';
 
@@ -30,6 +30,7 @@ export default async function LayoutPage({ params, searchParams }: LayoutPagePro
       <style>{standardFieldsCss()}</style>
       <RuntimeLayoutClient
         layout={layout}
+        serverOrigin={serverOrigin(process.env.FMWEB_SERVER_ORIGIN)}
         debug={readSingleSearchParam(query?.debug) === '1'}
         initialRecordId={initialRecordId}
         initialRecordIndex={initialRecordIndex}

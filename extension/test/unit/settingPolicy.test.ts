@@ -383,6 +383,16 @@ describe('registry kinds match the code that enforces each setting', () => {
     }
   });
 
+  it.each([[1, 10, 1, true], [8, 2, 2, false]])('explains the capped retry limit (%s, %s)', (user, workspace, effective, ignored) => {
+    const explanation = explainSetting({
+      setting: policyFor('connect.maxRetries')!, values: { default: 3, user, workspace },
+      effective, trusted: true, restrictedInUntrusted: true
+    });
+    expect(explanation.ignored).toBe(ignored);
+    expect(explanation.source).toBe(ignored ? 'User' : 'Workspace');
+    expect(explanation.effective).toBe(effective);
+  });
+
   it('stricter-role: the workspace can lower the role but not raise it', async () => {
     expect(await fakeEnterprise('viewer', 'admin', true)).toBe('viewer');
     expect(await fakeEnterprise('admin', 'viewer', true)).toBe('viewer');
@@ -390,7 +400,7 @@ describe('registry kinds match the code that enforces each setting', () => {
 
   it.each([
     'snippets.includeAuthByDefault', 'schema.hashAlgorithm', 'fmWeb.bridge.rateLimitPerSecond',
-    'fmWeb.bridge.rateLimitBurst', 'fmWeb.bridge.requestBudget'
+    'fmWeb.bridge.rateLimitBurst', 'fmWeb.bridge.requestBudget', 'performance.mode'
   ])('%s is user-only and restricted in untrusted workspaces', (key) => {
     const properties = Object.assign({}, ...manifest.contributes.configuration.map((section) => section.properties));
     expect(properties[`filemaker.${key}`].scope).toBe('application');

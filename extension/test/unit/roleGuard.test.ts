@@ -62,7 +62,7 @@ describe('RoleGuard', () => {
     expect(readConfigFile).toHaveBeenCalledOnce();
     expect(guard.isEnterpriseModeEnabled()).toBe(true);
     expect(guard.getRole()).toBe('viewer');
-    expect(guard.resolvePerformanceMode()).toBe('high-scale');
+    expect(guard.resolvePerformanceMode()).toBe('standard');
     expect(guard.isProfileLocked('p1')).toBe(true);
     expect(guard.getFeatureGuard('ai').allowed).toBe(false);
     expect(guard.getDefaultEnvironmentSetSeeds()).toEqual([{ name: 'Set', profiles: ['p1'] }]);
@@ -95,7 +95,21 @@ describe('RoleGuard', () => {
     expect(guard.getFeatureGuard('environmentExport').allowed).toBe(false);
   });
 
-  it('enforces config-file disabled features and forced performance mode', async () => {
+  it('lets a config file hold performance at standard even when the user chose high-scale', async () => {
+    const guard = new RoleGuard(
+      { debug: vi.fn(), warn: vi.fn() },
+      {
+        getConfiguration: () => createConfiguration({ 'enterprise.mode': false, 'enterprise.role': 'admin', 'performance.mode': 'high-scale', 'offline.mode': false }) as never,
+        isWorkspaceTrusted: () => true,
+        getWorkspaceRoot: () => '/workspace',
+        readConfigFile: async () => JSON.stringify({ enforcedPerformanceMode: 'standard' })
+      }
+    );
+    await guard.refresh();
+    expect(guard.resolvePerformanceMode()).toBe('standard');
+  });
+
+  it('enforces disabled features but ignores config-file performance mode', async () => {
     const guard = new RoleGuard(
       {
         debug: vi.fn(),
@@ -125,7 +139,7 @@ describe('RoleGuard', () => {
 
     expect(guard.isEnterpriseModeEnabled()).toBe(true);
     expect(guard.getRole()).toBe('developer');
-    expect(guard.resolvePerformanceMode()).toBe('high-scale');
+    expect(guard.resolvePerformanceMode()).toBe('standard');
     expect(guard.getFeatureGuard('environmentExport').allowed).toBe(false);
   });
 

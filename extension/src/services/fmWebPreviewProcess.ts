@@ -4,6 +4,7 @@ import { chmod, lstat, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } 
 import { tmpdir } from 'os';
 import path from 'path';
 import * as vscode from 'vscode';
+import { serverOrigin } from '@fmweb/shared/dist/field-standards';
 
 /** Do not inherit npm configuration, Node injection hooks or public Next env values. */
 export function previewProcessEnv(source: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
@@ -56,9 +57,9 @@ export class FmWebPreviewProcess implements vscode.Disposable {
     this.options = { platform: process.platform, spawn, kill: process.kill, tempRoot: tmpdir(), sourceEnv: process.env, ...options };
   }
 
-  public start(files: Map<string, Buffer>, layouts: Map<string, Buffer>, bridgeUrl: string, token: string): Promise<void> {
+  public start(files: Map<string, Buffer>, layouts: Map<string, Buffer>, bridgeUrl: string, token: string, serverUrl?: string): Promise<void> {
     activePreviews.add(this);
-    this.starting = this.launch(files, layouts, bridgeUrl, token);
+    this.starting = this.launch(files, layouts, bridgeUrl, token, serverUrl);
     return this.starting;
   }
 
@@ -102,7 +103,7 @@ export class FmWebPreviewProcess implements vscode.Disposable {
     return { command: node, prefix: [cli] };
   }
 
-  private async launch(files: Map<string, Buffer>, layouts: Map<string, Buffer>, bridgeUrl: string, token: string): Promise<void> {
+  private async launch(files: Map<string, Buffer>, layouts: Map<string, Buffer>, bridgeUrl: string, token: string, serverUrl?: string): Promise<void> {
     await this.removeStaleDirectories();
     const directory = await mkdtemp(path.join(this.options.tempRoot, 'fmweb-preview-'));
     this.directory = directory;
@@ -135,7 +136,7 @@ export class FmWebPreviewProcess implements vscode.Disposable {
     const session = randomBytes(32).toString('hex');
     const child = this.options.spawn(npm, [...prefix, ...flags, 'run', 'dev', '--ignore-scripts', '--', '--hostname', '127.0.0.1', '--port', '3000'], {
       cwd: root, shell: false, windowsHide: true, detached: this.options.platform !== 'win32',
-      env: { ...env, FMWEB_BRIDGE_URL: bridgeUrl, FMWEB_BRIDGE_TOKEN: token,
+      env: { ...env, FMWEB_BRIDGE_URL: bridgeUrl, FMWEB_BRIDGE_TOKEN: token, FMWEB_SERVER_ORIGIN: serverOrigin(serverUrl),
         FMWEB_LAUNCH_CODE: launch, FMWEB_PREVIEW_SESSION: session,
         FMWEB_LAUNCH_EXPIRES: String(Date.now() + 120_000), FMWEB_LAUNCH_STATE: path.join(directory, 'launch-used') },
       stdio: ['ignore', 'pipe', 'pipe']

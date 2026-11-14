@@ -7,7 +7,7 @@ import type { LogLevel } from './logger';
 import type { SecretFallbackMode } from './secretStore';
 import { DEFAULT_CONTAINER_UPLOAD_MAX_BYTES, normalizeContainerUploadMaxBytes } from '../utils/containerUpload';
 import { usableRelativeDir } from '../utils/relativeDir';
-import { isFeatureEnabled, isOfflineModeOn } from '../utils/policySetting';
+import { isFeatureEnabled, isOfflineModeOn, readMaxRetries, readPerformanceMode } from '../utils/policySetting';
 import { isFormulaNeutralizationOn } from '../utils/userScopeSetting';
 
 /**
@@ -325,8 +325,7 @@ export class SettingsService {
   }
 
   public getPerformanceMode(): PerformanceMode {
-    const configured = this.getConfiguration('filemaker').get<string>('performance.mode', 'standard');
-    return configured === 'high-scale' ? 'high-scale' : 'standard';
+    return readPerformanceMode(this.getConfiguration('filemaker'));
   }
 
   public isOfflineModeEnabled(): boolean {
@@ -368,7 +367,7 @@ export class SettingsService {
     multiplier: number;
   } {
     const config = this.getConfiguration('filemaker');
-    const maxRetries = config.get<number>('connect.maxRetries', 3);
+    const maxRetries = readMaxRetries(config);
     const initialMs = config.get<number>('connect.backoffInitialMs', 1_000);
     const maxMs = config.get<number>('connect.backoffMaxMs', 30_000);
     const multiplier = config.get<number>('connect.backoffMultiplier', 2);

@@ -273,8 +273,11 @@ export function registerFmWebProjectCommands(
         const bridge = await fmBridgeServer.ensureStarted();
         const token = fmBridgeServer.getSessionToken();
         if (!token) throw new Error('Bridge session is not ready.');
+        const project = await fmWebProjectService.readProjectConfig();
+        const profileId = project?.activeProfileId ?? profileStore.getActiveProfileId();
+        const profile = profileId ? await profileStore.getProfile(profileId) : undefined;
         preview = new FmWebPreviewProcess();
-        await preview.start(await fmWebRuntimeGenerator.previewTemplateFiles(), layouts, bridge.baseUrl, token);
+        await preview.start(await fmWebRuntimeGenerator.previewTemplateFiles(), layouts, bridge.baseUrl, token, profile?.serverUrl);
         vscode.window.showInformationMessage('FM Web preview is ready in your browser. Restarting it invalidates the previous launch and session.');
       } catch (error) {
         await preview?.dispose().catch(() => logger.warn('Could not stop the private preview or finish its temporary-file cleanup.'));

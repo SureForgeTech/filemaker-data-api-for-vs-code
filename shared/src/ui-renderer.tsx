@@ -1,11 +1,13 @@
 import * as React from 'react';
 import { fieldKindNote, recordFieldKey, runtimeFieldKind } from './record-edit';
-import { checkboxValue, choiceDisplayType, FIELD_LAYOUT, preserveTextLineEndings, standardControlFor } from './field-standards';
+import { checkboxValue, choiceDisplayType, FIELD_LAYOUT, preserveTextLineEndings, serverOrigin, standardControlFor } from './field-standards';
 import { baseFieldName, orderFields } from './field-order';
 
 import type { FieldLayoutObject, LayoutDefinition, LayoutObject, PortalLayoutObject } from './layout-schema';
 
 export interface RuntimeLayoutData {
+  /** The profile server origin only; never credentials or a session token. */
+  serverOrigin?: string;
   fieldValues?: Record<string, unknown>;
   editing?: boolean;
   /** A new record has no values yet, so every field of the layout stays on the form. */
@@ -305,6 +307,7 @@ function FieldControl(props: {
     object,
     mode: props.mode,
     inputId,
+    serverOrigin: props.runtimeData?.serverOrigin,
     options: previewOptions,
     value: props.mode === 'designer' ? previewOptions[0] : value,
     originalValue: choiceSession.current.original,
@@ -356,6 +359,7 @@ function renderFieldDisplayControl(props: {
   object: FieldLayoutObject;
   mode: 'designer' | 'runtime';
   inputId: string;
+  serverOrigin?: string;
   options: string[];
   value: string;
   originalValue: string;
@@ -388,8 +392,9 @@ function renderFieldDisplayControl(props: {
 
   if (standard.kind === 'container') {
     if (!props.value) return <div {...common} className="fm-field-control fm-container fm-readonly" />;
-    // Container links are server URLs, never executable schemes from field text.
-    if (!/^https?:\/\//i.test(props.value)) return <div {...common} className="fm-field-control fm-container fm-readonly">{props.value}</div>;
+    // A record may only link to the profile server, never an arbitrary host.
+    const origin = serverOrigin(props.serverOrigin);
+    if (!origin || serverOrigin(props.value) !== origin) return <div {...common} className="fm-field-control fm-container fm-readonly">{props.value}</div>;
     const image = /\.(?:avif|bmp|gif|jpe?g|png|svg|webp)(?:[?#]|$)/i.test(props.value);
     // A container image that cannot be shown leaves its address behind, as a link.
     if (image && props.imageFailed) return <div {...common} className="fm-field-control fm-container fm-readonly">

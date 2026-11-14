@@ -1,4 +1,5 @@
 import type * as vscode from 'vscode';
+import { readUserScopeValue } from './userScopeSetting';
 
 export type ConfigurationReader = Pick<vscode.WorkspaceConfiguration, 'get'> &
   Partial<Pick<vscode.WorkspaceConfiguration, 'inspect'>>;
@@ -95,4 +96,20 @@ export function isFeatureEnabled(
   key: string
 ): boolean {
   return readRestrictedSetting(configuration, key, true, false);
+}
+
+/** Only the user's own application setting may select high-scale work. */
+export function readPerformanceMode(configuration: ConfigurationReader): 'standard' | 'high-scale' {
+  return readUserScopeValue(configuration, 'performance.mode',
+    (value): value is 'high-scale' => value === 'high-scale') ?? 'standard';
+}
+
+/** A workspace may reduce retries, never increase the user's baseline. */
+export function readMaxRetries(configuration: ConfigurationReader): number {
+  const valid = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
+  const limit = (value: number): number => Math.max(0, Math.min(10, Math.round(value)));
+  const inspected = configuration.inspect?.<number>('connect.maxRetries');
+  const baseline = limit(readUserScopeValue(configuration, 'connect.maxRetries', valid) ?? 3);
+  return [inspected?.workspaceValue, inspected?.workspaceFolderValue]
+    .reduce<number>((lowest, value) => valid(value) ? Math.min(lowest, limit(value)) : lowest, baseline);
 }

@@ -279,7 +279,11 @@ export class ScriptRunnerPanel {
         return;
       }
 
-      this.logger.warn('Script runner failed.', { error, payload });
+      this.logger.warn('Script runner failed.', {
+        scriptName: payload.scriptName,
+        layout: payload.layout,
+        code: error instanceof FMClientError ? error.code : undefined
+      });
       await this.postError(formatError(error));
     }
   }

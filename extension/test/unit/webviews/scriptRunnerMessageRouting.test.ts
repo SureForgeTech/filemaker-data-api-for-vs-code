@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { FMClientError } from '../../../src/services/errors';
 import { generateSnippet } from '../../../src/snippets';
 import { ScriptRunnerPanel } from '../../../src/webviews/scriptRunner';
 import { InMemoryMemento } from '../mocks';
@@ -84,6 +85,17 @@ describe('Script Runner: message routing', () => {
 
   afterEach(() => {
     panel.close();
+  });
+
+  it('logs only the script name, exact layout and error code on failure', async () => {
+    panel.fmClient.runScript.mockRejectedValue(new FMClientError('private server detail', {
+      code: '102', details: { response: 'private response' }
+    }));
+    await panel.send({ type: 'runScript', payload: { ...script, scriptParam: 'private parameter' } });
+    expect(panel.logger.warn).toHaveBeenCalledWith('Script runner failed.', {
+      scriptName: script.scriptName, layout: script.layout, code: '102'
+    });
+    expect(JSON.stringify(panel.logger.warn.mock.calls)).not.toContain('private');
   });
 
   describe('every message reaches its handler', () => {
