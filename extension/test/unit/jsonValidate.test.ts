@@ -69,6 +69,15 @@ describe('validateServerUrl', () => {
     expect(validateServerUrl('https://admin@fm.example.com').ok).toBe(false);
   });
 
+  it.each(['?tenant=other', '#other', '?tenant=other#other'])('rejects query strings and fragments: %s', (suffix) => {
+    for (const label of ['Server URL', 'Proxy endpoint']) {
+      expect(validateServerUrl(`https://fm.example.com/tenant${suffix}`, label)).toEqual({
+        ok: false,
+        error: `${label} must not contain a query string or fragment.`
+      });
+    }
+  });
+
   it('uses the given label in messages', () => {
     expect(validateServerUrl('', 'Proxy endpoint').error).toBe('Proxy endpoint is required.');
     expect(validateServerUrl('ftp://x', 'Proxy endpoint').error).toMatch(/^Proxy endpoint must start with/);

@@ -3,6 +3,7 @@ import type { ConnectionProfile } from '../../types/fm';
 import { isUnencryptedRemoteUrl } from '../../utils/jsonValidate';
 import { PROFILE_TEMPLATE_RELATIVE_PATH } from '../../services/profileTemplate';
 import type { WizardContext } from './context';
+import type { WizardFormData } from './types';
 
 export function originOf(url: string | undefined): string | undefined {
   if (!url) {
@@ -15,16 +16,26 @@ export function originOf(url: string | undefined): string | undefined {
   }
 }
 
+/** The path prefix can select a different application behind the same gateway. */
+function credentialAddress(url: string | undefined): string | undefined {
+  if (!url) {
+    return undefined;
+  }
+  try {
+    const parsed = new URL(url);
+    return `${parsed.origin}${parsed.pathname.replace(/\/+$/, '')}`;
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * True when the saved credentials of the profile being edited would now go to a different
  * server or user than the ones they were saved for.
  */
 export function credentialBindingChanged(
   ctx: WizardContext,
-  authMode: 'direct' | 'proxy',
-  target: string | undefined,
-  username: string | undefined,
-  backend: string | undefined
+  data: WizardFormData
 ): boolean {
   const editing = ctx.editingProfile;
   if (!editing) {
@@ -33,21 +44,30 @@ export function credentialBindingChanged(
 
   const before = {
     authMode: editing.authMode,
-    origin: originOf(editing.authMode === 'proxy' ? editing.proxyEndpoint : editing.serverUrl),
-    backend: originOf(editing.serverUrl),
-    username: editing.authMode === 'direct' ? (editing.username ?? '').trim() : ''
+    origin: credentialAddress(editing.authMode === 'proxy' ? editing.proxyEndpoint : editing.serverUrl),
+    backend: credentialAddress(editing.serverUrl),
+    username: editing.authMode === 'direct' ? (editing.username ?? '').trim() : '',
+    database: editing.database.trim(),
+    apiBasePath: editing.apiBasePath?.trim() ?? '/fmi/data',
+    apiVersionPath: editing.apiVersionPath?.trim() ?? 'vLatest'
   };
   const after = {
-    authMode,
-    origin: originOf(target),
-    backend: originOf(backend),
-    username: authMode === 'direct' ? (username ?? '').trim() : ''
+    authMode: data.authMode,
+    origin: credentialAddress(data.authMode === 'proxy' ? data.proxyEndpoint : data.serverUrl),
+    backend: credentialAddress(data.serverUrl),
+    username: data.authMode === 'direct' ? (data.username ?? '').trim() : '',
+    database: data.database.trim(),
+    apiBasePath: data.apiBasePath.trim(),
+    apiVersionPath: data.apiVersionPath.trim()
   };
   return (
     before.authMode !== after.authMode ||
     before.origin !== after.origin ||
     before.backend !== after.backend ||
-    before.username !== after.username
+    before.username !== after.username ||
+    before.database !== after.database ||
+    before.apiBasePath !== after.apiBasePath ||
+    before.apiVersionPath !== after.apiVersionPath
   );
 }
 

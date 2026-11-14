@@ -58,19 +58,14 @@ export async function handleSave(ctx: WizardContext, data: WizardFormData): Prom
     }
 
     const typedSecret = data.authMode === 'direct' ? data.password : data.proxyApiKey;
-    const bindingChanged = credentialBindingChanged(ctx,
-      data.authMode,
-      data.authMode === 'direct' ? serverValidation.value : proxyEndpoint,
-      data.username,
-      serverValidation.value
-    );
+    const bindingChanged = credentialBindingChanged(ctx, data);
     if (bindingChanged && !(typedSecret && typedSecret.length > 0)) {
       await ctx.panel.webview.postMessage({
         type: 'saveError',
         message:
           data.authMode === 'direct'
-            ? 'The server address or user name changed. Enter the password again so the saved one is not sent to a different server.'
-            : 'The proxy address changed. Enter the proxy API key again so the saved one is not sent to a different server.'
+            ? 'The server address, database, API path or user name changed. Enter the password again so the saved one is not sent to a different server.'
+            : 'The proxy address, server, database or API path changed. Enter the proxy API key again so the saved one is not sent to a different server.'
       });
       return;
     }

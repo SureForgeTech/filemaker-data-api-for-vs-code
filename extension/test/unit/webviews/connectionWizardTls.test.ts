@@ -8,6 +8,8 @@ import * as vscode from 'vscode';
 
 import { FMClientError } from '../../../src/services/errors';
 import { SecretStore } from '../../../src/services/secretStore';
+import { clearCertificateForChangedAddress } from '../../../src/webviews/connectionWizard/certificates';
+import type { WizardContext } from '../../../src/webviews/connectionWizard/context';
 import { ConnectionWizardPanel } from '../../../src/webviews/connectionWizard';
 import { JSDOM, loadPage } from '../../helpers/jsdomPage';
 import { DAY, makeCertificate, newKeyPair } from '../../helpers/x509';
@@ -198,6 +200,93 @@ describe('Connection wizard certificate trust', () => {
     expect(h.last('certificateState')?.payload).toMatchObject({ legacy: false, pin: { sha256: PIN, allowExpired: true } });
     await h.fire({ type: 'save', payload: form });
     expect(h.savedProfile()).toMatchObject({ pinnedCertSha256: PIN, pinnedCertAllowExpired: true });
+    expect(h.savedProfile()?.allowSelfSigned).toBeUndefined();
+  });
+
+  it.each([false, true])('clears legacy trust and its CA path after an address change (pin: %s)', async (withPin) => {
+    const caBundlePath = path.join(dir, 'old-server-ca.pem');
+    await writeFile(caBundlePath, CERT);
+    const h = await setup({ ...saved, allowSelfSigned: true, caBundlePath, pinnedCertSha256: withPin ? PIN : undefined });
+    const moved = { ...form, serverUrl: 'https://other.example.com', caBundlePath };
+
+    await h.fire({ type: 'addressChanged', payload: moved });
+    expect(h.last('certificateState')?.payload).toEqual({ legacy: false, pin: undefined });
+    expect(h.last('certificateNotice')?.message).toMatch(/server address changed/);
+    expect(h.posted).toContainEqual({ type: 'caBundlePicked', path: '' });
+    // A stale form must not restore the old CA path on Save.
+    await h.fire({ type: 'save', payload: moved });
+    expect(h.savedProfile()).toBeDefined();
+    expect(h.savedProfile()?.allowSelfSigned).toBeUndefined();
+    expect(h.savedProfile()?.pinnedCertSha256).toBeUndefined();
+    expect(h.savedProfile()?.caBundlePath).toBeUndefined();
+  });
+
+  it.each(['save', 'testConnection'])('clears legacy trust and the CA path at %s without an addressChanged message', async (type) => {
+    const caBundlePath = path.join(dir, 'old-server-ca.pem');
+    const h = await setup({ ...saved, allowSelfSigned: true, caBundlePath });
+    // The old CA need not even be readable for the new address to use normal verification.
+    await h.fire({ type, payload: { ...form, serverUrl: 'https://other.example.com', caBundlePath } });
+    expect(h.last('certificateState')?.payload).toMatchObject({ legacy: false });
+    expect(h.last('certificateNotice')?.message).toMatch(/older setting.*cleared/);
+    const profile = type === 'save' ? h.savedProfile() : (h.fmClient.createSession.mock.calls[0] as unknown as [Record<string, unknown>] | undefined)?.[0];
+    expect(profile).toBeDefined();
+    expect(profile?.allowSelfSigned).toBeUndefined();
+    expect(profile?.caBundlePath).toBeUndefined();
+  });
+
+  it('compares legacy trust against the original profile address when certificateTarget is unset', async () => {
+    const profile = { ...saved, allowSelfSigned: true, caBundlePath: '/old/ca.pem' };
+    const postMessage = vi.fn(async () => true);
+    const ctx = {
+      editingProfile: profile, certificateTarget: undefined, certState: { legacy: true },
+      panel: { webview: { postMessage } }
+    } as unknown as WizardContext;
+    await clearCertificateForChangedAddress(ctx, { ...form, authMode: 'direct' });
+    expect(ctx.certState.legacy).toBe(true);
+    expect(postMessage).not.toHaveBeenCalled();
+
+    const moved = { ...form, authMode: 'direct' as const, serverUrl: 'https://other.example.com', caBundlePath: profile.caBundlePath };
+    await clearCertificateForChangedAddress(ctx, moved);
+    expect(ctx.certState).toEqual({ legacy: false });
+    expect(moved.caBundlePath).toBeUndefined();
+    expect(profile.serverUrl).toBe(saved.serverUrl);
+  });
+
+  it('clears a custom CA without a pin or legacy flag when the server changes', async () => {
+    const caBundlePath = path.join(dir, 'old-ca.pem');
+    const h = await setup({ ...saved, caBundlePath });
+    await h.fire({ type: 'save', payload: { ...form, serverUrl: 'https://other.example.com', caBundlePath } });
+    expect(h.savedProfile()).toBeDefined();
+    expect(h.savedProfile()?.caBundlePath).toBeUndefined();
+  });
+
+  it('keeps a CA file chosen for the new address after the old one was cleared', async () => {
+    const oldCa = path.join(dir, 'old-ca.pem');
+    const newCa = path.join(dir, 'new-ca.pem');
+    await writeFile(newCa, CERT);
+    const h = await setup({ ...saved, caBundlePath: oldCa });
+    const moved = { ...form, serverUrl: 'https://other.example.com' };
+    await h.fire({ type: 'addressChanged', payload: { ...moved, caBundlePath: oldCa } });
+    await h.fire({ type: 'save', payload: { ...moved, caBundlePath: newCa } });
+    expect(h.savedProfile()?.caBundlePath).toBe(newCa);
+  });
+
+  it('forgetting a pin keeps legacy trust until the address changes, and returning does not restore it', async () => {
+    const h = await setup({ ...saved, allowSelfSigned: true, pinnedCertSha256: PIN });
+    await h.fire({ type: 'forgetCertificate' });
+    expect(h.last('certificateState')?.payload).toEqual({ legacy: true, pin: undefined });
+    await h.fire({ type: 'addressChanged', payload: { ...form, serverUrl: 'https://other.example.com' } });
+    expect(h.last('certificateState')?.payload).toEqual({ legacy: false, pin: undefined });
+    await h.fire({ type: 'save', payload: form });
+    expect(h.savedProfile()).toBeDefined();
+    expect(h.savedProfile()?.allowSelfSigned).toBeUndefined();
+  });
+
+  it('clears legacy proxy trust when the backend changes', async () => {
+    const proxy = { ...saved, authMode: 'proxy', proxyEndpoint: 'https://proxy.example.com/api', allowSelfSigned: true };
+    const h = await setup(proxy);
+    await h.fire({ type: 'save', payload: { ...form, authMode: 'proxy', proxyEndpoint: proxy.proxyEndpoint, serverUrl: 'https://other.example.com', proxyApiKey: 'typed' } });
+    expect(h.savedProfile()).toBeDefined();
     expect(h.savedProfile()?.allowSelfSigned).toBeUndefined();
   });
 

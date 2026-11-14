@@ -1,11 +1,11 @@
-import { mkdtemp, writeFile } from 'fs/promises';
+import { mkdtemp, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { rootCertificates } from 'tls';
 import { describe, expect, it } from 'vitest';
 
 import { FMClientError } from '../../src/services/errors';
-import { createHttpsAgentForProfile } from '../../src/services/tlsAgent';
+import { checkPinnedCertificate, createHttpsAgentForProfile } from '../../src/services/tlsAgent';
 import { DAY, makeCertificate, newKeyPair } from '../helpers/x509';
 
 const realPem = (cn: string): string =>
@@ -58,6 +58,44 @@ describe('createHttpsAgentForProfile', () => {
 
     expect(agent.options.rejectUnauthorized).toBe(false);
     expect((agent.options.ca as string[]).at(-1)).toBe(pem);
+  });
+
+  it.each(['PRIVATE KEY', 'RSA PRIVATE KEY', 'EC PRIVATE KEY', 'ENCRYPTED PRIVATE KEY'])('refuses a CA bundle containing a %s at read time', async (block) => {
+    const root = await mkdtemp(join(tmpdir(), 'fm-ca-'));
+    try {
+      const caPath = join(root, 'ca.pem');
+      await writeFile(caPath, realPem('before-edit'));
+      const first = createHttpsAgentForProfile({ caBundlePath: caPath });
+      await writeFile(caPath, `${realPem('after-edit')}-----BEGIN ${block}-----\nfixture\n-----END ${block}-----\n`);
+
+      expect(() => createHttpsAgentForProfile({ caBundlePath: caPath })).toThrow(/contains a private key/);
+      expect(first.options.rejectUnauthorized).toBe(true);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses a CA bundle larger than 1 MB at read time', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'fm-ca-'));
+    try {
+      const caPath = join(root, 'large.pem');
+      await writeFile(caPath, realPem('large') + ' '.repeat(1024 * 1024));
+      expect(() => createHttpsAgentForProfile({ caBundlePath: caPath })).toThrow(/larger than 1 MB/);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('accepts a CA bundle exactly 1 MB in size', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'fm-ca-'));
+    try {
+      const caPath = join(root, 'limit.pem');
+      const pem = realPem('limit');
+      await writeFile(caPath, pem + ' '.repeat(1024 * 1024 - Buffer.byteLength(pem)));
+      expect(createHttpsAgentForProfile({ caBundlePath: caPath }).options.rejectUnauthorized).toBe(true);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 
   it('fails closed when the PEM file is missing', () => {
@@ -117,5 +155,27 @@ describe('createHttpsAgentForProfile', () => {
     } finally {
       setSystemCertificatePolicy(() => false);
     }
+  });
+});
+
+describe('checkPinnedCertificate validity dates', () => {
+  const sha256 = 'ab'.repeat(32);
+  const now = Date.parse('2026-11-13T12:00:00Z');
+  const valid = { fingerprint256: sha256, valid_from: '2026-11-12T12:00:00Z', valid_to: '2026-11-14T12:00:00Z' };
+
+  it.each([
+    { valid_from: undefined }, { valid_from: '' }, { valid_from: 'invalid' },
+    { valid_to: undefined }, { valid_to: '' }, { valid_to: 'invalid' }
+  ])('fails closed for missing or unparseable validity dates: %j', (dates) => {
+    const presented = { ...valid, ...dates };
+    expect(checkPinnedCertificate(presented, { sha256, allowExpired: false }, now)).toMatchObject({ code: 'FM_CERT_PIN_EXPIRED' });
+    expect(checkPinnedCertificate(presented, { sha256, allowExpired: true }, now)).toBeUndefined();
+  });
+
+  it('keeps valid dates, expiry, future validity and fingerprint checks', () => {
+    expect(checkPinnedCertificate(valid, { sha256, allowExpired: false }, now)).toBeUndefined();
+    expect(checkPinnedCertificate(valid, { sha256, allowExpired: false }, now + 2 * DAY)).toMatchObject({ code: 'FM_CERT_PIN_EXPIRED' });
+    expect(checkPinnedCertificate(valid, { sha256, allowExpired: false }, now - 2 * DAY)).toMatchObject({ code: 'CERT_NOT_YET_VALID' });
+    expect(checkPinnedCertificate({ ...valid, fingerprint256: 'cd'.repeat(32) }, { sha256, allowExpired: true }, now)).toMatchObject({ code: 'FM_CERT_PIN_MISMATCH' });
   });
 });

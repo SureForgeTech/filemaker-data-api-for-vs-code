@@ -103,6 +103,16 @@ describe('ProfileStore', () => {
     expect(profiles[0]?.id).toBe('valid-profile');
   });
 
+  it.each(['?tenant=other', '#other'])('handles stored addresses with %s without crashing and refuses to save them', async (suffix) => {
+    const globalState = new InMemoryMemento();
+    const store = new ProfileStore(globalState as never, new InMemoryMemento() as never);
+    const invalid = { ...createProfile('invalid'), serverUrl: `https://fm.example.com${suffix}` };
+    await globalState.update('filemakerDataApiTools.profiles', [createProfile('valid'), invalid]);
+
+    expect((await store.listProfiles()).map((profile) => profile.id)).toEqual(['valid']);
+    await expect(store.upsertProfile(invalid)).rejects.toThrow('Server URL must not contain a query string or fragment.');
+  });
+
   it('keeps a profile saved with a user name in its address visible, but will not save one', async () => {
     const globalState = new InMemoryMemento();
     const workspaceState = new InMemoryMemento();
