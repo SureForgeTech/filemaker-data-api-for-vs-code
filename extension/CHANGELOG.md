@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Security**
+
+- Changing a connection address clears old certificate exceptions and custom CA files. Saved credentials must be entered again when the gateway path, API path or database changes. Server addresses with query strings or fragments are refused, CA files are limited to 1 MB and cannot contain private keys, and pinned certificates with unreadable validity dates are refused unless explicitly accepted.
+
 ## 1.9.0
 
 _Release notes prepared 2026-11-13._

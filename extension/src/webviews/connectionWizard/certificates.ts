@@ -45,11 +45,24 @@ export function certificateAddress(data: Pick<WizardFormData, 'authMode' | 'serv
 
 export async function clearCertificateForChangedAddress(ctx: WizardContext, data: WizardFormData): Promise<void> {
   const target = certificateAddress(data);
-  if (ctx.certState.pin && target !== ctx.certificateTarget) {
+  // Before the page's ready message, the saved profile is the only record of the original address.
+  const trustedTarget = ctx.certificateTarget ?? (ctx.editingProfile ? certificateAddress(ctx.editingProfile) : undefined);
+  if ((ctx.certState.pin || ctx.certState.legacy || ctx.editingProfile?.caBundlePath) && target !== trustedTarget) {
+    const cleared = ctx.certState.legacy
+      ? 'The older setting that skips all certificate checks was cleared.'
+      : ctx.certState.pin ? 'The trusted certificate was cleared.' : 'The custom CA certificate file was cleared.';
     ctx.certState = { legacy: false };
-    ctx.certificateTarget = undefined;
+    // Nothing is trusted for the new address yet, so later checks compare against it and a CA file
+    // the user chooses afterwards is kept.
+    ctx.certificateTarget = target;
+    // Clear the submitted field too: Save/Test may arrive without an addressChanged message,
+    // or with the old CA path still in the form. The saved profile's address stays unchanged.
+    if (data.caBundlePath || ctx.editingProfile?.caBundlePath) {
+      data.caBundlePath = undefined;
+      await ctx.panel.webview.postMessage({ type: 'caBundlePicked', path: '' });
+    }
     await sendCertificateState(ctx);
-    await ctx.panel.webview.postMessage({ type: 'certificateNotice', message: 'The server address changed. The trusted certificate was cleared. Review the certificate for this address before trusting it.' });
+    await ctx.panel.webview.postMessage({ type: 'certificateNotice', message: `The server address changed. ${cleared} Review the certificate for this address before trusting it.` });
   }
 }
 

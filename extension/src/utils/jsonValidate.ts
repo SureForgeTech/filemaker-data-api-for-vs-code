@@ -112,6 +112,13 @@ export function validateServerUrl(
       };
     }
 
+    if (parsed.search || parsed.hash) {
+      return {
+        ok: false,
+        error: `${label} must not contain a query string or fragment.`
+      };
+    }
+
     return {
       ok: true,
       value: parsed.toString().replace(/\/+$/, '')
