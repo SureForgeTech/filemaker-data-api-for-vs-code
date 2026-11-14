@@ -1,4 +1,10 @@
 import { join } from 'path';
+import { lstat } from 'fs/promises';
+import type * as FsPromises from 'fs/promises';
+
+vi.mock('fs/promises', async (importOriginal) => ({
+  ...await importOriginal<typeof FsPromises>(), lstat: vi.fn()
+}));
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as vscode from 'vscode';
 
@@ -42,7 +48,10 @@ function updateInputs(dryRun = true, path = join('/tmp', 'input.json')) {
 }
 
 describe('batch commands', () => {
-  beforeEach(resetCommandMocks);
+  beforeEach(() => {
+    resetCommandMocks();
+    vi.mocked(lstat).mockReset().mockRejectedValue(Object.assign(new Error('missing'), { code: 'ENOENT' }));
+  });
 
   it.each(['batchExportFind', 'batchUpdateFromFile'])('%s opens only one set of dialogs during rapid repeated commands', async (name) => {
     setup();
@@ -198,6 +207,29 @@ describe('batch commands', () => {
     await tasks[0]!({ log: vi.fn() } as never);
     expect(batchService.batchExportFind).toHaveBeenCalledWith(profile, layout, { query: [{ Name: '*' }], sort: undefined },
       { outputPath: join('/tmp', 'results.jsonl'), format: 'jsonl', excelCompatible: false, maxRecords: 250 }, expect.anything());
+  });
+
+  it.each([undefined, 'Overwrite'])('requires explicit consent for an existing rewritten JSONL destination (%s)', async (answer) => {
+    const { roleGuard, jobRunner } = setup();
+    roleGuard.resolvePerformanceMode.mockReturnValue('high-scale');
+    exportInputs();
+    vi.mocked(lstat).mockResolvedValue({} as never);
+    vi.mocked(vscode.window.showWarningMessage).mockResolvedValue(answer as never);
+    await command('batchExportFind')(arg);
+    expect(lstat).toHaveBeenCalledWith(join('/tmp', 'results.jsonl'));
+    expect(vscode.window.showWarningMessage).toHaveBeenCalledWith(
+      expect.stringContaining('This file already exists. Replace it?'), { modal: true }, 'Overwrite');
+    expect(jobRunner.startJob).toHaveBeenCalledTimes(answer === 'Overwrite' ? 1 : 0);
+  });
+
+  it('aborts if the rewritten export destination cannot be checked', async () => {
+    const { roleGuard, jobRunner } = setup();
+    roleGuard.resolvePerformanceMode.mockReturnValue('high-scale');
+    exportInputs();
+    vi.mocked(lstat).mockRejectedValue(Object.assign(new Error('denied'), { code: 'EACCES' }));
+    await command('batchExportFind')(arg);
+    expect(jobRunner.startJob).not.toHaveBeenCalled();
+    expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining('Export cancelled'));
   });
 
   it('does not schedule an export when find input is cancelled', async () => {

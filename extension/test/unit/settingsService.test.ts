@@ -36,6 +36,16 @@ function createSettings(overrides?: ConfigMap, trusted = true): SettingsService 
 }
 
 describe('SettingsService', () => {
+  it('ignores workspace performance mode and caps workspace retries at the user value', () => {
+    const settings = new SettingsService({
+      getConfiguration: () => ({ get: () => 'high-scale', inspect: (key: string) => key === 'performance.mode'
+        ? { workspaceValue: 'high-scale' } : { globalValue: 1, workspaceValue: 10 } }) as never,
+      isWorkspaceTrusted: () => true
+    });
+    expect(settings.getPerformanceMode()).toBe('standard');
+    expect(settings.getConnectBackoffPolicy().maxRetries).toBe(1);
+  });
+
   it('uses defaults when values are missing', () => {
     const settings = createSettings();
     expect(settings.getLoggingLevel()).toBe('info');

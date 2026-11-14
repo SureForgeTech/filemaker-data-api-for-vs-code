@@ -19,7 +19,7 @@ export type {
 export { LayoutContainer, applyAnchoredRuntimeRect, computePortalVisibleRange } from './ui-renderer';
 export type { LayoutRendererProps, RuntimeLayoutData } from './ui-renderer';
 
-export { FIELD_LAYOUT, standardFieldSize, standardFieldsCss, applyStandardField, standardControlFor, createStandardControl, orderFields } from './field-standards';
+export { FIELD_LAYOUT, standardFieldSize, standardFieldsCss, applyStandardField, standardControlFor, createStandardControl, serverOrigin, orderFields } from './field-standards';
 export type { StandardFieldMetadata, StandardControlKind } from './field-standards';
 
 export * from './record-edit';

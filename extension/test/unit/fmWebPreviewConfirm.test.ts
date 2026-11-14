@@ -40,10 +40,10 @@ function start() {
 
   registerFmWebProjectCommands({
     context: {} as never,
-    profileStore: {} as never,
+    profileStore: { getActiveProfileId: () => 'p1', getProfile: async () => ({ serverUrl: 'https://fm.example.com/fmi' }) } as never,
     fmClient: {} as never,
     schemaService: {} as never,
-    fmWebProjectService: {} as never,
+    fmWebProjectService: { readProjectConfig: async () => ({ activeProfileId: 'p1' }) } as never,
     fmWebRuntimeGenerator: generator as never,
     fmBridgeServer: bridge as never,
     roleGuard: { assertFeature: vi.fn(async () => true) } as never,
@@ -103,7 +103,7 @@ describe('FM Web preview', () => {
     await run();
 
     expect(terminal.sendText).not.toHaveBeenCalled();
-    expect(processStart).toHaveBeenCalledWith(expect.any(Map), expect.any(Map), 'http://127.0.0.1:1234', 'session-token');
+    expect(processStart).toHaveBeenCalledWith(expect.any(Map), expect.any(Map), 'http://127.0.0.1:1234', 'session-token', 'https://fm.example.com/fmi');
   });
 
   it('passes bridge credentials only to the private process, leaving runtime env files untouched', async () => {
@@ -113,7 +113,7 @@ describe('FM Web preview', () => {
     await run();
 
     expect(generator.writeBridgeEnv).not.toHaveBeenCalled();
-    expect(processStart).toHaveBeenCalledWith(expect.any(Map), expect.any(Map), 'http://127.0.0.1:1234', 'session-token');
+    expect(processStart).toHaveBeenCalledWith(expect.any(Map), expect.any(Map), 'http://127.0.0.1:1234', 'session-token', 'https://fm.example.com/fmi');
   });
 
   it('warns once about a previous stop failure and still starts the next preview', async () => {
@@ -139,7 +139,7 @@ describe('FM Web preview', () => {
       .mockResolvedValueOnce({ outputPath }).mockRejectedValueOnce(new GenerationSkippedError('linked.layout.json'));
     vi.mocked(vscode.window.showWarningMessage).mockResolvedValue('Run' as never);
     await run();
-    expect(processStart).toHaveBeenCalledWith(expect.any(Map), new Map([['good.layout.json', Buffer.from('{"name":" Exact good layout "}')]]), expect.any(String), expect.any(String));
+    expect(processStart).toHaveBeenCalledWith(expect.any(Map), new Map([['good.layout.json', Buffer.from('{"name":" Exact good layout "}')]]), expect.any(String), expect.any(String), 'https://fm.example.com/fmi');
     const warnings = vi.mocked(vscode.window.showWarningMessage).mock.calls.map(([message]) => String(message));
     expect(warnings.some((message) => message.includes('skipped') && message.includes(' Edited layout ') && message.includes(' Linked layout '))).toBe(true);
     expect(vscode.window.showErrorMessage).not.toHaveBeenCalled();

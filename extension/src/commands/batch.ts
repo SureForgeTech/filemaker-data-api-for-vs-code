@@ -1,3 +1,4 @@
+import { lstat } from 'fs/promises';
 import { safeFileName } from '../utils/safeText';
 import { displayText } from '../ai/aiText';
 import * as vscode from 'vscode';
@@ -105,6 +106,22 @@ export function registerBatchCommands(deps: RegisterBatchCommandsDeps): vscode.D
         performanceMode === 'high-scale' && selectedFormat !== 'jsonl'
           ? replaceExtension(outputUri.fsPath, '.jsonl')
           : outputUri.fsPath;
+
+      if (outputPath !== outputUri.fsPath) {
+        try {
+          await lstat(outputPath);
+          const answer = await vscode.window.showWarningMessage(
+            `High-scale export uses ${displayText(outputPath)}. This file already exists. Replace it?`,
+            { modal: true }, 'Overwrite'
+          );
+          if (answer !== 'Overwrite') return;
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+            vscode.window.showErrorMessage('Could not check the JSONL export destination. Export cancelled.');
+            return;
+          }
+        }
+      }
 
       const csvChoice = format === 'csv'
         ? await vscode.window.showQuickPick(['Standard CSV', 'Excel-compatible CSV (UTF-8 BOM)'], { title: 'CSV format' })

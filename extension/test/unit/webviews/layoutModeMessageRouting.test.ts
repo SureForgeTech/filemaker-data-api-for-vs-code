@@ -177,7 +177,7 @@ describe('Layout Mode: message routing', () => {
 
       expect(panel.logger.warn).toHaveBeenCalledWith(
         'Layout behavior execution reported a non-ok result.',
-        expect.objectContaining({ result: expect.objectContaining({ ok: false }) })
+        { scriptName: undefined, layout: 'Customers', codes: [] }
       );
       expect(panel.posted).toContainEqual({
         type: 'behaviorResult',
@@ -256,6 +256,24 @@ describe('Layout Mode: message routing', () => {
     });
   });
 
+  it('logs names and script codes without parameters or server response details', async () => {
+    panel.close();
+    panel = open({ getActiveProfileId: () => 'p1', getProfile: async () => ({ id: 'p1', name: 'Test', serverUrl: 'https://example.test', authMode: 'direct' }) });
+    (vscode.workspace as unknown as { isTrusted: boolean }).isTrusted = true;
+    vi.mocked(vscode.window.showWarningMessage).mockResolvedValue('Run script' as never);
+    panel.fmClient.runScript.mockResolvedValue({
+      response: { scriptError: '3', scriptResult: 'private server response' }
+    } as never);
+    await panel.send({ type: 'executeBehavior', payload: {
+      layoutId: 'layout-1', layoutName: ' Exact layout ', fmLayoutName: ' Exact source ', objectId: 'obj-1',
+      objectName: 'Button', behavior: { type: 'runScript', scriptName: ' Exact script ', parameter: 'private parameter' }
+    } });
+    expect(panel.logger.warn).toHaveBeenCalledWith('Layout behavior execution reported a non-ok result.', {
+      scriptName: ' Exact script ', layout: ' Exact source ', codes: ['3']
+    });
+    expect(JSON.stringify(panel.logger.warn.mock.calls)).not.toContain('private');
+  });
+
   describe('a failure is posted to the webview as an error', () => {
     it('reports a project that cannot be opened, in the payload the page reads', async () => {
       panel.close();
@@ -324,7 +342,7 @@ describe('Layout Mode: message routing', () => {
       });
       expect(panel.logger.error).toHaveBeenCalledWith(
         'Failed to execute layout behavior binding.',
-        expect.objectContaining({ error: expect.any(Error) })
+        { scriptName: 'Purge Records', layout: 'Customers', code: undefined }
       );
     });
 

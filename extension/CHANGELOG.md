@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Container fields in FM Web show images and links only from the connection’s own server. High-scale export asks before replacing an existing JSONL file after changing the selected extension. Script failure logs omit parameters and server response details. Projects cannot select performance mode or raise your connection retry limit.
+
 ## 1.9.0
 
 _Release notes prepared 2026-11-13._

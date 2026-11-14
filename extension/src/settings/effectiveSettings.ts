@@ -10,7 +10,7 @@ import { readAiSettings, isExternalServerEnabled } from '../ai/aiSettings';
 import type { RoleGuard } from '../enterprise/roleGuard';
 import type { SettingsService } from '../services/settingsService';
 import { buildWebviewCsp, createNonce } from '../webviews/common/csp';
-import { inspectRestrictedSetting, readRestrictedSetting } from '../utils/policySetting';
+import { inspectRestrictedSetting, readRestrictedSetting, readMaxRetries, readPerformanceMode } from '../utils/policySetting';
 import { isFormulaNeutralizationOn, readUserScopeString } from '../utils/userScopeSetting';
 import {
   EMPTY_NOTICE_STATE,
@@ -124,6 +124,10 @@ function effectiveValue(
   const fallback = inspected?.defaultValue;
   const ai = (): ReturnType<typeof readAiSettings> => readAiSettings(config);
   switch (setting.key) {
+    case 'connect.maxRetries':
+      return readMaxRetries(config);
+    case 'performance.mode':
+      return readPerformanceMode(config);
     case 'enterprise.mode':
       return readRestrictedSetting(config, setting.key, false, true) || enterpriseFile.enterpriseMode === true;
     case 'enterprise.role':

@@ -111,6 +111,22 @@ describe('LayoutContainer object rendering', () => {
     expect(screen.getByText(/Use the server's date format/)).toBeTruthy();
   });
 
+  it.each([
+    [undefined, 'https://example.test/photo.png'],
+    ['https://example.test', 'https://evil.test/photo.png'],
+    ['https://example.test', 'https://example.test.evil.test/file.pdf'],
+    ['https://example.test', 'http://example.test/photo.png'],
+    ['https://example.test', 'https://example.test:8443/file.pdf'],
+    ['invalid', 'https://example.test/file.pdf']
+  ])('shows container text without a request or link for origin %s and value %s', (origin, value) => {
+    const layout = layoutWith([field(' Exact photo ', ids[0], { kind: 'container' })]);
+    const { container } = render(<LayoutContainer layout={layout} mode="runtime" runtimeData={{
+      serverOrigin: origin, fieldValues: { ' Exact photo ': value }
+    }} />);
+    expect(container.querySelector('a,img')).toBeNull();
+    expect(screen.getByText(value).textContent).toBe(value);
+  });
+
   it('retains unmatched choices and treats container text as data, never as an executable URL', () => {
     const onFieldChange = vi.fn();
     const layout = layoutWith([
@@ -120,6 +136,7 @@ describe('LayoutContainer object rendering', () => {
     ]);
     const { container } = render(<LayoutContainer layout={layout} mode="runtime" runtimeData={{
       editing: true,
+      serverOrigin: 'https://example.test',
       fieldValues: { Status: ' Unlisted ', Unsafe: 'javascript:alert(1)', Photo: 'https://example.test/photo.png' },
       onFieldChange
     }} />);

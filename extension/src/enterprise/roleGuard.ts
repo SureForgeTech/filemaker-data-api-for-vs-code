@@ -5,7 +5,7 @@ import * as vscode from 'vscode';
 
 import { ROLE_RANK } from './roles';
 import type { EnterpriseRole, PerformanceMode } from '../types/fm';
-import { isOfflineModeOn } from '../utils/policySetting';
+import { isOfflineModeOn, readPerformanceMode } from '../utils/policySetting';
 
 const ENTERPRISE_CONFIG_RELATIVE_PATH = '.vscode/filemaker.config.json';
 
@@ -31,7 +31,8 @@ export interface EnterpriseConfigFile {
   lockedProfiles?: string[];
   disabledFeatures?: EnterpriseFeatureId[];
   defaultEnvironmentSets?: EnvironmentSetSeed[];
-  enforcedPerformanceMode?: PerformanceMode;
+  /** A repository can hold work at standard; it cannot turn high-scale on. */
+  enforcedPerformanceMode?: 'standard';
   enterpriseMode?: boolean;
   role?: EnterpriseRole;
 }
@@ -166,12 +167,10 @@ export class RoleGuard {
   }
 
   public resolvePerformanceMode(): PerformanceMode {
-    if (this.enterpriseConfig?.enforcedPerformanceMode) {
-      return this.enterpriseConfig.enforcedPerformanceMode;
+    if (this.enterpriseConfig?.enforcedPerformanceMode === 'standard') {
+      return 'standard';
     }
-
-    const configured = this.getConfiguration().get<PerformanceMode>('performance.mode', 'standard');
-    return configured === 'high-scale' ? 'high-scale' : 'standard';
+    return readPerformanceMode(this.getConfiguration());
   }
 
   public isProfileLocked(profileId: string): boolean {
@@ -318,10 +317,7 @@ function normalizeConfig(parsed: Record<string, unknown>): EnterpriseConfigFile 
       ? parsed.role
       : undefined;
 
-  const enforcedPerformanceMode =
-    parsed.enforcedPerformanceMode === 'standard' || parsed.enforcedPerformanceMode === 'high-scale'
-      ? parsed.enforcedPerformanceMode
-      : undefined;
+  const enforcedPerformanceMode = parsed.enforcedPerformanceMode === 'standard' ? 'standard' : undefined;
 
   const disabledFeatures = Array.isArray(parsed.disabledFeatures)
     ? parsed.disabledFeatures

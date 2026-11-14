@@ -1,4 +1,4 @@
-// fmweb-managed: runtime template v10. Preview session security; keep this file identical to the shipped template.
+// fmweb-managed: runtime template v11. Preview session security; keep this file identical to the shipped template.
 import { NextRequest, NextResponse } from 'next/server';
 import { consumeLaunchCode, previewHostAllowed, previewSessionAllowed, SESSION_COOKIE } from './lib/preview-security';
 

@@ -1,4 +1,4 @@
-// fmweb-managed: runtime template v10. The FileMaker Data API Tools extension refreshes this file when the template version changes; keep your own changes in other files.
+// fmweb-managed: runtime template v11. The FileMaker Data API Tools extension refreshes this file when the template version changes; keep your own changes in other files.
 'use client';
 
 import * as React from 'react';
@@ -16,6 +16,7 @@ import {
 
 interface RuntimeLayoutClientProps {
   layout: LayoutDefinition;
+  serverOrigin?: string;
   initialRecordId?: string;
   initialRecordIndex?: number;
   debug?: boolean;
@@ -23,6 +24,7 @@ interface RuntimeLayoutClientProps {
 
 export function RuntimeLayoutClient({
   layout,
+  serverOrigin,
   initialRecordId,
   initialRecordIndex,
   debug = false
@@ -246,7 +248,7 @@ export function RuntimeLayoutClient({
           layout={layout}
           mode="runtime"
           onObjectAction={handleObjectAction}
-          runtimeData={{ ...runtime.runtimeData,
+          runtimeData={{ ...runtime.runtimeData, serverOrigin,
             fieldValues: edit ? edit.draft : runtime.runtimeData.fieldValues,
             creating: edit?.creating,
             editing: edit !== undefined && !runtime.loading,

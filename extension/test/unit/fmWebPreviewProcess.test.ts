@@ -35,7 +35,7 @@ function exit(child: MockChild, code = 0) {
 function preview(platform: NodeJS.Platform = 'linux', sourceEnv: NodeJS.ProcessEnv = {}) {
   return new FmWebPreviewProcess({ platform, spawn, kill, tempRoot: directory, sourceEnv });
 }
-const start = (preview: FmWebPreviewProcess) => preview.start(new Map([['package.json', Buffer.from('{}')]]), new Map(), 'http://127.0.0.1:1234/fm', 'dummy-secret');
+const start = (preview: FmWebPreviewProcess) => preview.start(new Map([['package.json', Buffer.from('{}')]]), new Map(), 'http://127.0.0.1:1234/fm', 'dummy-secret', 'https://user:private@example.test:8443/path?session=private');
 
 beforeEach(async () => {
   directory = await mkdtemp(path.join(tmpdir(), 'fmweb-process-test-'));
@@ -98,6 +98,9 @@ describe('private preview process', () => {
     const devEnv = dev.options.env as NodeJS.ProcessEnv;
     expect(installEnv).not.toHaveProperty('FMWEB_BRIDGE_TOKEN');
     expect(devEnv.FMWEB_BRIDGE_TOKEN).toBe('dummy-secret');
+    expect(devEnv.FMWEB_SERVER_ORIGIN).toBe('https://example.test:8443');
+    expect(JSON.stringify(devEnv)).not.toContain('private');
+    expect(installEnv).not.toHaveProperty('FMWEB_SERVER_ORIGIN');
     expect(devEnv.FMWEB_LAUNCH_CODE).toHaveLength(64);
     expect(devEnv.FMWEB_PREVIEW_SESSION).toHaveLength(64);
     expect(devEnv.FMWEB_LAUNCH_CODE).not.toBe(devEnv.FMWEB_PREVIEW_SESSION);

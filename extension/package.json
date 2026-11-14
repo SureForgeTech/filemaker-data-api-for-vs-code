@@ -79,6 +79,8 @@
         "filemaker.enterprise.mode",
         "filemaker.enterprise.role",
         "filemaker.batch.maxRecords",
+        "filemaker.connect.maxRetries",
+        "filemaker.performance.mode",
         "filemaker.batch.concurrency",
         "filemaker.batch.dryRunDefault",
         "filemaker.offline.mode",
@@ -1087,8 +1089,8 @@
             "default": 3,
             "minimum": 0,
             "maximum": 10,
-            "description": "Per workspace. Number of retries the FileMaker connect command performs on transient login failures (network errors, 5xx). 0 disables retry.",
-            "markdownDescription": "**Per workspace.** Number of retries the FileMaker connect command performs on transient login failures (network errors, 5xx). 0 disables retry.",
+            "description": "Workspace can only make this stricter. A workspace may lower the User retry limit, never raise it. Number of retries the FileMaker connect command performs on transient login failures (network errors, 5xx). 0 disables retry.",
+            "markdownDescription": "**Workspace can only make this stricter.** A workspace may lower the User retry limit, never raise it. Number of retries the FileMaker connect command performs on transient login failures (network errors, 5xx). 0 disables retry.",
             "order": 3
           },
           "filemaker.connect.backoffInitialMs": {
@@ -1296,8 +1298,9 @@
               "Larger pages and adaptive concurrency for big exports; batch exports are written as JSON Lines."
             ],
             "default": "standard",
-            "description": "Per workspace. High-scale mode optimizes batch/export workflows for large datasets.",
-            "markdownDescription": "**Per workspace.** High-scale mode optimizes batch/export workflows for large datasets.",
+            "scope": "application",
+            "description": "User settings only. High-scale mode optimizes batch/export workflows for large datasets.",
+            "markdownDescription": "**User settings only.** High-scale mode optimizes batch/export workflows for large datasets.",
             "order": 8
           }
         }

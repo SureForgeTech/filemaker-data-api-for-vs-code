@@ -1,12 +1,13 @@
 import * as React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createBlankLayout, FIELD_LAYOUT, standardFieldSize, type LayoutDefinition } from '@fmweb/shared';
 import { loadLayoutDefinition } from './layout-loader';
 import LayoutPage from '../app/layouts/[id]/page';
 
 let viewport: { width: number; height: number } | undefined;
 beforeEach(() => { viewport = undefined; });
+afterEach(() => { vi.unstubAllEnvs(); });
 
 vi.mock('./layout-loader', () => ({ loadLayoutDefinition: vi.fn() }));
 vi.mock('../app/layouts/[id]/runtime-layout-client', async () => {
@@ -36,6 +37,16 @@ describe('web layout view page', () => {
     const client = React.Children.toArray(route.props.children).find((child) =>
       React.isValidElement(child) && child.type !== 'style') as React.ReactElement<Record<string, unknown>>;
     expect(client.props).toMatchObject({ initialRecordId: '19', initialRecordIndex: 2, debug: true });
+  });
+
+  it.each([['https://user:private@example.test:8443/path?session=private', 'https://example.test:8443'], ['invalid', undefined]])('passes only the server origin to the browser (%s)', async (url, expected) => {
+    vi.stubEnv('FMWEB_SERVER_ORIGIN', url);
+    vi.mocked(loadLayoutDefinition).mockResolvedValue(fixture());
+    const route = await LayoutPage({ params: Promise.resolve({ id: 'layout' }) });
+    const client = React.Children.toArray(route.props.children).find((child) =>
+      React.isValidElement(child) && child.type !== 'style') as React.ReactElement<Record<string, unknown>>;
+    expect(client.props.serverOrigin).toBe(expected);
+    expect(JSON.stringify(client.props)).not.toContain('private');
   });
 
   it('renders the shared standard widths, full control heights and top labels', async () => {

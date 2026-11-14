@@ -22,7 +22,7 @@ const onFieldChange = vi.fn();
 function render(object: FieldLayoutObject, value?: unknown, editing = false, mode: 'runtime' | 'designer' = 'runtime'): void {
   const layout = createBlankLayout('Fields'); layout.objects = [object];
   act(() => root.render(React.createElement(LayoutContainer, { layout, mode, runtimeData: {
-    fieldValues: { [object.fmFieldName]: value }, editing, onFieldChange
+    serverOrigin: 'https://example.com', fieldValues: { [object.fmFieldName]: value }, editing, onFieldChange
   } })));
 }
 
@@ -59,6 +59,13 @@ describe('runtime field values', () => {
     expect(host.querySelector('a')?.getAttribute('href')).toBe('https://example.com/file.pdf');
     render(field({ kind: 'container' }), 'javascript:alert(1)'); expect(host.querySelector('a,img')).toBeNull();
     render(field({ kind: 'container' }), ''); expect(host.querySelector('a,img,input')).toBeNull();
+  });
+  it('shows off-server container addresses as plain text', () => {
+    for (const value of ['https://evil.test/photo.png', 'https://evil.test/file.pdf']) {
+      render(field({ kind: 'container' }), value);
+      expect(host.querySelector('a,img')).toBeNull();
+      expect(host.textContent).toContain(value);
+    }
   });
   it('shows the address of a container whose image cannot be shown', () => {
     render(field({ kind: 'container' }), 'https://example.com/photo.jpg');
