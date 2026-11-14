@@ -1,5 +1,5 @@
 import { X509Certificate } from 'crypto';
-import { readFileSync, statSync } from 'fs';
+import { statSync } from 'fs';
 import http, { type ClientRequest, type IncomingMessage, type RequestOptions } from 'http';
 import https, { Agent, type AgentOptions } from 'https';
 import * as tls from 'tls';
@@ -9,6 +9,7 @@ import shouldBypassProxy from 'axios/unsafe/helpers/shouldBypassProxy.js';
 import type { ConnectionProfile } from '../types/fm';
 import { CERT_PIN_EXPIRED_CODE, CERT_PIN_MISMATCH_CODE, PIN_THROUGH_PROXY_MESSAGE, isTrustableCertificateCode } from '../utils/networkErrors';
 import { FMClientError } from './errors';
+import { readCaBundleFile } from '../utils/tlsProfile';
 
 type TlsProfileOptions = Pick<
   ConnectionProfile,
@@ -184,10 +185,10 @@ export function checkPinnedCertificate(
   if (!pin.allowExpired) {
     const from = Date.parse(presented?.valid_from ?? '');
     const to = Date.parse(presented?.valid_to ?? '');
-    if (!Number.isNaN(to) && now > to) {
+    if (Number.isNaN(from) || Number.isNaN(to) || now > to) {
       return { code: CERT_PIN_EXPIRED_CODE, message: 'The certificate you trusted has expired.' };
     }
-    if (!Number.isNaN(from) && now < from) {
+    if (now < from) {
       return { code: 'CERT_NOT_YET_VALID', message: 'The certificate you trusted is not valid yet.' };
     }
   }
@@ -589,8 +590,11 @@ export function createHttpsAgentForProfile(profile: TlsProfileOptions): Agent {
   if (caBundlePath) {
     let pem: string;
     try {
-      pem = readFileSync(caBundlePath, 'utf8');
+      pem = readCaBundleFile(caBundlePath);
     } catch (error) {
+      if (error instanceof FMClientError) {
+        throw error;
+      }
       throw buildCaBundleError(caBundlePath, error);
     }
     assertContainsCertificate(pem, caBundlePath);

@@ -77,12 +77,7 @@ export async function handleTestConnection(ctx: WizardContext, data: WizardFormD
 
     await postTestProgress(ctx, 'Preparing credentials…');
     const typedSecret = data.authMode === 'direct' ? data.password : data.proxyApiKey;
-    const bindingChanged = credentialBindingChanged(ctx,
-      data.authMode,
-      target,
-      data.username,
-      serverValidation.value
-    );
+    const bindingChanged = credentialBindingChanged(ctx, data);
     let secret = typedSecret && typedSecret.length > 0 ? typedSecret : undefined;
     if (!secret && ctx.editingProfile && !bindingChanged) {
       // Unchanged server and user: the saved secret may be used for the test.
@@ -94,7 +89,7 @@ export async function handleTestConnection(ctx: WizardContext, data: WizardFormD
     if (!secret) {
       throw new Error(
         bindingChanged
-          ? 'The server address or user changed. Enter the password (or API key) again to test it.'
+          ? 'The server address, database, API path or user changed. Enter the password (or API key) again to test it.'
           : data.authMode === 'direct'
             ? 'Enter a password to test the connection.'
             : 'Enter the proxy API key to test the connection.'

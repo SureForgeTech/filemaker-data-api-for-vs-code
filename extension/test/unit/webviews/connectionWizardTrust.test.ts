@@ -163,10 +163,46 @@ describe('Connection wizard credential safety', () => {
       await h.secrets.setPassword('p1', 'saved-secret');
       await h.secrets.setSessionToken('p1', 'still-valid');
 
-      await h.fire({ type: 'save', payload: { ...form, name: 'Renamed', database: 'Other' } });
+      await h.fire({ type: 'save', payload: { ...form, name: 'Renamed' } });
 
       expect(types(h)).toContain('saveSuccess');
       expect(await h.secrets.getPassword('p1')).toBe('saved-secret');
+      expect(await h.secrets.getSessionToken('p1')).toBe('still-valid');
+    });
+
+    it.each([
+      { serverUrl: 'https://fm.example.com/tenant-b' },
+      { apiBasePath: '/tenant-b/fmi/data' },
+      { apiVersionPath: 'v1' },
+      { apiBasePath: '' },
+      { apiVersionPath: '' },
+      { database: 'Other' }
+    ])('requires new credentials for a changed application binding: %j', async (change) => {
+      const h = await setup({ editing: { ...saved, serverUrl: 'https://fm.example.com/tenant-a' } });
+      await h.secrets.setPassword('p1', 'saved-secret');
+      await h.secrets.setSessionToken('p1', 'old-app-token');
+      const changed = { ...form, serverUrl: 'https://fm.example.com/tenant-a', ...change };
+
+      await h.fire({ type: 'testConnection', payload: changed });
+      expect(lastMessage(h, 'testError')).toMatch(/changed/);
+      expect(h.createSession).not.toHaveBeenCalled();
+      await h.fire({ type: 'save', payload: changed });
+      expect(lastMessage(h, 'saveError')).toMatch(/Enter the password again/);
+      expect(h.upsertProfile).not.toHaveBeenCalled();
+      expect(await h.secrets.getSessionToken('p1')).toBe('old-app-token');
+
+      await h.fire({ type: 'save', payload: { ...changed, password: 'typed-again' } });
+      expect(h.upsertProfile).toHaveBeenCalledTimes(1);
+      expect(await h.secrets.getPassword('p1')).toBe('typed-again');
+      expect(await h.secrets.getSessionToken('p1')).toBeUndefined();
+    });
+
+    it('keeps credentials for equivalent normalized server paths', async () => {
+      const h = await setup({ editing: { ...saved, serverUrl: 'https://FM.EXAMPLE.COM:443/tenant-a/' } });
+      await h.secrets.setPassword('p1', 'saved-secret');
+      await h.secrets.setSessionToken('p1', 'still-valid');
+      await h.fire({ type: 'save', payload: { ...form, serverUrl: 'https://fm.example.com/tenant-a' } });
+      expect(types(h)).toContain('saveSuccess');
       expect(await h.secrets.getSessionToken('p1')).toBe('still-valid');
     });
 
@@ -351,6 +387,30 @@ describe('Connection wizard credential safety', () => {
       expect(h.createSession).not.toHaveBeenCalled();
     });
 
+    it.each([
+      { proxyEndpoint: 'https://proxy.example.com/other' },
+      { serverUrl: 'https://backend.example.com/other' },
+      { apiBasePath: '/other/data' },
+      { apiVersionPath: 'v1' },
+      { apiBasePath: '' },
+      { apiVersionPath: '' },
+      { database: 'Other' }
+    ])('requires a new key for a changed proxy application binding: %j', async (change) => {
+      const h = await setup({ editing: savedProxy as never });
+      await h.secrets.setProxyApiKey('p1', 'saved-key');
+      await h.secrets.setSessionToken('p1', 'old-app-token');
+      await h.fire({ type: 'testConnection', payload: { ...proxyForm, ...change } });
+      expect(lastMessage(h, 'testError')).toMatch(/changed/);
+      expect(h.createSession).not.toHaveBeenCalled();
+      await h.fire({ type: 'save', payload: { ...proxyForm, ...change } });
+      expect(lastMessage(h, 'saveError')).toMatch(/Enter the proxy API key again/);
+      expect(h.upsertProfile).not.toHaveBeenCalled();
+      await h.fire({ type: 'save', payload: { ...proxyForm, ...change, proxyApiKey: 'typed-again' } });
+      expect(h.upsertProfile).toHaveBeenCalledTimes(1);
+      expect(await h.secrets.getSessionToken('p1')).toBeUndefined();
+      expect(await h.secrets.getProxyApiKey('p1')).toBe('typed-again');
+    });
+
     it('requires the API key again when only the backend address of a saved proxy profile changes', async () => {
       const h = await setup({ editing: savedProxy as never });
       await h.fire({ type: 'save', payload: { ...proxyForm, serverUrl: 'https://other-backend.example.com' } });
@@ -402,6 +462,18 @@ describe('Connection wizard credential safety', () => {
       await h.fire({ type: 'save', payload: { ...form, serverUrl: 42 } });
       await h.fire({ type: 'testConnection', payload: { ...form, authMode: 'ssh' } });
       expect(types(h)).toEqual(expect.arrayContaining(['saveError', 'testError']));
+      expect(h.upsertProfile).not.toHaveBeenCalled();
+      expect(h.createSession).not.toHaveBeenCalled();
+    });
+
+    it.each(['?tenant=other', '#other'])('reports an invalid stored URL clearly when saving or testing: %s', async (suffix) => {
+      const serverUrl = `${saved.serverUrl}${suffix}`;
+      const h = await setup({ editing: { ...saved, serverUrl } });
+      const payload = { ...form, serverUrl, password: 'typed' };
+      await h.fire({ type: 'save', payload });
+      await h.fire({ type: 'testConnection', payload });
+      expect(lastMessage(h, 'saveError')).toMatch(/must not contain a query string or fragment/);
+      expect(lastMessage(h, 'testError')).toMatch(/must not contain a query string or fragment/);
       expect(h.upsertProfile).not.toHaveBeenCalled();
       expect(h.createSession).not.toHaveBeenCalled();
     });
